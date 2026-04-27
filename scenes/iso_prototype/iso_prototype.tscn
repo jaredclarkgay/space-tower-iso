@@ -35,10 +35,23 @@ environment = SubResource("Environment_iso")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-; Local position is (0, d·sin30°, d·cos30°) for d=20 → (0, 10, 17.32) — paired
-; with the -30° X tilt set in iso_camera.gd, this aims the camera at the
-; pivot's origin. The script's _ready() recomputes from constants and
-; overrides this; the .tscn value just keeps the editor preview correct.
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 17.32)
 script = ExtResource("3_camera")
 pivot_path = NodePath("..")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="ControlsLabel" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 380.0
+offset_bottom = 240.0
+text = "WASD / Arrows   Move
+Space           Jump
+Q / R           Rotate camera 90°
+Wheel · = / -   Zoom
+Middle-drag     Pan
+E               Interact"
+theme_override_colors/font_color = Color(1, 1, 1, 0.92)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6

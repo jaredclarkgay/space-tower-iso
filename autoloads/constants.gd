@@ -20,13 +20,17 @@ const ISO_TILE_W := 64
 const ISO_TILE_H := 32
 
 # --- 3D world scale (Phase 3) ---
-# Each block in the sim is 2 m wide along X, 4 m deep along Z. Floor slab is
-# 0.2 m thick; one floor "story" is 3 m tall. Player walks on top of the slab.
+# Each block in the sim is 2 m wide along X. The floor's Z depth is 8 m so
+# the Garden has room for two parallel rows of planters with a walkway
+# between them. Slab is 0.2 m thick; one floor "story" is 3 m tall.
 const BLOCK_3D_W := 2.0
-const BLOCK_3D_D := 4.0
+const BLOCK_3D_D := 8.0
 const FLOOR_3D_SLAB_THICKNESS := 0.2
 const FLOOR_3D_STORY_HEIGHT := 3.0
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
+
+# Two parallel planter rows, evenly spaced from the walkway center.
+const PLANTER_ROW_Z_OFFSETS := [2.2, -2.2]
 
 # Total floor extent
 const FLOOR_3D_WIDTH := float(BLOCKS_PER_FLOOR) * BLOCK_3D_W   # 12 * 2 = 24 m
@@ -36,13 +40,15 @@ const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 18.0 # initial size (smaller = zoomed in)
+const CAMERA_ORTHO_SIZE_DEFAULT := 20.0 # initial size (smaller = zoomed in)
 const CAMERA_ORTHO_SIZE_MIN := 6.0
 const CAMERA_ORTHO_SIZE_MAX := 36.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 
 # --- Player movement (3D) ---
-const PLAYER_MOVE_SPEED := 4.0          # m/s
+const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
+const PLAYER_GRAVITY := 22.0            # m/s² downward acceleration
+const PLAYER_JUMP_VELOCITY := 8.0       # m/s upward impulse on jump
 
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)
