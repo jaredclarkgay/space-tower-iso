@@ -1,8 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=5 format=3 uid="uid://c63jddsadj8we"]
 
-[ext_resource type="Script" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
-[ext_resource type="Script" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
-[ext_resource type="Script" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
+[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -24,20 +24,21 @@ script = ExtResource("2_player")
 camera_pivot_path = NodePath("../../CameraPivot")
 
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
-; Rx(-60°): light shines mostly straight down with a slight forward tilt.
-; Direction = -basis_z = (0, -0.866, -0.5).
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
 light_color = Color(1, 0.92, 0.78, 1)
 light_energy = 0.7
-shadow_enabled = false
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_iso")
 
 [node name="CameraPivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+; Local position is (0, d·sin30°, d·cos30°) for d=20 → (0, 10, 17.32) — paired
+; with the -30° X tilt set in iso_camera.gd, this aims the camera at the
+; pivot's origin. The script's _ready() recomputes from constants and
+; overrides this; the .tscn value just keeps the editor preview correct.
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 17.32)
 script = ExtResource("3_camera")
 pivot_path = NodePath("..")

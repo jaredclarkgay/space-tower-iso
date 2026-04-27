@@ -35,7 +35,8 @@ const FLOOR_3D_WIDTH := float(BLOCKS_PER_FLOOR) * BLOCK_3D_W   # 12 * 2 = 24 m
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
-const CAMERA_ORTHO_SIZE_DEFAULT := 14.0 # initial size (smaller = zoomed in)
+const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
+const CAMERA_ORTHO_SIZE_DEFAULT := 18.0 # initial size (smaller = zoomed in)
 const CAMERA_ORTHO_SIZE_MIN := 6.0
 const CAMERA_ORTHO_SIZE_MAX := 36.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick

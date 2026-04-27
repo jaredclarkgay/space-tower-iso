@@ -25,6 +25,21 @@
       "files_touched": [
         "scenes/iso_prototype/iso_prototype.tscn"
       ]
+    },
+    {
+      "id": "F-003",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "godot_3d_camera_framing",
+      "summary": "Camera was placed at pivot-local (0, 0, 20) and tilted -30° on X. With that tilt, the look ray from (0, 0, 20) toward the camera's -Z misses the pivot origin entirely — the ray reaches the y=0 plane at point (0, 0, 17.32) in pivot-local frame, which after the pivot's 45° Y rotation puts the look target at world (12.25, 0, 12.25), well off the floor. Result: floor crowded into the upper-left of the viewport, mostly black space.",
+      "trigger": "Operator reported the game showing only a sliver of the scene in the upper-left after pressing F5 in Godot.app. Confirmed by reviewing screenshot.",
+      "fix": "Compute camera local position from the tilt angle and a CAMERA_DISTANCE constant: position = (0, d·sin|θ|, d·cos|θ|). For θ=-30°, d=20 → (0, 10, 17.32). With that position, the camera's -30° tilt makes its look ray pass exactly through the pivot's origin. Also bumped CAMERA_ORTHO_SIZE_DEFAULT from 14 to 18 for more breathing room around the 24 m floor. Logic now lives in iso_camera.gd `_ready()`, computed from constants so future tilt changes don't require manual position re-derivation. Updated the .tscn camera transform to match for editor-preview consistency.",
+      "rule_added": "rules/godot_camera_framing.md (TODO)",
+      "files_touched": [
+        "autoloads/constants.gd",
+        "scenes/iso_prototype/iso_camera.gd",
+        "scenes/iso_prototype/iso_prototype.tscn"
+      ]
     }
   ]
 }

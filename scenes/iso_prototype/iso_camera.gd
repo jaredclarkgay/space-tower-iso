@@ -27,9 +27,15 @@ var _panning := false
 func _ready() -> void:
 	projection = PROJECTION_ORTHOGONAL
 	rotation_degrees = Vector3(_c.CAMERA_TILT_DEG, 0, 0)
-	# Pull camera back along its local -Z so the orthographic view frames the
-	# scene without near-plane clipping. Distance is mostly cosmetic in ortho.
-	position = Vector3(0, 0, 20)
+	# Position the camera so that, with the -30° X tilt applied, its look
+	# direction passes through the pivot's origin. For a tilt of θ below
+	# horizontal at distance d, the local offset is (0, d·sin|θ|, d·cos|θ|).
+	# That math is what wires "rotate the camera and look at the pivot" into
+	# a single transform — getting it wrong makes the framing drift off-target
+	# (caught in F-003).
+	var tilt_rad: float = deg_to_rad(abs(_c.CAMERA_TILT_DEG))
+	var d: float = _c.CAMERA_DISTANCE
+	position = Vector3(0.0, d * sin(tilt_rad), d * cos(tilt_rad))
 	near = 0.1
 	far = 200.0
 	size = _c.CAMERA_ORTHO_SIZE_DEFAULT
