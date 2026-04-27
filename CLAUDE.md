@@ -53,6 +53,7 @@ When in doubt, **append rather than guess**. Surfacing an unresolved decision in
 - **Movement: WASD + arrow keys for `move_left`, `move_right`, `move_up`, `move_down`.** Iso projection means screen-space input is mapped to world-space vectors inside `iso_player.gd` (Phase 3).
 - **Camera pan: middle-click drag** (handled in `iso_camera.gd`); also bind Shift+arrows in Phase 3 if useful. No InputMap action for raw drag — Godot models that as a mouse motion event handled in `_unhandled_input`.
 - **Iso demo source: GitHub clone, not AssetLib.** Phase 1 will clone `godotengine/godot-demo-projects` and copy the iso demo into `references/godot_iso_demo/` with its license.
+- **Architecture (Phase 2, locked 2026-04-26): Path B realized as `Camera3D` orthographic on a 3D scene graph**, rotated -30° X / 45° Y, parented to a CameraPivot for 90° rotation. `GameState` is the single source of truth for player position and camera state; the iso scene is one renderer of that world. Rationale: full write-up in `references/iso_research.md` and `agent/session_log.md` Phase 2 entry.
 
 ## References to docs/
 
@@ -68,12 +69,12 @@ When in doubt, **append rather than guess**. Surfacing an unresolved decision in
 
 The brief at `iso-vertical-slice-brief.md` (operator-local copy) defines five phases with hard STOP gates. Honor every gate — surface what was produced and wait for approval before proceeding.
 
-1. **Phase 0** — Bootstrap (this is where we are when this file is committed).
-2. **Phase 1** — Setup and research (`references/iso_research.md`).
-3. **Phase 2** — Architecture decision (Path A pure iso vs Path B renderer swap).
-4. **Phase 3** — Build the slice.
-5. **Phase 4** — Self-evaluation.
-6. **Phase 5** — Handoff (screenshots, summary, push).
+1. **Phase 0** — Bootstrap. **Done** (commit `a8317b1`).
+2. **Phase 1** — Setup and research (`references/iso_research.md`). **Done** (commit `d8e3cb8`).
+3. **Phase 2** — Architecture decision. **Done** — Path B + 3D-orthographic locked (commit `16fe1d9`).
+4. **Phase 3** — Build the slice. **Done** — `scenes/iso_prototype/` complete and runnable.
+5. **Phase 4** — Self-evaluation. Pending operator playthrough.
+6. **Phase 5** — Handoff (screenshots, summary, push). Pending Phase 4.
 
 ## Style notes
 

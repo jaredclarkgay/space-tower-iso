@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Space-Tower-Iso"
-; run/main_scene set in Phase 3 once iso_prototype.tscn exists.
+run/main_scene="res://scenes/iso_prototype/iso_prototype.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 

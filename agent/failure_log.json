@@ -1,3 +1,30 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "id": "F-001",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "gdscript_parse",
+      "summary": "GDScript :=  walrus inference fails on expressions involving autoload property accesses, because @onready var _c: Node = get_node(\"/root/Constants\") types autoload property reads as Variant.",
+      "trigger": "First headless --import after writing iso_floor.gd. Four parse errors at lines 57, 59, 75, 76: `Cannot infer the type of <var> because the value doesn't have a set type.`",
+      "fix": "Change `var x := _c.SOMETHING * 0.5` → `var x: float = _c.SOMETHING * 0.5`. Explicit annotation when reading autoload-derived numeric values.",
+      "rule_added": "rules/gdscript_autoload_typing.md (TODO)",
+      "files_touched": [
+        "scenes/iso_prototype/iso_floor.gd"
+      ]
+    },
+    {
+      "id": "F-002",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "godot_3d_transform",
+      "summary": "DirectionalLight3D transform matrix authored by hand pointed the light direction the wrong way. In Godot, the cast direction is `-basis_z`, not `+basis_z`. The initial transform had basis_z with a positive Y component, which made the light shine up at the ceiling.",
+      "trigger": "Internal review while writing iso_prototype.tscn. Caught before the operator opened the scene.",
+      "fix": "Replaced with a simple Rx(-60°) rotation matrix: `Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)`. Light direction is now (0, -0.866, -0.5) — mostly down with a slight forward tilt.",
+      "rule_added": "rules/godot_directional_light.md (TODO)",
+      "files_touched": [
+        "scenes/iso_prototype/iso_prototype.tscn"
+      ]
+    }
+  ]
 }

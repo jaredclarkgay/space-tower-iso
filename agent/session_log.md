@@ -128,5 +128,72 @@ GameState reads/writes player_pos and camera state; iso_player and iso_camera bo
 ### Migration cleanup note (still pending, not blocking)
 - Sibling repos `space-tower/` and `Space-Tower-Browser-Prototype/` are still in Dropbox. Operator deferred their migration to a separate task; not blocking this slice.
 
+### Operator approval
+- 2026-04-26: Operator approved Path B + Camera3D orthographic. Phase 3 build commenced.
+
+### Phase 3 — Build the vertical slice
+
+**Files produced (under `scenes/iso_prototype/`):**
+
+- **`iso_prototype.tscn`** — root scene, set as `run/main_scene`. Tree:
+  `Node3D > World{IsoFloor, IsoPlayer} + EnvLight + WorldEnvironment + CameraPivot{Camera3D}`. WorldEnvironment provides ambient
+  fill (warm grey-blue), DirectionalLight3D adds a warm 60°-down "sun".
+- **`iso_floor.gd`** — procedural Garden floor. 12 blocks along X. Buildable
+  blocks (per `Constants.is_buildable`) get a soil planter + green sphere
+  plant + small red "fruit"; a grow-light fixture above with an emissive
+  bulb + an OmniLight3D that pulses on a 2.5s sin cycle. Window blocks
+  (3, 7, 11) render as fence posts; elevator block (6) renders as a
+  translucent shaft hint. Two long translucent water-pipe cylinders run
+  along the front and back of the floor.
+- **`iso_player.gd`** — `CharacterBody3D` with WASD/arrow movement.
+  4-direction (justified inline). Input is camera-relative — rotated by
+  the camera pivot's yaw so "up" on screen is always "into the scene"
+  after a 90° rotation. Visual: capsule body in hardhat orange, box
+  head, yellow hardhat dome, dark facing-nub on the front.
+- **`iso_camera.gd`** — orthographic Camera3D parented to a CameraPivot
+  Node3D. `_ready()` sets projection, tilt (-30° X), initial yaw (45° Y),
+  ortho size (14 m). `_unhandled_input` handles Q/R rotate (tween 0.2s
+  on pivot.rotation_degrees.y), mouse-wheel + `=`/`-` zoom (multiplicative,
+  clamped 6–36), middle-click drag pan (basis-relative on XZ plane).
+  Mirrors state into `GameState.camera` every frame.
+
+**Constants additions (`autoloads/constants.gd`):**
+- `BLOCK_3D_W=2`, `BLOCK_3D_D=4`, `FLOOR_3D_SLAB_THICKNESS=0.2`,
+  `FLOOR_3D_STORY_HEIGHT=3`, `FLOOR_3D_WIDTH=24`.
+- `CAMERA_TILT_DEG=-30`, `CAMERA_YAW_DEG_INITIAL=45`,
+  `CAMERA_ROTATE_DURATION=0.2`, `CAMERA_ORTHO_SIZE_DEFAULT=14`,
+  `CAMERA_ORTHO_SIZE_MIN=6`, `CAMERA_ORTHO_SIZE_MAX=36`,
+  `CAMERA_ZOOM_FACTOR=0.9`.
+- `PLAYER_MOVE_SPEED=4` m/s.
+
+**GameState additions:** `player.iso_pos: Vector3`, `camera.target: Vector3`,
+`camera.ortho_size: float`, `camera.angle_step: int`.
+
+**`project.godot`:** `run/main_scene` set to `res://scenes/iso_prototype/iso_prototype.tscn`.
+
+**Failure caught and fixed:**
+- First import surfaced 4 GDScript parse errors in `iso_floor.gd` —
+  `:=` walrus inference failed on autoload-derived expressions because
+  Godot types autoload property accesses as `Variant`, not their concrete
+  type. Fixed by changing the affected locals to explicit `: float =`
+  annotations. Logged to `failure_log.json`.
+- Initial `EnvLight` transform matrix had the light pointing up (rookie
+  Godot Transform3D mistake — `-basis_z` is the directional cast).
+  Replaced with a clean Rx(-60°) rotation matrix; light now points
+  mostly down with a slight forward tilt. Cosmetic, but important for
+  the Garden to read warm.
+
+**Verification:**
+- `Godot.app --headless --import` exits 0, no script errors, no
+  warnings beyond the (benign) "another project.godot at
+  references/godot_iso_demo" — that vendored demo is correctly skipped.
+- `Godot.app --headless --quit-after 60` runs the scene for 60 frames
+  and exits 0 with no runtime errors.
+- Visual verification (camera framing, garden read, controls feel) is
+  the operator's job — see `iso_slice_summary.md` (Phase 5) for the
+  ask.
+
 ### Next
-- **STOP gate.** Awaiting operator approval of Path B + Camera3D orthographic before Phase 3 build begins.
+- Phase 4 self-evaluation. Will pause for operator playthrough notes
+  before writing findings to `failure_log.json` and answering the
+  brief's five evaluation questions.
