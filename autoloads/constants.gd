@@ -19,28 +19,36 @@ const FLOOR_SLAB := 4
 const ISO_TILE_W := 64
 const ISO_TILE_H := 32
 
-# --- 3D world scale (Phase 3) ---
-# Each block in the sim is 2 m wide along X. The floor's Z depth is 8 m so
-# the Garden has room for two parallel rows of planters with a walkway
-# between them. Slab is 0.2 m thick; one floor "story" is 3 m tall.
-const BLOCK_3D_W := 2.0
-const BLOCK_3D_D := 8.0
+# --- 3D world scale (Phase 3, post-iteration) ---
+# The iso slice deviates from the sibling 2D sim's 12-block-per-floor
+# convention: the operator asked for a square Garden floor with a 20×20 plot
+# grid and a centered elevator shaft. BLOCKS_PER_FLOOR (above) and
+# BLOCK_WIDTH/FLOOR_HEIGHT (above, 2D pixel values) are kept for sibling
+# parity but unused in the iso scene; iso geometry uses the GARDEN_* and
+# FLOOR_3D_* constants below.
+const GARDEN_GRID_SIZE := 20             # plots per side
+const GARDEN_PLOT_SIZE := 1.0            # metres per plot
+const ELEVATOR_RADIUS := 2               # plot cells from grid center on each axis
+const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
 const FLOOR_3D_SLAB_THICKNESS := 0.2
 const FLOOR_3D_STORY_HEIGHT := 3.0
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
 
-# Two parallel planter rows, evenly spaced from the walkway center.
-const PLANTER_ROW_Z_OFFSETS := [2.2, -2.2]
+# Walls — perimeter framing with translucent window panels.
+const WALL_HEIGHT := 2.6
+const WALL_BASE_HEIGHT := 0.6
+const WALL_THICKNESS := 0.3
+const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
-# Total floor extent
-const FLOOR_3D_WIDTH := float(BLOCKS_PER_FLOOR) * BLOCK_3D_W   # 12 * 2 = 24 m
+# Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
+const PLAYER_FALL_RESPAWN_Y := -10.0
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 20.0 # initial size (smaller = zoomed in)
+const CAMERA_ORTHO_SIZE_DEFAULT := 28.0 # initial size (smaller = zoomed in); fits 20×20 floor
 const CAMERA_ORTHO_SIZE_MIN := 6.0
 const CAMERA_ORTHO_SIZE_MAX := 36.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick

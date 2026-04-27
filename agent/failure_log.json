@@ -40,6 +40,47 @@
         "scenes/iso_prototype/iso_camera.gd",
         "scenes/iso_prototype/iso_prototype.tscn"
       ]
+    },
+    {
+      "id": "F-004",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "character_facing",
+      "summary": "Character mesh did not rotate to face the movement direction. _facing_from_input() wrote a cardinal index to GameState.player.facing, but no code applied a rotation to the body geometry. Visual was perpetually facing the same way regardless of input.",
+      "trigger": "Operator playthrough: 'The character is now perpetually facing one direction.'",
+      "fix": "Wrap the body's MeshInstance3D children in a child Node3D named Visual; rotate Visual.rotation.y each frame via lerp_angle toward atan2(world_dir.x, world_dir.z). Collision capsule remains parented to the CharacterBody3D so it doesn't spin with the visual.",
+      "rule_added": "rules/godot_character_facing.md (TODO)",
+      "files_touched": [
+        "scenes/iso_prototype/iso_player.gd"
+      ]
+    },
+    {
+      "id": "F-005",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "physics_boundary",
+      "summary": "Player could walk off the slab edge and fall into negative-Y infinity. The slab had collision but the floor had no perimeter walls and no fall fail-safe.",
+      "trigger": "Operator playthrough: 'When I jumped past the plants I fell for eternity.'",
+      "fix": "Two-layer fix. (1) Perimeter walls (StaticBody3D, full-height collision) added in iso_floor._build_walls_and_windows so the player physically can't escape. (2) Fail-safe in iso_player._physics_process: if global_position.y < PLAYER_FALL_RESPAWN_Y (-10), snap back to (0, 1, 0) and zero velocity. Belt-and-suspenders.",
+      "rule_added": null,
+      "files_touched": [
+        "autoloads/constants.gd",
+        "scenes/iso_prototype/iso_floor.gd",
+        "scenes/iso_prototype/iso_player.gd"
+      ]
+    },
+    {
+      "id": "F-006",
+      "phase": 3,
+      "date": "2026-04-26",
+      "category": "godot_node_lifecycle",
+      "summary": "SpotLight3D.look_at(target) called before the node was added to the scene tree. look_at requires the node to be inside the tree (it computes from global_transform, which is undefined outside the tree). Result: 4 ERROR lines per scene boot, one per spotlight.",
+      "trigger": "Headless --quit-after 90 surfaced 4 'Node not inside tree. Use look_at_from_position() instead.' errors after writing the per-wall spotlights.",
+      "fix": "Reorder: set spot.position, then add_child(spot), then spot.look_at(target). Alternative would have been spot.look_at_from_position(pos, target) which doesn't need the node to be in the tree first.",
+      "rule_added": "rules/godot_node_lifecycle.md (TODO)",
+      "files_touched": [
+        "scenes/iso_prototype/iso_floor.gd"
+      ]
     }
   ]
 }

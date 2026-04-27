@@ -23,9 +23,17 @@ extends CharacterBody3D
 # Camera the player should be relative to. Set by iso_prototype.tscn.
 @export var camera_pivot_path: NodePath
 var _camera_pivot: Node3D
+# Visual root — rotates with movement direction. Separate from the
+# CharacterBody3D so the collision capsule doesn't spin with the body.
+var _visual: Node3D
+var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
+const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
 
 
 func _ready() -> void:
+	_visual = Node3D.new()
+	_visual.name = "Visual"
+	add_child(_visual)
 	_build_visual()
 	_build_collision()
 	if camera_pivot_path:
@@ -63,15 +71,33 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= _c.PLAYER_GRAVITY * delta
 
 	move_and_slide()
+
+	# Visual facing: rotate the visual root toward the world-space movement
+	# direction. atan2(x, z) gives the angle around Y. Smooth via lerp_angle
+	# so the body doesn't jitter when input changes mid-step.
+	if Vector2(world_dir.x, world_dir.z).length_squared() > 0.01:
+		_facing_yaw = atan2(world_dir.x, world_dir.z)
+	if _visual:
+		_visual.rotation.y = lerp_angle(_visual.rotation.y, _facing_yaw, FACING_TURN_SPEED * delta)
+
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position
 	if input.length_squared() > 0.01:
 		_gs.player.facing = _facing_from_input(input)
 
+	# Fall fail-safe (F-005). Walls should keep us in, but if we ever escape,
+	# snap back to spawn rather than drop forever.
+	if global_position.y < _c.PLAYER_FALL_RESPAWN_Y:
+		global_position = Vector3(0, 1.0, 0)
+		velocity = Vector3.ZERO
+
 
 # --- Visual: legs + torso + arms + head + hardhat -----------------------
 
 func _build_visual() -> void:
+	# All visual primitives parent to _visual (not self) so the visual rotates
+	# with movement direction without spinning the collision capsule.
+	var v: Node3D = _visual
 	var jumpsuit := Color(0.85, 0.55, 0.25)   # hardhat-orange
 	var skin := Color(0.95, 0.78, 0.65)
 	var hat_color := Color(1.0, 0.85, 0.2)
@@ -87,7 +113,7 @@ func _build_visual() -> void:
 		leg.mesh = leg_mesh
 		leg.material_override = _make_material(jumpsuit)
 		leg.position = Vector3(0.13 * sign_x, 0.32, 0)
-		add_child(leg)
+		v.add_child(leg)
 		# Boot — small dark box at the foot.
 		var boot := MeshInstance3D.new()
 		boot.name = "Boot"
@@ -96,7 +122,7 @@ func _build_visual() -> void:
 		boot.mesh = boot_mesh
 		boot.material_override = _make_material(leather)
 		boot.position = Vector3(0.13 * sign_x, 0.05, 0.04)
-		add_child(boot)
+		v.add_child(boot)
 
 	# Torso.
 	var torso := MeshInstance3D.new()
@@ -106,7 +132,7 @@ func _build_visual() -> void:
 	torso.mesh = torso_mesh
 	torso.material_override = _make_material(jumpsuit)
 	torso.position = Vector3(0, 0.95, 0)
-	add_child(torso)
+	v.add_child(torso)
 
 	# Tool belt — thin dark band around the waist.
 	var belt := MeshInstance3D.new()
@@ -116,7 +142,7 @@ func _build_visual() -> void:
 	belt.mesh = belt_mesh
 	belt.material_override = _make_material(leather)
 	belt.position = Vector3(0, 0.7, 0)
-	add_child(belt)
+	v.add_child(belt)
 
 	# Arms (two capsules at the shoulders).
 	for sign_x in [-1, 1]:
@@ -128,7 +154,7 @@ func _build_visual() -> void:
 		arm.mesh = arm_mesh
 		arm.material_override = _make_material(jumpsuit)
 		arm.position = Vector3(0.32 * sign_x, 0.95, 0)
-		add_child(arm)
+		v.add_child(arm)
 		# Hand — tiny skin-colored cube.
 		var hand := MeshInstance3D.new()
 		hand.name = "Hand"
@@ -137,7 +163,7 @@ func _build_visual() -> void:
 		hand.mesh = hand_mesh
 		hand.material_override = _make_material(skin)
 		hand.position = Vector3(0.32 * sign_x, 0.62, 0)
-		add_child(hand)
+		v.add_child(hand)
 
 	# Head.
 	var head := MeshInstance3D.new()
@@ -147,7 +173,7 @@ func _build_visual() -> void:
 	head.mesh = head_mesh
 	head.material_override = _make_material(skin)
 	head.position = Vector3(0, 1.4, 0)
-	add_child(head)
+	v.add_child(head)
 
 	# Eyes — two tiny dark boxes on the front of the head.
 	for sign_x in [-1, 1]:
@@ -158,7 +184,7 @@ func _build_visual() -> void:
 		eye.mesh = eye_mesh
 		eye.material_override = _make_material(Color(0.1, 0.1, 0.12))
 		eye.position = Vector3(0.07 * sign_x, 1.42, 0.16)
-		add_child(eye)
+		v.add_child(eye)
 
 	# Hardhat brim — flat cylinder slightly wider than the head.
 	var brim := MeshInstance3D.new()
@@ -170,7 +196,7 @@ func _build_visual() -> void:
 	brim.mesh = brim_mesh
 	brim.material_override = _make_material(hat_color)
 	brim.position = Vector3(0, 1.59, 0.04)  # slightly forward = visor feel
-	add_child(brim)
+	v.add_child(brim)
 
 	# Hardhat dome — slightly squashed sphere on top.
 	var hat := MeshInstance3D.new()
@@ -181,7 +207,7 @@ func _build_visual() -> void:
 	hat.mesh = hat_mesh
 	hat.material_override = _make_material(hat_color)
 	hat.position = Vector3(0, 1.66, 0)
-	add_child(hat)
+	v.add_child(hat)
 
 	# Facing-direction nub on the brim front so iso direction stays readable.
 	var nub := MeshInstance3D.new()
@@ -191,7 +217,7 @@ func _build_visual() -> void:
 	nub.mesh = nub_mesh
 	nub.material_override = _make_material(Color(0.2, 0.2, 0.22))
 	nub.position = Vector3(0, 1.59, 0.28)
-	add_child(nub)
+	v.add_child(nub)
 
 
 func _build_collision() -> void:
