@@ -1,0 +1,11 @@
+{
+  "queue": [],
+  "request_types": [
+    "aesthetic_calibration",
+    "design_intent",
+    "reference_material",
+    "skill_teaching",
+    "architecture_decision",
+    "approval"
+  ]
+}

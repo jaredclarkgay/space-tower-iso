@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-04-26",
+  "domains": {
+    "godot_isometric": {
+      "confidence": "low",
+      "evidence": [],
+      "rules_learned": [],
+      "needs_from_human": [
+        "Iso projection choice — true 2:1 dimetric vs 30° classic vs other (with reasoning)",
+        "Y-sort vs depth-sort pattern best suited to a vertically stacked tower (one floor first, but extensible)",
+        "Camera composition — how pan / zoom / 90° rotate should compose without cognitive load"
+      ]
+    }
+  }
+}

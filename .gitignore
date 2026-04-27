@@ -1,0 +1,13 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# OS noise
+.DS_Store
+*.tmp
+
+# Export artifacts (not committed; generated via export presets)
+export.cfg
+
+# Local Claude scratch (per-machine)
+.claude/

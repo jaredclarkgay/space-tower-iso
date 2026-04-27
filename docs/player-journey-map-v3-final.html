@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Tower — Player Journey Map v3 (Final)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --bg: #0a0c12;
+    --track: #14171f;
+    --line: #1e2230;
+    --text: #c8ccd8;
+    --dim: #5a6070;
+    --ext: #e8a030;
+    --sim: #40a8e0;
+    --event: #e04080;
+    --unlock: #40cc80;
+    --keeper: #d4a0ff;
+    --hunger: #cc3030;
+    --suit: #3355cc;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; scroll-behavior: smooth; }
+  body { min-height: 100vh; padding: 60px 40px 120px; max-width: 900px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 80px; }
+  .header h1 { font-family: 'Instrument Serif', serif; font-size: 48px; font-weight: 400; color: #fff; letter-spacing: -1px; margin-bottom: 8px; }
+  .header .sub { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); margin-bottom: 24px; }
+  .header .legend { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .track { position: relative; padding-left: 60px; }
+  .track::before { content: ''; position: absolute; left: 23px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, var(--suit) 0%, var(--ext) 10%, var(--ext) 22%, var(--sim) 32%, var(--hunger) 38%, var(--sim) 45%, var(--ext) 52%, var(--sim) 60%, var(--event) 70%, var(--sim) 80%, var(--keeper) 92%, #fff 100%); opacity: 0.3; }
+
+  .act { position: relative; margin: 50px 0 30px; padding: 12px 0; }
+  .act-label { font-family: 'Instrument Serif', serif; font-size: 28px; color: #fff; opacity: 0.9; }
+  .act-desc { font-size: 11px; color: var(--dim); margin-top: 4px; letter-spacing: 0.5px; }
+  .act::before { content: ''; position: absolute; left: -60px; top: 50%; width: 48px; height: 2px; background: rgba(255,255,255,0.15); }
+  .act .act-num { position: absolute; left: -60px; top: -8px; width: 48px; text-align: center; font-size: 9px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+
+  .step { position: relative; margin: 0 0 8px; padding: 14px 18px; background: var(--track); border-radius: 8px; border-left: 3px solid transparent; transition: all 0.2s; cursor: default; }
+  .step:hover { background: #181c28; transform: translateX(4px); }
+  .step.ext   { border-left-color: var(--ext); }
+  .step.sim   { border-left-color: var(--sim); }
+  .step.event { border-left-color: var(--event); }
+  .step.unlock{ border-left-color: var(--unlock); }
+  .step.keeper{ border-left-color: var(--keeper); }
+  .step.hunger{ border-left-color: var(--hunger); }
+  .step.suit  { border-left-color: var(--suit); }
+  .step.eden  { border-left-color: #40cc80; }
+
+  .step::before { content: ''; position: absolute; left: -49px; top: 18px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg); transition: all 0.2s; }
+  .step.ext::before   { border-color: var(--ext); background: rgba(232,160,48,0.2); }
+  .step.sim::before   { border-color: var(--sim); background: rgba(64,168,224,0.2); }
+  .step.event::before { border-color: var(--event); background: rgba(224,64,128,0.2); }
+  .step.unlock::before{ border-color: var(--unlock); background: rgba(64,204,128,0.2); }
+  .step.keeper::before{ border-color: var(--keeper); background: rgba(212,160,255,0.2); }
+  .step.hunger::before{ border-color: var(--hunger); background: rgba(204,48,48,0.2); }
+  .step.suit::before  { border-color: var(--suit); background: rgba(51,85,204,0.2); }
+  .step.eden::before  { border-color: #40cc80; background: rgba(64,204,128,0.2); }
+  .step:hover::before { transform: scale(1.3); box-shadow: 0 0 12px rgba(255,255,255,0.1); }
+
+  .step-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .step-num { font-size: 9px; letter-spacing: 1px; color: var(--dim); min-width: 20px; }
+  .step-title { font-size: 13px; font-weight: 600; color: #eee; flex: 1; }
+  .step-mode { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; background: rgba(255,255,255,0.06); }
+  .step.ext .step-mode   { color: var(--ext); }
+  .step.sim .step-mode   { color: var(--sim); }
+  .step.event .step-mode { color: var(--event); }
+  .step.unlock .step-mode{ color: var(--unlock); }
+  .step.keeper .step-mode{ color: var(--keeper); }
+  .step.hunger .step-mode{ color: var(--hunger); }
+  .step.suit .step-mode  { color: var(--suit); }
+  .step.eden .step-mode  { color: #40cc80; }
+
+  .step-body { font-size: 11px; color: var(--dim); line-height: 1.6; padding-left: 30px; }
+  .step-detail { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+  .step.open .step-detail { max-height: 500px; }
+  .step-detail-inner { padding: 8px 0 4px 30px; font-size: 10px; color: #6a7080; line-height: 1.7; border-top: 1px solid rgba(255,255,255,0.04); margin-top: 8px; }
+
+  .speech { display: inline-block; background: rgba(51,85,204,0.12); border: 1px solid rgba(51,85,204,0.25); color: rgba(200,210,240,0.8); padding: 3px 10px; border-radius: 10px; font-size: 10px; font-style: italic; margin: 2px 4px 2px 0; position: relative; }
+  .speech::after { content: ''; position: absolute; bottom: -5px; left: 14px; width: 8px; height: 5px; background: rgba(51,85,204,0.12); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  .speech.builder { background: rgba(232,160,48,0.12); border-color: rgba(232,160,48,0.25); color: rgba(240,210,160,0.8); }
+  .speech.builder::after { background: rgba(232,160,48,0.12); }
+  .speech.keeper-s { background: rgba(212,160,255,0.12); border-color: rgba(212,160,255,0.25); color: rgba(220,200,255,0.8); }
+  .speech.keeper-s::after { background: rgba(212,160,255,0.12); }
+
+  .connector { padding: 2px 0 2px 30px; font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.15); user-select: none; }
+
+  .endpoint { text-align: center; margin-top: 60px; padding: 30px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: linear-gradient(135deg, rgba(212,160,255,0.04), rgba(232,160,48,0.04)); }
+  .endpoint h2 { font-family: 'Instrument Serif', serif; font-size: 24px; font-weight: 400; color: #fff; margin-bottom: 6px; }
+  .endpoint p { font-size: 11px; color: var(--dim); }
+
+  .floor-tag { display: inline-block; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; background: rgba(255,255,255,0.05); color: var(--dim); margin-right: 4px; vertical-align: middle; }
+
+  .phase-box { margin: 16px 0; padding: 16px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.015); }
+  .phase-box h4 { font-family: 'Instrument Serif', serif; font-size: 15px; font-weight: 400; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+  .phase-box p { font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+  .rule-box { margin: 12px 0; padding: 12px 16px; border-radius: 6px; background: rgba(255,255,255,0.025); border-left: 2px solid rgba(255,255,255,0.1); }
+  .rule-box .rule-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 6px; }
+  .rule-box p { font-size: 10px; color: var(--dim); line-height: 1.6; }
+
+  .future { opacity: 0.5; font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.3); padding: 2px 8px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 4px; display: inline-block; margin-left: 4px; }
+
+  @media (max-width: 600px) {
+    body { padding: 30px 16px 80px; }
+    .header h1 { font-size: 32px; }
+    .track { padding-left: 44px; }
+    .track::before { left: 15px; }
+    .step::before { left: -33px; width: 10px; height: 10px; }
+    .act::before { left: -44px; width: 32px; }
+    .act .act-num { left: -44px; width: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Player Journey</h1>
+  <div class="sub">Segment 1 · "Goodbye Earth" · v3 Final</div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--suit)"></div>Suits</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--ext)"></div>Exterior</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--sim)"></div>Interior</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#40cc80"></div>Eden Moment</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--event)"></div>Set Piece</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--unlock)"></div>Unlock</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--keeper)"></div>Keeper</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--hunger)"></div>Hunger</div>
+  </div>
+</div>
+
+<div class="rule-box">
+  <div class="rule-title">Dialogue Rule</div>
+  <p><strong>Suits</strong> always call it <em>"their work."</em> Sterilized. Abstract. Important-sounding. They never say "building" or "construction" — it's "the work," "our work," "the project."</p>
+  <p style="margin-top:4px"><strong>Builders</strong> always call it <em>"their job."</em> Concrete. Physical. Matter-of-fact. "The job," "my job," "this job."</p>
+  <p style="margin-top:4px">This difference is subtle but load-bearing. It shows up in every speech bubble, every NPC line, every piece of dialogue in the game.</p>
+</div>
+
+<div class="rule-box">
+  <div class="rule-title">Two Guidance Systems</div>
+  <p><strong style="color:var(--ext)">Big yellow arrows</strong> — label critical objects. "BUILD" on the seesaw. "ENTER" on the door. Always visible. Mechanical.</p>
+  <p style="margin-top:4px"><strong style="color:var(--suit)">Suit speech bubbles</strong> — social guidance. Ambient, rotating, contextual. 3–5 seconds visible, then fade. Never more than 2–3 on screen. Pool of lines per game phase.</p>
+</div>
+
+<div class="rule-box">
+  <div class="rule-title">Foundation Sync</div>
+  <p>The tower foundation must be visually synced between exterior (3D) and interior (2D). Not a huge grey block — a series of wide, stepped tiers (like long steps) leading up to the entrance door. Same design language in both views. The interior ground floor reflects the stepped foundation. 1:1 wherever possible.</p>
+</div>
+
+<div class="track">
+
+  <!-- ════════ ACT 1 ════════ -->
+  <div class="act">
+    <div class="act-num">Act 1</div>
+    <div class="act-label">Build</div>
+    <div class="act-desc">Floors 1–4 · The suits hired you · You are the builder they need</div>
+  </div>
+
+  <div class="phase-box">
+    <h4>The Arrival — Exterior Only</h4>
+    <p>The player doesn't enter the tower until they've built enough floors to be curious. The exterior IS the game at first. ~10 suits surround you — they're wearing hard hats for this kickoff. They hired you. They brought the seesaw you asked for. They are waiting. This group persists on the exterior permanently (distinct from the commuter suits who come and go in cars).</p>
+  </div>
+
+  <div class="step suit" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">01</span>
+      <span class="step-title">Spawn surrounded by hard-hat suits</span>
+      <span class="step-mode">Suits</span>
+    </div>
+    <div class="step-body">
+      ~10 suits in hard hats, gathered near the seesaw, facing you, idle-animated. Speech bubbles appear with enough time to read (4–6 seconds each). Each suit has a few unique lines. They rotate.
+      <div style="margin-top:8px">
+        <span class="speech">"There you are. We've been waiting."</span>
+        <span class="speech">"The seesaw's here — just like you spec'd it."</span>
+        <span class="speech">"Construction crew's on the roof already."</span>
+        <span class="speech">"The board fast-tracked the budget. Don't ask how."</span>
+        <span class="speech">"Everything's approved. Just need you to start the work."</span>
+        <span class="speech">"We've got steel, concrete, and... coffee?"</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      These suits are the <strong>permanent exterior crew</strong>. They don't despawn. They're distinct from commuter suits (who arrive/leave in cars). They wear hard hats at the kickoff — later they may take them off. Each one has 3–4 unique speech bubble lines that rotate with enough display time to read fully.
+    </div></div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">02</span>
+      <span class="step-title">Yellow arrow: BUILD → Seesaw tutorial moment</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">
+      Big floating yellow arrow on the seesaw: "BUILD." Also: a small interactive <strong>?</strong> icon at the base of the launcher — press it for a brief explanation of what to do.
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      <strong>First-time animation (3.4 seconds):</strong> On the very first seesaw use, a brief cinematic plays: camera pulls wide to an elevation view, demonstrates the action — you jump off the pedestal, hit the seesaw, crate launches skyward, *POOF* character teleports back onto the platform, a new crate appears on the seesaw. This only plays once. After that, gameplay is immediate.
+      <br><br>
+      The <strong>?</strong> button is always available at the base of the launcher for anyone who needs a reminder. Small, unobtrusive, press-to-read.
+    </div></div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">03</span>
+      <span class="step-title">First launch → Suits CHEER</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">
+      Crate hits the bullseye. The suits erupt:
+      <div style="margin-top:8px">
+        <span class="speech">"YES!"</span>
+        <span class="speech">"Direct hit!"</span>
+        <span class="speech">"That's why we hired you."</span>
+        <span class="speech">"One down."</span>
+      </div>
+      On miss: <span class="speech">"Close one."</span> <span class="speech">"Wind, probably."</span> No punishment, just social feedback.
+    </div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">04</span>
+      <span class="step-title">Build Floors 1–4 on exterior</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">
+      Keep launching. 2 crates per floor. Tower grows. Suits comment on progress. Between launches, explore — climb the tower, try the crane. Bulldozer is NOT visible yet.
+      <div style="margin-top:8px">
+        <span class="speech">"Two floors already. The work is on schedule."</span>
+        <span class="speech">"Lobby's taking shape."</span>
+        <span class="speech">"At this rate we'll be orbital by Tuesday."</span>
+        <span class="speech">"The crane's yours too, if you want it."</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      Suit commentary shifts as floors rise. Early: excitement. Mid: impressed. By floor 3-4: some drift toward the tower entrance, hinting there's something inside. They don't tell you to go in — they <em>migrate</em>.
+    </div></div>
+  </div>
+
+  <div class="connector">▼ suits drift toward the door</div>
+
+  <div class="step suit" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">05</span>
+      <span class="step-title">Suits hint at the interior → Yellow arrow: ENTER</span>
+      <span class="step-mode">Suits</span>
+    </div>
+    <div class="step-body">
+      After 3–4 floors, speech bubbles shift. Some suits walk to the entrance. Second yellow arrow appears on the door: "ENTER."
+      <div style="margin-top:8px">
+        <span class="speech">"Have you seen inside yet?"</span>
+        <span class="speech">"The lobby's ready for inspection."</span>
+        <span class="speech">"People are starting to move in."</span>
+        <span class="speech">"You should see what they did with your quarters."</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase-box">
+    <h4>Interior Discovery Begins</h4>
+    <p>The loop establishes: build outside, explore inside. The suits got you building, got you curious, pointed you at the door. From here they become background characters on the exterior — still commenting, but no longer the primary guide. The interior has its own language: NPCs arriving, floors lighting up, the platforming itself.</p>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">06</span>
+      <span class="step-title">Enter tower → Discover Floors 1–2</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body">
+      Walk through the stepped foundation, through the front door. Floors are lit — you built them outside. 3 stages each: Power On → Structure → Activate.
+      <span class="floor-tag">F1 Lobby</span> Reception, first worker.
+      <span class="floor-tag">F2 Quarters</span> Corner store + diner flanks. Bunks.
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      The foundation tiers are visible from inside too — the ground floor reflects the stepped exterior design. The diner flank is NOT yet activatable (needs water + crop first). Gene appears on Floor 1 — forgettable. "Do you know how many forms it takes to approve a floor? Seventeen."
+    </div></div>
+  </div>
+
+  <div class="step eden" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">07</span>
+      <span class="step-title">Floor 3 — The Garden of Eden</span>
+      <span class="step-mode">Eden Moment</span>
+    </div>
+    <div class="step-body">
+      <span class="floor-tag">F3 Garden</span> The floor has tomatoes and fruit ripening on the planters. You MUST eat the first fruit to proceed to Floor 4. The moment you eat: the <strong>hunger gauge appears</strong> in the HUD for the first time. 🧑 [██████████] — full, green. Your character has become finite. Hunger will now decay forever.
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      <strong>The Garden of Eden moment.</strong> Before this, the player is invincible — no weakness, no needs, no decay. Eating the fruit is the departure. Your character shows vulnerability for the first time. The hunger bar materializes. From now on, you need to eat.
+      <br><br>
+      <strong>Progression gate:</strong> Cannot advance past Floor 3 until fruit is eaten. This is the one mandatory interaction in the interior.
+      <br><br>
+      <strong>Visible water pipes:</strong> Floor 3 has visible pipe infrastructure — translucent pipes with flowing water visible through/beneath the planter boxes. Activating water (stage 2) is what makes the first crop ready immediately. The pipe is visible, physical, real.
+    </div></div>
+  </div>
+
+  <div class="connector">▼ hunger bar appears — you are now mortal</div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">08</span>
+      <span class="step-title">Diner unlocks → Floor 4 exploration</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body">
+      Now that water is on and a crop is ready, the Floor 2 diner flank activates. You can eat there too. <span class="floor-tag">F4 Research</span> Labs, data streams. Gene on Floor 3 — still forgettable.
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      <strong>Diner activation chain:</strong> 1. Turn on water (Garden Floor 3, stage 2) → 2. First crop is ready (immediate after water) → 3. Diner flank on Floor 2 becomes active. This is a visible, physical dependency — not a hidden threshold.
+    </div></div>
+  </div>
+
+  <div class="step unlock" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">09</span>
+      <span class="step-title">Food chain → Bulldozer unlocks (+ Control Room)</span>
+      <span class="step-mode">Unlock</span>
+    </div>
+    <div class="step-body">
+      Food chain complete + happiness threshold → bulldozer appears outside (not visible before this). Control Room (basement) also becomes available at this moment. "🚜 BULLDOZER UNLOCKED — exit the tower to find it."
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      The bulldozer is not visible or hinted at before this unlock. It materializes. The Control Room bulldozer view also becomes available simultaneously. On the exterior, suits react: <span class="speech">"They cleared you for the dozer?"</span> <span class="speech">"Try not to hit my car."</span>
+      <br><br>
+      <span class="future">FUTURE: Bulldozer upgrades via achievements. Weekly competitive mini-games.</span>
+    </div></div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">10</span>
+      <span class="step-title">Drive the bulldozer</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">Pure fun. Deform terrain. Suits scatter if you drive toward them. No progression gate — a reward for reaching this point.</div>
+  </div>
+
+  <!-- ════════ ACT 2 ════════ -->
+  <div class="act">
+    <div class="act-num">Act 2</div>
+    <div class="act-label">Discover</div>
+    <div class="act-desc">Floors 5–8 · Tension grows · Factions form · The Reckoning</div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">11</span>
+      <span class="step-title">Build Floors 5–8 — crate count escalates</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">
+      Crate count <strong>increases each floor</strong> now. The builders get sloppier the higher they go — wasteful, dropping things. You send more because that's just how it is. Suits notice:
+      <div style="margin-top:8px">
+        <span class="speech">"They dropped another one?"</span>
+        <span class="speech">"The work requires more materials at this altitude."</span>
+        <span class="speech builder">"It's a job, not a warehouse."</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      The escalating crate count is both a difficulty curve and a narrative beat: the higher you build, the more chaotic the construction. Builders aren't malicious — they're just sloppy at altitude. It's honest. It's how building works.
+    </div></div>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">12</span>
+      <span class="step-title">Floor 5 — The Restaurant + THE ARGUMENT</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body">
+      <span class="floor-tag">F5 Restaurant</span> Activate the floor. Eat here to refill hunger. Camera zooms 30% closer on this floor — encouraging the player to look closely. The door hums (RGB threshold, future). Gene is here. Still forgettable.
+      <br><br>
+      <strong>THE BREAKING POINT:</strong> A suit and a builder are arguing about window views. Who gets the office with the view? They follow you, speech-bubbling at each other. ~2 minutes of looping dialogue. Funny but real.
+      <div style="margin-top:10px">
+        <span class="speech">"Our work requires natural light. It's in the productivity studies."</span>
+        <span class="speech builder">"Your work? I installed that window. With my hands."</span>
+        <span class="speech">"Nobody's disputing that. We're discussing allocation."</span>
+        <span class="speech builder">"Allocation. That's a word for stealing."</span>
+        <span class="speech">"It's a word for organizing. Which is literally our job— our work."</span>
+        <span class="speech builder">"You organize paper. I organize steel."</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      <strong>This argument cannot be resolved.</strong> It loops. The player can't fix it. It's the tension that will define the rest of the game. The argument is funny — both sides have legitimate points. Neither is the villain. But the crack is visible now.
+      <br><br>
+      After this floor, suit speech bubbles across the game start to shift. They're still supportive, but they begin expressing a thirst for space. They need more offices. It's not personal — it's simply necessary for "the work" to expand. (What IS their work? They don't say. They always sterilize it. Secretly, their work IS tower building — but they'd never call it that.)
+    </div></div>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">13</span>
+      <span class="step-title">Floors 6–7 — Factions crystallize</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body">
+      <span class="floor-tag">F6 Lounge</span> Music, books. <span class="floor-tag">F7 Observation</span> Telescopes. Cruise through these. NPCs are <strong>hilarious and faction-y</strong> — they express the nature of each floor AND annoyance with the other side.
+      <div style="margin-top:8px">
+        <span class="speech builder">"Have you been to seven? They're measuring the telescope for curtains."</span>
+        <span class="speech">"The observation floor needs a scheduling system. You can't just... look."</span>
+        <span class="speech builder">"This tower's getting too tall for its own good."</span>
+        <span class="speech">"Growing pains. Every project of this scale has them."</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      Characters should be positive about their own side AND critical of the other — but not too heavy-handed. Both sides are likeable. Both have valid complaints. One builder or suit should directly express: "This tower's getting tall and unwieldy." Others echo the feeling in their own words. The faction tension is the air everyone breathes now.
+    </div></div>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">14</span>
+      <span class="step-title">Floor 8 activates → THE RECKONING</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body"><span class="floor-tag">F8 Storage</span> Stage 3 + all floors lit = The Reckoning begins. No opt-out.</div>
+  </div>
+
+  <div class="connector">▼ the tower shakes</div>
+
+  <div class="step event" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">15</span>
+      <span class="step-title">THE RECKONING — Builders vs. Suits</span>
+      <span class="step-mode">Set Piece</span>
+    </div>
+    <div class="step-body">
+      Blackout. Briefing. The same suits who cheered your launches now fight you for floors. 90 seconds: claim blocks by standing. 12 builders vs. 18 suits. Gene is absent.
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      <strong>The dramatic irony is complete.</strong> They welcomed you. They funded you. They cheered. Now they want what you built. The window argument on Floor 5 was the crack — this is the earthquake.
+      <br><br>
+      Post-reckoning: choose your builder color. Rematch bell. Gene returns: "Not seen since the Reckoning." Flood of 30 civilians — population explosion.
+    </div></div>
+  </div>
+
+  <div class="phase-box">
+    <h4>Post-Reckoning Shift</h4>
+    <p>Permanent tone change. Exterior suits are quieter. Subdued bubbles. Some are conspicuously absent. The cheerleading is over. The power dynamic has shifted. You proved something on Floor 8.</p>
+  </div>
+
+  <!-- ════════ ACT 3 ════════ -->
+  <div class="act">
+    <div class="act-num">Act 3</div>
+    <div class="act-label">Prove</div>
+    <div class="act-desc">Floors 9–10 · The view from up here · Goodbye Earth</div>
+  </div>
+
+  <div class="step ext" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">16</span>
+      <span class="step-title">Build Floors 9–10 on exterior</span>
+      <span class="step-mode">Exterior</span>
+    </div>
+    <div class="step-body">
+      Final floors. Maximum crate count. The remaining suits watch quietly.
+      <div style="margin-top:8px"><span class="speech">"Almost done, aren't you."</span></div>
+    </div>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">17</span>
+      <span class="step-title">Floor 9 — Observatory</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body"><span class="floor-tag">F9 Observatory</span> Telescope locks on. Star charts. "Almost see the curvature." <span class="future">FUTURE: Sync to real astronomical data</span></div>
+  </div>
+
+  <div class="step sim" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">18</span>
+      <span class="step-title">Floor 10 — Command activates</span>
+      <span class="step-mode">Interior</span>
+    </div>
+    <div class="step-body"><span class="floor-tag">F10 Command</span> Status panels cascade — one per floor below. The chair. A gold glow near the desk. "You built all this?"</div>
+  </div>
+
+  <div class="connector">▼ walk near the desk</div>
+
+  <div class="step keeper" onclick="this.classList.toggle('open')">
+    <div class="step-head">
+      <span class="step-num">19</span>
+      <span class="step-title">THE KEEPER — Gene reveals himself</span>
+      <span class="step-mode">Keeper</span>
+    </div>
+    <div class="step-body">
+      Camera zooms. The beard. The walking stick. The man from floors 1, 3, 5, 7. The forgettable suit who said "seventeen forms" is the mayor. He knows everything.
+      <div style="margin-top:8px">
+        <span class="speech keeper-s">"Ten floors of goodbye. That's what this segment is."</span>
+      </div>
+    </div>
+    <div class="step-detail"><div class="step-detail-inner">
+      Difficulty scales with tower health. Thriving = 2–4 exchanges. Struggling = 6–10, relentless but fair. He references the Reckoning. He knows if the suits won. He knows you drove the bulldozer. He knows who you talked to. All players pass. "Go. Build higher."
+      <br><br>
+      <strong>This encounter will need extensive fleshing out when the time comes.</strong> The system prompt, dialogue trees, resolution conditions, and the emotional arc of the conversation all need dedicated design work.
+    </div></div>
+  </div>
+
+  <div class="connector">▼ [RESOLVED]</div>
+
+  <div class="endpoint">
+    <h2>Segment 2 Opens</h2>
+    <p>The way forward. Goodbye Earth.</p>
+  </div>
+
+</div>
+
+<script>
+  const steps = document.querySelectorAll('.step, .act, .phase-box, .connector, .rule-box');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.style.opacity = '1'; e.target.style.transform = 'translateY(0)'; }
+    });
+  }, { threshold: 0.1 });
+  steps.forEach((s, i) => {
+    s.style.opacity = '0'; s.style.transform = 'translateY(12px)';
+    s.style.transition = `opacity 0.4s ${i * 0.03}s, transform 0.4s ${i * 0.03}s`;
+    observer.observe(s);
+  });
+</script>
+
+</body>
+</html>

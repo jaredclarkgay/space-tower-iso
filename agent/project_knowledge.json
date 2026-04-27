@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "doc_version_synced": "v3",
+  "last_updated": "2026-04-26",
+  "scope": "iso_vertical_slice",
+  "pivot_rationale": "Test collapsing Space Tower's two visual modes (3D exterior + 2D side-on sim) into a single isometric view as the baseline. This slice exists in a separate repo from the existing game so the iso experiment can be archived if it does not feel right, with no impact on shipping work.",
+  "target": {
+    "floor": "Floor 3 — The Garden of Eden",
+    "scope": "one floor, controllable character, pannable/zoomable/rotatable iso camera",
+    "out_of_scope": [
+      "modules / build mechanic",
+      "NPCs",
+      "economy / resources",
+      "UI",
+      "other floors",
+      "the Reckoning",
+      "the RGB / Keeper",
+      "save/load",
+      "audio"
+    ]
+  },
+  "engine": {
+    "engine": "godot_4.6",
+    "language": "gdscript_only",
+    "renderer": "gl_compatibility",
+    "export_target": "web (must remain possible)",
+    "no_csharp": true,
+    "no_plugins": true
+  },
+  "garden_visual_signature": {
+    "summary": "Stacked planters with crops ripening, translucent water pipes with visibly flowing water, warm grow-light glow.",
+    "elements": [
+      "Stacked planters with tomatoes and fruit ripening on the planters",
+      "Translucent water pipes with flowing water visible through/beneath the planter boxes",
+      "Warm grow-light glow over the planters; emissive amber light",
+      "Color palette: warm greens (plants), translucent blues (water), amber/gold (grow lights). No cold greys."
+    ],
+    "animation": [
+      "Continuous water flow in pipes",
+      "Grow lights pulse on a 2–3s cycle",
+      "Plants sway slightly"
+    ],
+    "sources": [
+      "docs/space-tower-project-knowledge-v3.md",
+      "docs/player-journey-map-v3-final.html (step 07 \"The Garden of Eden\")"
+    ]
+  },
+  "design_principles_that_must_survive": [
+    "The player's body is the tool — walking on the iso floor must feel like a person, not a cursor.",
+    "Discovery over instruction — no tutorials. If a control is unclear, redesign it.",
+    "Character dignity — even programmatic placeholder characters should read as people.",
+    "Fixed block identities with direct causal consequences — each planter / pipe / light is a thing, not abstract decoration.",
+    "Exterior/interior unification via iso — the iso view replaces the old split between 3D exterior and 2D sim.",
+    "RGB boundary is sacred — the sim is handcrafted; only the RGB is procedurally alive (not in scope here, but do not erode the boundary)."
+  ],
+  "faction_vocabulary_to_retain": {
+    "factions": ["builders", "suits"],
+    "phrases": ["the job (builders)", "the work (suits)"]
+  },
+  "constants_canonical_for_iso": {
+    "BLOCKS_PER_FLOOR": 12,
+    "BLOCK_WIDTH": 180,
+    "FLOOR_HEIGHT": 144,
+    "FLOOR_SLAB": 4,
+    "ISO_TILE_W": 64,
+    "ISO_TILE_H": 32,
+    "GARDEN_FLOOR_INDEX": 2,
+    "notes": "BLOCK_WIDTH and FLOOR_HEIGHT carried forward from sibling space-tower/autoloads/constants.gd. ISO_TILE_W/H are placeholders; refined after Phase 1 research."
+  },
+  "the_reckoning_one_paragraph": "Floor 8 is the conflict floor. When Floor 8 reaches buildout stage 5 and all floors are stage ≥ 1, The Reckoning triggers: a 90-second mini-game where 12 builder AI vs. 18 suit AI in squads fight for block territory on floors 6–8. The player claims blocks by standing on them. Post-reckoning, 30 civilian NPCs flood in. The player's color choice (builder faction) persists. Out of scope here, but Phase 4 self-evaluation must speculate on how this would look in an iso view.",
+  "adjacent_repos": {
+    "space_tower_godot": "/Users/jaredgay/Library/CloudStorage/Dropbox/Unwind/10-Dev/space-tower (Godot 4.6, full game in progress; reference for autoload shape and idioms)",
+    "space_tower_browser_prototype": "/Users/jaredgay/Library/CloudStorage/Dropbox/Unwind/10-Dev/Space-Tower-Browser-Prototype (vanilla JS + Canvas 2D + Three.js; original mechanics playtest)"
+  }
+}
