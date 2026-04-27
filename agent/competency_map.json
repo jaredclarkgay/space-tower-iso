@@ -3,13 +3,23 @@
   "last_updated": "2026-04-26",
   "domains": {
     "godot_isometric": {
-      "confidence": "low",
-      "evidence": [],
-      "rules_learned": [],
+      "confidence": "medium",
+      "evidence": [
+        "Read the official Godot Isometric Game Demo (Compatibility renderer, single-floor TileMap with vertical offsets, StaticBody2D + CollisionPolygon2D bases, Y-sorted parent). Source: references/godot_iso_demo/.",
+        "Cataloged the goblin demo player movement pattern — CharacterBody2D + move_and_slide, motion.y /= 2 for 2:1 dimetric projection, 8-direction sprite picker via floor(angle/45). Source: references/godot_iso_demo/player/goblin.gd:32–54.",
+        "Documented the canonical Godot 4.4 stacked-TileMapLayer pattern — parent YSortEnabled + per-layer position.y offset + matching y_sort_origin compensation + sides-only tile variants. Sources: forum.godotengine.org/t/best-practice-for-stacking-tilemaplayer-nodes-with-ysort-in-godot-4-4/120306, /t/how-do-i-correctly-stack-isometric-tilemaplayers/113870.",
+        "Confirmed Compatibility renderer + WebGL 2.0 single-threaded constraints for web export. Forward+ features unavailable on web; Safari unreliable; develop in Chrome/Firefox.",
+        "Identified Camera3D-orthographic vs Camera2D-rotated trade-off — 2D-rotated requires multi-angle pre-rendered art; 3D-orthographic gives rotation/zoom/stacking nearly free at cost of pixel-perfect 2D look."
+      ],
+      "rules_learned": [
+        "Use 2:1 dimetric projection (ISO_TILE_W = 2 * ISO_TILE_H). The single line `motion.y /= 2` makes WASD/arrow input feel correct on the iso plane.",
+        "For rotation + stacking, prefer Camera3D orthographic over Camera2D + scene rotation. The trade-off is pixel-perfect 2D, which doesn't matter for programmatic placeholder visuals.",
+        "For Y-sort across stacked floors, set y_sort_origin equal in magnitude (opposite sign) to the layer's position.y offset. The parent must have YSortEnabled = true for any of this to work.",
+        "Snap 90° camera rotations with a ~0.2s tween, never an instant jump. Pivot around the camera target, not the camera origin."
+      ],
+      "failure_patterns": [],
       "needs_from_human": [
-        "Iso projection choice — true 2:1 dimetric vs 30° classic vs other (with reasoning)",
-        "Y-sort vs depth-sort pattern best suited to a vertically stacked tower (one floor first, but extensible)",
-        "Camera composition — how pan / zoom / 90° rotate should compose without cognitive load"
+        "Phase 2 architecture decision — Path A (pure iso) vs Path B (renderer swap). Recommendation pending: Path B realized as Camera3D orthographic on a 3D scene graph (see references/iso_research.md, final section)."
       ]
     }
   }
