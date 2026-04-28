@@ -63,9 +63,21 @@ const PLAYER_LAND_SQUASH_DURATION := 0.16 # seconds of squash on landing
 const PLAYER_VISUAL_CROUCH_SCALE := 0.62  # visual.scale.y at full charge
 const PLAYER_VISUAL_LAND_SCALE := 0.82    # visual.scale.y at landing peak
 
-# --- Extension grid (suggests "tower could keep building outward") ---
-const EXTENSION_GRID_LENGTH := 8.0      # m of grid line beyond each floor edge
-const EXTENSION_LINE_COLOR := Color(1, 1, 1, 0.55)
+# --- Tuck-and-flip (triggered above a charge threshold) ---
+# Charge threshold expressed as a fraction of PLAYER_JUMP_CHARGE_DURATION;
+# 0.3 corresponds to ~1.3× tap-jump velocity (10 + 0.3 × (20-10) = 13 m/s).
+const TUCK_FLIP_CHARGE_THRESHOLD := 0.3
+const TUCK_FLIP_RATE := 8.0               # rad/s of forward rotation while airborne
+
+# --- Extension grid (faint blueprint-style hint that tower could expand) ---
+# 6 perpendicular lines per side (one per window pane), each 2 m long.
+# Solid for the first SOLID_LENGTH metre, fades to 0 alpha across the rest.
+# A perpendicular crossbar at distance SOLID_LENGTH from each wall makes
+# the lines read as a blueprint grid.
+const EXTENSION_GRID_LENGTH := 2.0
+const EXTENSION_LINE_SOLID_LENGTH := 1.0
+const EXTENSION_LINE_PEAK_ALPHA := 0.30   # very subtle even at full opacity
+const EXTENSION_PANE_POSITIONS := [-8.333, -5.0, -1.667, 1.667, 5.0, 8.333]
 
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)

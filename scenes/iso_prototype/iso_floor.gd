@@ -436,74 +436,135 @@ func _make_window_material() -> StandardMaterial3D:
 	return m
 
 
-# --- Extension grid: faint white lines extending outward from each grid
-# vertex on the floor's perimeter. Suggests "you could keep building outward"
-# without committing to actual stackable plots — a designer's tease at scope.
-# 21 vertices per side × 4 sides = 84 lines, each EXTENSION_GRID_LENGTH long.
+# --- Extension grid: a subtle blueprint-style hint that the tower could
+# extend outward. 6 perpendicular lines per side (one per window pane),
+# each 2 m long, solid for the first 1 m and fading to 0 alpha across the
+# second 1 m via vertex-color alpha on an ArrayMesh. A single perpendicular
+# crossbar per side at distance 1 m forms the blueprint grid.
 
 func _build_extension_grid() -> void:
 	var half: float = _c.FLOOR_3D_SIZE * 0.5
-	var vertex_count: int = _c.GARDEN_GRID_SIZE + 1   # 21 vertices per side
-	var step: float = _c.GARDEN_PLOT_SIZE
 	var ext: float = _c.EXTENSION_GRID_LENGTH
-	var line_thickness := 0.04
-	var line_height := 0.01
-	var y_offset := 0.005    # floats just above the slab to avoid z-fighting
+	var y_offset := 0.005
+	var pane_positions: Array = _c.EXTENSION_PANE_POSITIONS
+
+	var line_mesh := _make_extension_line_mesh()
 	var line_mat := _make_extension_line_material()
+	var bar_mat := _make_extension_crossbar_material()
 
-	# +X edge: lines extend +X from each (10, _, z) vertex. Center the box at
-	# half + ext*0.5 so it spans [half, half + ext].
-	for j in range(vertex_count):
-		var z: float = -half + float(j) * step
-		_make_extension_line(
-			Vector3(half + ext * 0.5, y_offset, z),
-			Vector3(ext, line_height, line_thickness),
-			line_mat
-		)
-	# -X edge
-	for j in range(vertex_count):
-		var z: float = -half + float(j) * step
-		_make_extension_line(
-			Vector3(-half - ext * 0.5, y_offset, z),
-			Vector3(ext, line_height, line_thickness),
-			line_mat
-		)
-	# +Z edge
-	for i in range(vertex_count):
-		var x: float = -half + float(i) * step
-		_make_extension_line(
-			Vector3(x, y_offset, half + ext * 0.5),
-			Vector3(line_thickness, line_height, ext),
-			line_mat
-		)
-	# -Z edge
-	for i in range(vertex_count):
-		var x: float = -half + float(i) * step
-		_make_extension_line(
-			Vector3(x, y_offset, -half - ext * 0.5),
-			Vector3(line_thickness, line_height, ext),
-			line_mat
-		)
+	# Per-side: 6 outgoing lines from pane centers, plus 1 crossbar at the
+	# solid/fade boundary. Crossbar extends slightly past the corners
+	# (length ext beyond, so it forms a closed blueprint rectangle).
+	for s in ["+x", "-x", "+z", "-z"]:
+		var rot_y := 0.0
+		var origin: Vector3
+		var crossbar_axis_along_x := false   # whether crossbar's length runs along X
+		match s:
+			"+x":
+				rot_y = 0.0
+				origin = Vector3(half, y_offset, 0)
+				crossbar_axis_along_x = false   # crossbar along Z
+			"-x":
+				rot_y = PI
+				origin = Vector3(-half, y_offset, 0)
+				crossbar_axis_along_x = false
+			"+z":
+				rot_y = -PI * 0.5
+				origin = Vector3(0, y_offset, half)
+				crossbar_axis_along_x = true
+			"-z":
+				rot_y = PI * 0.5
+				origin = Vector3(0, y_offset, -half)
+				crossbar_axis_along_x = true
+
+		# Outgoing lines.
+		for offset in pane_positions:
+			var line := MeshInstance3D.new()
+			line.name = "GridExtLine"
+			line.mesh = line_mesh
+			line.material_override = line_mat
+			# Position the line's start (its local origin) at the wall edge,
+			# offset along the wall by `offset`. The mesh extends along its
+			# local +X direction; rotation_y aims that direction outward.
+			match s:
+				"+x", "-x":
+					line.position = origin + Vector3(0, 0, offset)
+				"+z", "-z":
+					line.position = origin + Vector3(offset, 0, 0)
+			line.rotation.y = rot_y
+			add_child(line)
+
+		# Crossbar at distance EXTENSION_LINE_SOLID_LENGTH from the wall,
+		# parallel to the wall, extending EXTENSION_GRID_LENGTH past each
+		# corner so the four crossbars form a closed blueprint frame.
+		var bar_length: float = _c.FLOOR_3D_SIZE + 2.0 * ext
+		var bar := MeshInstance3D.new()
+		bar.name = "GridExtCrossbar"
+		var box := BoxMesh.new()
+		var solid_dist: float = _c.EXTENSION_LINE_SOLID_LENGTH
+		match s:
+			"+x":
+				box.size = Vector3(0.04, 0.01, bar_length)
+				bar.position = Vector3(half + solid_dist, y_offset, 0)
+			"-x":
+				box.size = Vector3(0.04, 0.01, bar_length)
+				bar.position = Vector3(-half - solid_dist, y_offset, 0)
+			"+z":
+				box.size = Vector3(bar_length, 0.01, 0.04)
+				bar.position = Vector3(0, y_offset, half + solid_dist)
+			"-z":
+				box.size = Vector3(bar_length, 0.01, 0.04)
+				bar.position = Vector3(0, y_offset, -half - solid_dist)
+		bar.mesh = box
+		bar.material_override = bar_mat
+		add_child(bar)
 
 
-func _make_extension_line(pos: Vector3, size: Vector3, mat: Material) -> void:
-	var line := MeshInstance3D.new()
-	line.name = "GridExt"
-	var box := BoxMesh.new()
-	box.size = size
-	line.mesh = box
-	line.material_override = mat
-	line.position = pos
-	add_child(line)
+# Thin horizontal strip 2 m long: solid (alpha PEAK_ALPHA) for 0..1 m,
+# fades to alpha 0 at the 2 m mark via vertex colors.
+func _make_extension_line_mesh() -> ArrayMesh:
+	var thick := 0.04
+	var solid_len: float = _c.EXTENSION_LINE_SOLID_LENGTH
+	var total_len: float = _c.EXTENSION_GRID_LENGTH
+	var peak: float = _c.EXTENSION_LINE_PEAK_ALPHA
+
+	var verts := PackedVector3Array([
+		Vector3(0.0,       0, -thick * 0.5), Vector3(0.0,       0, thick * 0.5),
+		Vector3(solid_len, 0, -thick * 0.5), Vector3(solid_len, 0, thick * 0.5),
+		Vector3(total_len, 0, -thick * 0.5), Vector3(total_len, 0, thick * 0.5),
+	])
+	var solid := Color(1, 1, 1, peak)
+	var fade := Color(1, 1, 1, 0.0)
+	var colors := PackedColorArray([solid, solid, solid, solid, fade, fade])
+	var indices := PackedInt32Array([
+		0, 1, 2,  1, 3, 2,    # quad 1 — solid
+		2, 3, 4,  3, 5, 4,    # quad 2 — solid → faded
+	])
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_COLOR] = colors
+	arr[Mesh.ARRAY_INDEX] = indices
+
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return mesh
 
 
 func _make_extension_line_material() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = _c.EXTENSION_LINE_COLOR
+	m.albedo_color = Color(1, 1, 1, 1)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.emission_enabled = true
-	m.emission = Color(1, 1, 1)
-	m.emission_energy_multiplier = 0.6
-	# Unshaded so the lines stay evenly bright regardless of room lighting.
+	m.vertex_color_use_as_albedo = true
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
+
+
+func _make_extension_crossbar_material() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(1, 1, 1, _c.EXTENSION_LINE_PEAK_ALPHA)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
