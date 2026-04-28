@@ -11,3 +11,8 @@ export.cfg
 
 # Local Claude scratch (per-machine)
 .claude/
+
+# Stray screenshots dropped at the repo root. Phase 5 intentional captures
+# still go in prototype_screenshots/.
+/Screenshot*.png
+/Screenshot*.png.import
