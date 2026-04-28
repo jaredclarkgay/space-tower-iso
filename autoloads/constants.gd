@@ -55,8 +55,17 @@ const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 
 # --- Player movement (3D) ---
 const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
-const PLAYER_GRAVITY := 22.0            # m/s² downward acceleration
-const PLAYER_JUMP_VELOCITY := 8.0       # m/s upward impulse on jump
+const PLAYER_GRAVITY := 32.0            # m/s² downward — heavier feel, less floaty
+const PLAYER_JUMP_VELOCITY := 10.0      # m/s upward impulse on tap (~1.56 m peak)
+const PLAYER_JUMP_VELOCITY_MAX := 20.0  # m/s upward impulse at full charge (4× height)
+const PLAYER_JUMP_CHARGE_DURATION := 1.0  # seconds of held Space to reach max
+const PLAYER_LAND_SQUASH_DURATION := 0.16 # seconds of squash on landing
+const PLAYER_VISUAL_CROUCH_SCALE := 0.62  # visual.scale.y at full charge
+const PLAYER_VISUAL_LAND_SCALE := 0.82    # visual.scale.y at landing peak
+
+# --- Extension grid (suggests "tower could keep building outward") ---
+const EXTENSION_GRID_LENGTH := 8.0      # m of grid line beyond each floor edge
+const EXTENSION_LINE_COLOR := Color(1, 1, 1, 0.55)
 
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)

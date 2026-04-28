@@ -24,9 +24,6 @@ script = ExtResource("2_player")
 camera_pivot_path = NodePath("../../CameraPivot")
 
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
-; Mild ambient sun. Per-wall SpotLight3Ds (built in iso_floor.gd) handle
-; the "light through the windows" feel; this just keeps the scene from
-; reading dead in the centre of the room.
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
 light_color = Color(1, 0.92, 0.78, 1)
 light_energy = 0.35
@@ -53,7 +50,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 0.92)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 6
 text = "WASD / Arrows   Move
-Space           Jump
+Space           Jump (hold to charge, up to 4× height)
 Q / R           Rotate camera 90°
 Wheel · = / -   Zoom
 Middle-drag     Pan

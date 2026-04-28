@@ -34,6 +34,7 @@ func _ready() -> void:
 	_build_elevator_shaft()
 	_build_garden_grid()
 	_build_water_pipes()
+	_build_extension_grid()
 
 
 func _process(delta: float) -> void:
@@ -432,4 +433,77 @@ func _make_window_material() -> StandardMaterial3D:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.roughness = 0.05
 	m.metallic = 0.5
+	return m
+
+
+# --- Extension grid: faint white lines extending outward from each grid
+# vertex on the floor's perimeter. Suggests "you could keep building outward"
+# without committing to actual stackable plots — a designer's tease at scope.
+# 21 vertices per side × 4 sides = 84 lines, each EXTENSION_GRID_LENGTH long.
+
+func _build_extension_grid() -> void:
+	var half: float = _c.FLOOR_3D_SIZE * 0.5
+	var vertex_count: int = _c.GARDEN_GRID_SIZE + 1   # 21 vertices per side
+	var step: float = _c.GARDEN_PLOT_SIZE
+	var ext: float = _c.EXTENSION_GRID_LENGTH
+	var line_thickness := 0.04
+	var line_height := 0.01
+	var y_offset := 0.005    # floats just above the slab to avoid z-fighting
+	var line_mat := _make_extension_line_material()
+
+	# +X edge: lines extend +X from each (10, _, z) vertex. Center the box at
+	# half + ext*0.5 so it spans [half, half + ext].
+	for j in range(vertex_count):
+		var z: float = -half + float(j) * step
+		_make_extension_line(
+			Vector3(half + ext * 0.5, y_offset, z),
+			Vector3(ext, line_height, line_thickness),
+			line_mat
+		)
+	# -X edge
+	for j in range(vertex_count):
+		var z: float = -half + float(j) * step
+		_make_extension_line(
+			Vector3(-half - ext * 0.5, y_offset, z),
+			Vector3(ext, line_height, line_thickness),
+			line_mat
+		)
+	# +Z edge
+	for i in range(vertex_count):
+		var x: float = -half + float(i) * step
+		_make_extension_line(
+			Vector3(x, y_offset, half + ext * 0.5),
+			Vector3(line_thickness, line_height, ext),
+			line_mat
+		)
+	# -Z edge
+	for i in range(vertex_count):
+		var x: float = -half + float(i) * step
+		_make_extension_line(
+			Vector3(x, y_offset, -half - ext * 0.5),
+			Vector3(line_thickness, line_height, ext),
+			line_mat
+		)
+
+
+func _make_extension_line(pos: Vector3, size: Vector3, mat: Material) -> void:
+	var line := MeshInstance3D.new()
+	line.name = "GridExt"
+	var box := BoxMesh.new()
+	box.size = size
+	line.mesh = box
+	line.material_override = mat
+	line.position = pos
+	add_child(line)
+
+
+func _make_extension_line_material() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = _c.EXTENSION_LINE_COLOR
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = Color(1, 1, 1)
+	m.emission_energy_multiplier = 0.6
+	# Unshaded so the lines stay evenly bright regardless of room lighting.
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return m

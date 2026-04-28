@@ -29,6 +29,17 @@ var _visual: Node3D
 var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
 const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
 
+# Jump state (tap = base jump, hold to charge for up to 4× height).
+var _charge_time := 0.0
+var _land_squash_t := 0.0
+var _was_in_air := false
+
+# Charge gauge — vertical bar above the head. Fixed orientation in world,
+# parented to self (not _visual) so it doesn't rotate with body facing.
+var _bar_root: Node3D
+var _bar_fill_pivot: Node3D
+var _bar_fill_mesh: MeshInstance3D
+
 
 func _ready() -> void:
 	_visual = Node3D.new()
@@ -36,6 +47,7 @@ func _ready() -> void:
 	add_child(_visual)
 	_build_visual()
 	_build_collision()
+	_build_charge_bar()
 	if camera_pivot_path:
 		_camera_pivot = get_node(camera_pivot_path)
 
@@ -59,26 +71,56 @@ func _physics_process(delta: float) -> void:
 	velocity.x = world_dir.x * _c.PLAYER_MOVE_SPEED
 	velocity.z = world_dir.z * _c.PLAYER_MOVE_SPEED
 
-	# Vertical: gravity + jump.
-	if is_on_floor():
-		if Input.is_action_just_pressed(&"jump"):
-			velocity.y = _c.PLAYER_JUMP_VELOCITY
-		# Don't zero velocity.y on every grounded frame — let move_and_slide
-		# settle it. Light gravity nudge keeps us seated on the slab.
-		else:
+	# Charge + jump. Hold Space to accumulate charge; release fires the jump
+	# with a velocity scaled between PLAYER_JUMP_VELOCITY (tap) and
+	# PLAYER_JUMP_VELOCITY_MAX (full hold). Charge only accumulates on floor.
+	var on_floor := is_on_floor()
+	var just_landed := on_floor and _was_in_air
+	if just_landed:
+		_land_squash_t = _c.PLAYER_LAND_SQUASH_DURATION
+	_was_in_air = not on_floor
+	if _land_squash_t > 0.0:
+		_land_squash_t = max(0.0, _land_squash_t - delta)
+
+	if on_floor:
+		if Input.is_action_pressed(&"jump"):
+			_charge_time = min(_charge_time + delta, _c.PLAYER_JUMP_CHARGE_DURATION)
+		if Input.is_action_just_released(&"jump"):
+			var t: float = _charge_time / _c.PLAYER_JUMP_CHARGE_DURATION
+			velocity.y = lerp(_c.PLAYER_JUMP_VELOCITY, _c.PLAYER_JUMP_VELOCITY_MAX, t)
+			_charge_time = 0.0
+		elif velocity.y < 0:
+			# Settle on the slab rather than letting move_and_slide accumulate
+			# downward velocity while resting.
 			velocity.y = -1.0
 	else:
+		# Cancel any in-progress charge if we leave the floor mid-charge.
+		_charge_time = 0.0
 		velocity.y -= _c.PLAYER_GRAVITY * delta
 
 	move_and_slide()
 
-	# Visual facing: rotate the visual root toward the world-space movement
-	# direction. atan2(x, z) gives the angle around Y. Smooth via lerp_angle
-	# so the body doesn't jitter when input changes mid-step.
+	# Visual facing: smoothly rotate visual root toward movement direction.
 	if Vector2(world_dir.x, world_dir.z).length_squared() > 0.01:
 		_facing_yaw = atan2(world_dir.x, world_dir.z)
 	if _visual:
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, _facing_yaw, FACING_TURN_SPEED * delta)
+
+	# Visual squat/squash:
+	#   - while charging: scale.y from 1.0 → CROUCH_SCALE proportional to charge
+	#   - on landing: brief squash to LAND_SCALE, recovers in LAND_SQUASH_DURATION
+	#   - otherwise: scale.y = 1.0 (neutral standing pose)
+	var charge_progress: float = _charge_time / _c.PLAYER_JUMP_CHARGE_DURATION
+	var land_progress: float = _land_squash_t / _c.PLAYER_LAND_SQUASH_DURATION
+	var target_scale_y := 1.0
+	if charge_progress > 0.0:
+		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_CROUCH_SCALE, charge_progress)
+	elif land_progress > 0.0:
+		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_LAND_SCALE, land_progress)
+	_visual.scale.y = lerp(_visual.scale.y, target_scale_y, 18.0 * delta)
+
+	# Charge gauge visibility + fill update.
+	_update_charge_bar(charge_progress)
 
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position
@@ -228,6 +270,80 @@ func _build_collision() -> void:
 	col.shape = col_shape
 	col.position = Vector3(0, 0.85, 0)
 	add_child(col)
+
+
+# Vertical charge gauge — sits above the head. Parented to self (not _visual)
+# so the bar's vertical axis stays world-aligned regardless of body facing.
+# Background is a fixed-size dark box; fill is a child node-pair anchored at
+# the bottom of the bar so scale.y = charge_progress grows the bar upward.
+func _build_charge_bar() -> void:
+	_bar_root = Node3D.new()
+	_bar_root.name = "ChargeBar"
+	_bar_root.position = Vector3(0, 2.55, 0)
+	_bar_root.visible = false
+	add_child(_bar_root)
+
+	var bar_w := 0.14
+	var bar_h := 0.7
+	var bar_d := 0.04
+
+	# Background — dark, semi-transparent.
+	var bg := MeshInstance3D.new()
+	bg.name = "BarBg"
+	var bg_mesh := BoxMesh.new()
+	bg_mesh.size = Vector3(bar_w, bar_h, bar_d)
+	bg.mesh = bg_mesh
+	var bg_mat := StandardMaterial3D.new()
+	bg_mat.albedo_color = Color(0.05, 0.05, 0.07, 0.7)
+	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bg.material_override = bg_mat
+	_bar_root.add_child(bg)
+
+	# Fill pivot anchored at the BOTTOM of the bar so fill_pivot.scale.y grows
+	# the fill mesh upward from the bottom edge.
+	_bar_fill_pivot = Node3D.new()
+	_bar_fill_pivot.name = "FillPivot"
+	_bar_fill_pivot.position = Vector3(0, -bar_h * 0.5, 0.01)
+	_bar_fill_pivot.scale.y = 0.0
+	_bar_root.add_child(_bar_fill_pivot)
+
+	_bar_fill_mesh = MeshInstance3D.new()
+	_bar_fill_mesh.name = "Fill"
+	var fill_mesh := BoxMesh.new()
+	fill_mesh.size = Vector3(bar_w * 0.78, bar_h, bar_d * 0.6)
+	_bar_fill_mesh.mesh = fill_mesh
+	# Mesh's bottom edge sits at the pivot's origin once positioned at +bar_h/2.
+	_bar_fill_mesh.position = Vector3(0, bar_h * 0.5, 0)
+	var fill_mat := StandardMaterial3D.new()
+	fill_mat.albedo_color = Color(0.6, 0.85, 0.5)
+	fill_mat.emission_enabled = true
+	fill_mat.emission = Color(0.6, 0.85, 0.5)
+	fill_mat.emission_energy_multiplier = 1.4
+	fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_bar_fill_mesh.material_override = fill_mat
+	_bar_fill_pivot.add_child(_bar_fill_mesh)
+
+
+func _update_charge_bar(progress: float) -> void:
+	if _bar_root == null or _bar_fill_pivot == null or _bar_fill_mesh == null:
+		return
+	if progress <= 0.005:
+		_bar_root.visible = false
+		_bar_fill_pivot.scale.y = 0.0
+		return
+	_bar_root.visible = true
+	_bar_fill_pivot.scale.y = clamp(progress, 0.0, 1.0)
+	# Color ramp green → orange → bright yellow as charge climbs.
+	var color: Color
+	if progress < 0.5:
+		color = lerp(Color(0.55, 0.85, 0.45), Color(1.0, 0.78, 0.25), progress * 2.0)
+	else:
+		color = lerp(Color(1.0, 0.78, 0.25), Color(1.0, 0.5, 0.15), (progress - 0.5) * 2.0)
+	var mat := _bar_fill_mesh.material_override as StandardMaterial3D
+	mat.albedo_color = color
+	mat.emission = color
+	mat.emission_energy_multiplier = lerp(1.2, 2.4, progress)
 
 
 func _facing_from_input(input: Vector2) -> int:
