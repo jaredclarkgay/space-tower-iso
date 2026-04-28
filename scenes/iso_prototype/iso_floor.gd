@@ -495,13 +495,14 @@ func _build_extension_grid() -> void:
 			add_child(line)
 
 		# Crossbar at distance EXTENSION_LINE_SOLID_LENGTH from the wall,
-		# parallel to the wall, extending EXTENSION_GRID_LENGTH past each
-		# corner so the four crossbars form a closed blueprint frame.
-		var bar_length: float = _c.FLOOR_3D_SIZE + 2.0 * ext
+		# parallel to the wall. Length extends 1 grid unit past each corner so
+		# the four crossbars meet exactly at the corners of the blueprint
+		# frame (each side at x or z = ±(half + solid_dist)).
+		var solid_dist: float = _c.EXTENSION_LINE_SOLID_LENGTH
+		var bar_length: float = _c.FLOOR_3D_SIZE + 2.0 * solid_dist
 		var bar := MeshInstance3D.new()
 		bar.name = "GridExtCrossbar"
 		var box := BoxMesh.new()
-		var solid_dist: float = _c.EXTENSION_LINE_SOLID_LENGTH
 		match s:
 			"+x":
 				box.size = Vector3(0.04, 0.01, bar_length)

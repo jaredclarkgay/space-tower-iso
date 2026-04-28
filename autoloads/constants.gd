@@ -66,16 +66,19 @@ const PLAYER_VISUAL_LAND_SCALE := 0.82    # visual.scale.y at landing peak
 # --- Tuck-and-flip (triggered above a charge threshold) ---
 # Charge threshold expressed as a fraction of PLAYER_JUMP_CHARGE_DURATION;
 # 0.3 corresponds to ~1.3× tap-jump velocity (10 + 0.3 × (20-10) = 13 m/s).
+# Rotation rate is *derived per-jump* from the expected airtime so the flip
+# completes exactly TUCK_FLIP_ROTATIONS turns in one hop. See iso_player.gd.
 const TUCK_FLIP_CHARGE_THRESHOLD := 0.3
-const TUCK_FLIP_RATE := 8.0               # rad/s of forward rotation while airborne
+const TUCK_FLIP_ROTATIONS := 1.0          # full forward rotations per jump
 
 # --- Extension grid (faint blueprint-style hint that tower could expand) ---
-# 6 perpendicular lines per side (one per window pane), each 2 m long.
-# Solid for the first SOLID_LENGTH metre, fades to 0 alpha across the rest.
-# A perpendicular crossbar at distance SOLID_LENGTH from each wall makes
-# the lines read as a blueprint grid.
-const EXTENSION_GRID_LENGTH := 2.0
-const EXTENSION_LINE_SOLID_LENGTH := 1.0
+# Grid unit = one floor's story height (FLOOR_3D_STORY_HEIGHT = 3 m). Each
+# perpendicular line extends 2 units (6 m) outward from the wall, solid for
+# the first 1 unit (3 m) and fading to 0 alpha across the second unit.
+# The perpendicular crossbar runs at distance 1 unit from the wall.
+const EXTENSION_GRID_UNIT := FLOOR_3D_STORY_HEIGHT  # 3 m — one floor height
+const EXTENSION_GRID_LENGTH := 2.0 * EXTENSION_GRID_UNIT          # 6 m
+const EXTENSION_LINE_SOLID_LENGTH := 1.0 * EXTENSION_GRID_UNIT    # 3 m
 const EXTENSION_LINE_PEAK_ALPHA := 0.30   # very subtle even at full opacity
 const EXTENSION_PANE_POSITIONS := [-8.333, -5.0, -1.667, 1.667, 5.0, 8.333]
 

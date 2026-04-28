@@ -41,6 +41,10 @@ var _charge_time := 0.0
 var _land_squash_t := 0.0
 var _was_in_air := false
 var _is_flipping := false   # true between a charged takeoff and the next landing
+# Flip duration is computed from the jump's expected airtime so the rotation
+# completes exactly TUCK_FLIP_ROTATIONS turns by the time the player lands.
+var _flip_airtime_expected := 0.0   # seconds — set on takeoff
+var _flip_airtime_elapsed := 0.0    # seconds — accumulated each airborne frame
 
 # Charge gauge — vertical bar above the head. Fixed orientation in world,
 # parented to self (not _visual) so it doesn't rotate with body facing.
@@ -100,8 +104,16 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_released(&"jump"):
 			var t: float = _charge_time / _c.PLAYER_JUMP_CHARGE_DURATION
 			velocity.y = lerp(_c.PLAYER_JUMP_VELOCITY, _c.PLAYER_JUMP_VELOCITY_MAX, t)
-			# Trigger tuck-and-flip if charged past the threshold.
-			_is_flipping = t >= _c.TUCK_FLIP_CHARGE_THRESHOLD
+			# Trigger tuck-and-flip if charged past the threshold. Compute the
+			# expected airtime now (2v/g for a free-fall hop) so the flip
+			# rotation can pace itself across the actual hop and complete
+			# exactly TUCK_FLIP_ROTATIONS turns when we land.
+			if t >= _c.TUCK_FLIP_CHARGE_THRESHOLD:
+				_is_flipping = true
+				_flip_airtime_expected = 2.0 * velocity.y / _c.PLAYER_GRAVITY
+				_flip_airtime_elapsed = 0.0
+			else:
+				_is_flipping = false
 			_charge_time = 0.0
 		elif velocity.y < 0:
 			# Settle on the slab rather than letting move_and_slide accumulate
@@ -112,15 +124,18 @@ func _physics_process(delta: float) -> void:
 		_charge_time = 0.0
 		velocity.y -= _c.PLAYER_GRAVITY * delta
 
-	# Tuck-and-flip rotation while airborne. Rotate _flip_pivot around its
-	# local X (the body's right-side axis after facing rotation), which gives
-	# a forward somersault. Reset to upright on landing — the land-squash
-	# scale step masks the snap.
+	# Tuck-and-flip rotation while airborne. Drive rotation by elapsed/expected
+	# airtime ratio so the rotation finishes exactly when we land — no more
+	# overshooting and snapping. Clamp at 1.0 in case the player gets hung up
+	# on geometry mid-air. Land-squash on touchdown hides any tiny remainder.
 	if _is_flipping and not on_floor:
-		_flip_pivot.rotation.x += _c.TUCK_FLIP_RATE * delta
+		_flip_airtime_elapsed += delta
+		var progress: float = clamp(_flip_airtime_elapsed / _flip_airtime_expected, 0.0, 1.0)
+		_flip_pivot.rotation.x = progress * TAU * _c.TUCK_FLIP_ROTATIONS
 	if just_landed:
 		_is_flipping = false
 		_flip_pivot.rotation.x = 0.0
+		_flip_airtime_elapsed = 0.0
 
 	move_and_slide()
 
