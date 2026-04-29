@@ -63,6 +63,20 @@ const PLAYER_LAND_SQUASH_DURATION := 0.16 # seconds of squash on landing
 const PLAYER_VISUAL_CROUCH_SCALE := 0.62  # visual.scale.y at full charge
 const PLAYER_VISUAL_LAND_SCALE := 0.82    # visual.scale.y at landing peak
 
+# --- Plant growth + harvest lifecycle ---
+# 5 visible growth stages (sprout → ready). Total growth time across the
+# stages = GROWTH_TOTAL_DURATION (30 s, so 6 s per stage). After harvest the
+# plot enters a "fresh dirt" stage for POST_HARVEST_DURATION (10 s) before
+# the next sprout. Player presses+holds E to harvest; HARVEST_DURATION
+# seconds of unmoving hold completes the harvest.
+const GROWTH_STAGE_COUNT := 5
+const GROWTH_TOTAL_DURATION := 30.0
+const GROWTH_STAGE_DURATION := GROWTH_TOTAL_DURATION / float(GROWTH_STAGE_COUNT)
+const POST_HARVEST_DURATION := 10.0
+const HARVEST_DURATION := 1.5
+const HARVEST_RADIUS := 1.2
+const HARVEST_KNEEL_SCALE_Y := 0.55
+
 # --- Tuck-and-flip (triggered above a charge threshold) ---
 # Charge threshold expressed as a fraction of PLAYER_JUMP_CHARGE_DURATION;
 # 0.3 corresponds to ~1.3× tap-jump velocity (10 + 0.3 × (20-10) = 13 m/s).

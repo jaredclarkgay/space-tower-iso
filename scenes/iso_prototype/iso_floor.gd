@@ -26,6 +26,16 @@ var _grow_lights: Array[OmniLight3D] = []
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 
+# Plot state. Each plot is a Dictionary tracking its current growth stage,
+# elapsed time in that stage, and references to the meshes that visualise it.
+# `stage` semantics:
+#   0 → fresh dirt (POST_HARVEST_DURATION cooldown before the next sprout)
+#   1..4 → growing
+#   5 → ready-to-harvest (full foliage + fruit visible)
+# Plot dictionaries are returned by find_nearest_harvestable_plot_near() and
+# mutated by harvest_plot() — see iso_player.gd for the call sites.
+var _plots: Array = []
+
 
 func _ready() -> void:
 	_rng.seed = 1   # deterministic so the operator gets the same room each run
@@ -43,6 +53,47 @@ func _process(delta: float) -> void:
 	var pulse := 0.85 + 0.15 * sin(_time * TAU / 2.5)
 	for light in _grow_lights:
 		light.light_energy = pulse
+	# Advance growth lifecycle for every plot.
+	for plot in _plots:
+		_update_plot(plot, delta)
+
+
+func _update_plot(plot: Dictionary, delta: float) -> void:
+	plot.time_in_stage += delta
+	var stage: int = plot.stage
+	if stage == 0:
+		if plot.time_in_stage >= _c.POST_HARVEST_DURATION:
+			plot.stage = 1
+			plot.time_in_stage = 0.0
+			_refresh_plot_visuals(plot)
+	elif stage >= 1 and stage <= _c.GROWTH_STAGE_COUNT - 1:
+		if plot.time_in_stage >= _c.GROWTH_STAGE_DURATION:
+			plot.stage += 1
+			plot.time_in_stage = 0.0
+			_refresh_plot_visuals(plot)
+	# stage == GROWTH_STAGE_COUNT (5): ready-to-harvest, no auto-advance.
+
+
+# --- Public API used by iso_player.gd -------------------------------------
+
+func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Variant:
+	# Returns the closest plot with stage == 5 within `radius`, or null.
+	var best: Variant = null
+	var best_dist_sq: float = radius * radius
+	for plot in _plots:
+		if plot.stage != _c.GROWTH_STAGE_COUNT:
+			continue
+		var d_sq: float = (plot.world_pos - world_pos).length_squared()
+		if d_sq < best_dist_sq:
+			best_dist_sq = d_sq
+			best = plot
+	return best
+
+
+func harvest_plot(plot: Dictionary) -> void:
+	plot.stage = 0
+	plot.time_in_stage = 0.0
+	_refresh_plot_visuals(plot)
 
 
 # --- Slab -------------------------------------------------------------------
@@ -254,11 +305,10 @@ func _build_garden_grid() -> void:
 				continue
 			var x: float = origin + float(i) * _c.GARDEN_PLOT_SIZE
 			var z: float = origin + float(j) * _c.GARDEN_PLOT_SIZE
-			# ~12% of plots become "feature" plants with stem + extra foliage.
-			var feature := _rng.randf() < 0.12
-			# Light is shared across rows of feature plants (spaced out).
-			_build_plot(x, z, feature)
-			if feature and (i + j) % 4 == 0:
+			_plots.append(_build_plot(x, z))
+			# Sparse grow-light fixtures on a 4×4 stride so the field has
+			# warm overhead glow without 384 OmniLights eating the GPU.
+			if i % 4 == 1 and j % 4 == 1:
 				_build_plot_grow_light(x, z)
 
 
@@ -269,8 +319,20 @@ func _is_elevator_cell(i: int, j: int) -> bool:
 		and absf(float(j) - center) < float(_c.ELEVATOR_RADIUS)
 
 
-func _build_plot(x: float, z: float, feature: bool) -> void:
-	# Soil — small box.
+# Build a plot with growth-stage state. Spawns a permanent soil box, one
+# foliage sphere (scaled per stage), and two fruit accents (visible only at
+# stage 5). Returns the plot Dictionary for the floor's _plots array.
+func _build_plot(x: float, z: float) -> Dictionary:
+	var greens := [
+		_c.PLANTER_GREEN,
+		Color(0.32, 0.55, 0.22),
+		Color(0.45, 0.7, 0.34),
+		Color(0.25, 0.45, 0.18),
+	]
+	var plant_color: Color = greens[_rng.randi() % greens.size()]
+
+	# Soil — its material is shared (we mutate albedo when stage = 0 to read
+	# as freshly turned dirt). Each plot gets its own StandardMaterial3D.
 	var soil := MeshInstance3D.new()
 	soil.name = "Soil"
 	var soil_mesh := BoxMesh.new()
@@ -280,64 +342,84 @@ func _build_plot(x: float, z: float, feature: bool) -> void:
 	soil.position = Vector3(x, 0.09, z)
 	add_child(soil)
 
-	# Foliage — 1 base sphere always; feature plants get 2 extras.
-	var greens := [
-		_c.PLANTER_GREEN,
-		Color(0.32, 0.55, 0.22),
-		Color(0.45, 0.7, 0.34),
-		Color(0.25, 0.45, 0.18),
-	]
-	var base_color: Color = greens[_rng.randi() % greens.size()]
-	var base_radius: float = 0.18 + _rng.randf() * 0.08
-	var base := MeshInstance3D.new()
-	base.name = "Foliage"
-	var bsphere := SphereMesh.new()
-	bsphere.radius = base_radius
-	bsphere.height = base_radius * 2.0
-	base.mesh = bsphere
-	base.material_override = _make_material(base_color)
-	base.position = Vector3(x, 0.18 + base_radius * 0.8, z)
-	add_child(base)
+	# Plant — single SphereMesh with radius 1.0; we scale and reposition it
+	# per growth stage in _refresh_plot_visuals().
+	var plant := MeshInstance3D.new()
+	plant.name = "Plant"
+	var plant_mesh := SphereMesh.new()
+	plant_mesh.radius = 1.0
+	plant_mesh.height = 2.0
+	plant.mesh = plant_mesh
+	plant.material_override = _make_material(plant_color)
+	add_child(plant)
 
-	if feature:
-		# Stem.
-		var stem := MeshInstance3D.new()
-		stem.name = "Stem"
-		var sm := CylinderMesh.new()
-		sm.top_radius = 0.04
-		sm.bottom_radius = 0.06
-		sm.height = 0.5
-		stem.mesh = sm
-		stem.material_override = _make_material(Color(0.32, 0.42, 0.18))
-		stem.position = Vector3(x, 0.43, z)
-		add_child(stem)
-		# Extra foliage spheres.
-		for k in range(2):
-			var color: Color = greens[_rng.randi() % greens.size()]
-			var radius: float = 0.18 + _rng.randf() * 0.1
-			var leaf := MeshInstance3D.new()
-			leaf.name = "Foliage"
-			var ls := SphereMesh.new()
-			ls.radius = radius
-			ls.height = radius * 2.0
-			leaf.mesh = ls
-			leaf.material_override = _make_material(color)
-			var dx := (_rng.randf() - 0.5) * 0.3
-			var dz := (_rng.randf() - 0.5) * 0.3
-			var dy: float = 0.55 + _rng.randf() * 0.2
-			leaf.position = Vector3(x + dx, dy, z + dz)
-			add_child(leaf)
-		# Fruit accent.
-		if _rng.randf() < 0.7:
-			var fruit := MeshInstance3D.new()
-			fruit.name = "Fruit"
-			var fmesh := SphereMesh.new()
-			fmesh.radius = 0.08
-			fmesh.height = 0.16
-			fruit.mesh = fmesh
-			fruit.material_override = _make_material(Color(0.85, 0.25, 0.2))
-			fruit.position = Vector3(x + 0.1, 0.55, z + 0.1)
-			add_child(fruit)
+	# Two fruit accents — visible only at stage 5.
+	var fruit_a := MeshInstance3D.new()
+	fruit_a.name = "FruitA"
+	var fa_mesh := SphereMesh.new()
+	fa_mesh.radius = 0.08
+	fa_mesh.height = 0.16
+	fruit_a.mesh = fa_mesh
+	fruit_a.material_override = _make_material(Color(0.85, 0.25, 0.2))
+	fruit_a.position = Vector3(x + 0.18, 0.45, z + 0.12)
+	add_child(fruit_a)
+
+	var fruit_b := MeshInstance3D.new()
+	fruit_b.name = "FruitB"
+	var fb_mesh := SphereMesh.new()
+	fb_mesh.radius = 0.06
+	fb_mesh.height = 0.12
+	fruit_b.mesh = fb_mesh
+	fruit_b.material_override = _make_material(Color(0.85, 0.25, 0.2))
+	fruit_b.position = Vector3(x - 0.14, 0.42, z - 0.16)
+	add_child(fruit_b)
+
+	# Initial state — randomise across stages 1..5 with random elapsed time
+	# inside the stage so the field reads as already alive when the player
+	# spawns. Some plots will be immediately harvestable.
+	var initial_stage: int = _rng.randi_range(1, _c.GROWTH_STAGE_COUNT)
+	var initial_t: float = _rng.randf() * _c.GROWTH_STAGE_DURATION
+	var plot := {
+		"world_pos": Vector3(x, 0, z),
+		"stage": initial_stage,
+		"time_in_stage": initial_t,
+		"soil": soil,
+		"plant": plant,
+		"fruit_a": fruit_a,
+		"fruit_b": fruit_b,
+	}
+	_refresh_plot_visuals(plot)
+	return plot
+
+
+# Update plant scale, plant position (so its base stays on the soil), fruit
+# visibility, and soil tint based on the current stage.
+func _refresh_plot_visuals(plot: Dictionary) -> void:
+	var stage: int = plot.stage
+	var has_plant: bool = stage >= 1 and stage <= _c.GROWTH_STAGE_COUNT
+	plot.plant.visible = has_plant
+	plot.fruit_a.visible = stage == _c.GROWTH_STAGE_COUNT
+	plot.fruit_b.visible = stage == _c.GROWTH_STAGE_COUNT
+	if has_plant:
+		var r: float = _stage_to_plant_radius(stage)
+		plot.plant.scale = Vector3(r, r, r)
+		plot.plant.position = Vector3(plot.world_pos.x, 0.18 + r, plot.world_pos.z)
+	# Soil reads slightly darker at stage 0 — "fresh dirt".
+	var soil_mat: StandardMaterial3D = plot.soil.material_override
+	if stage == 0:
+		soil_mat.albedo_color = Color(
+			_c.PLANTER_SOIL.r * 0.8,
+			_c.PLANTER_SOIL.g * 0.8,
+			_c.PLANTER_SOIL.b * 0.8,
+		)
+	else:
+		soil_mat.albedo_color = _c.PLANTER_SOIL
+
+
+func _stage_to_plant_radius(stage: int) -> float:
+	# Stages 1..5 → progressively larger foliage.
+	var radii := [0.05, 0.11, 0.17, 0.23, 0.28]
+	return radii[stage - 1]
 
 
 func _build_plot_grow_light(x: float, z: float) -> void:

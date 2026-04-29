@@ -21,3 +21,6 @@ var camera := {
 	"ortho_size": 14.0,
 	"angle_step": 0,
 }
+
+# Harvested-plant counter, mirrored to the top-right HUD label.
+var food_count := 0
