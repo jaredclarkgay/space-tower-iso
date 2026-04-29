@@ -108,8 +108,9 @@ func _apply_pan(mouse_delta: Vector2) -> void:
 	var screen_dx := -mouse_delta.x * per_pixel
 	var screen_dy := mouse_delta.y * per_pixel
 	# Pivot basis: forward = -Z in pivot space, right = +X.
-	var basis := _pivot.global_transform.basis
-	var world_delta := basis.x * screen_dx + basis.z * screen_dy
+	# Don't name this `basis` — that shadows Node3D's own basis property.
+	var pivot_basis := _pivot.global_transform.basis
+	var world_delta := pivot_basis.x * screen_dx + pivot_basis.z * screen_dy
 	# Lock to XZ plane (we don't want middle-click drag to fly the camera up).
 	world_delta.y = 0.0
 	_pivot.global_position += world_delta

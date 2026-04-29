@@ -180,9 +180,9 @@ func _build_one_wall(side: String, half: float) -> void:
 	base.mesh = bm
 	base.material_override = _make_material(Color(0.32, 0.32, 0.36))
 	base.position = Vector3(
-		0 if wall_along_x else perp_pos,
+		0.0 if wall_along_x else perp_pos,
 		_c.WALL_BASE_HEIGHT * 0.5,
-		perp_pos if wall_along_x else 0
+		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(base)
 
@@ -196,9 +196,9 @@ func _build_one_wall(side: String, half: float) -> void:
 		col_shape.size = Vector3(thick, _c.WALL_HEIGHT, length)
 	col.shape = col_shape
 	col.position = Vector3(
-		0 if wall_along_x else perp_pos,
+		0.0 if wall_along_x else perp_pos,
 		_c.WALL_HEIGHT * 0.5,
-		perp_pos if wall_along_x else 0
+		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(col)
 
@@ -231,9 +231,9 @@ func _build_one_wall(side: String, half: float) -> void:
 	trim.mesh = trim_mesh
 	trim.material_override = _make_material(Color(0.28, 0.28, 0.32))
 	trim.position = Vector3(
-		0 if wall_along_x else perp_pos,
+		0.0 if wall_along_x else perp_pos,
 		_c.WALL_HEIGHT - 0.06,
-		perp_pos if wall_along_x else 0
+		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(trim)
 
@@ -250,9 +250,9 @@ func _build_one_wall(side: String, half: float) -> void:
 	glass.mesh = glass_mesh
 	glass.material_override = _make_window_material()
 	glass.position = Vector3(
-		0 if wall_along_x else perp_pos,
+		0.0 if wall_along_x else perp_pos,
 		_c.WALL_BASE_HEIGHT + glass_h * 0.5,
-		perp_pos if wall_along_x else 0
+		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(glass)
 
@@ -646,7 +646,6 @@ func _make_window_material() -> StandardMaterial3D:
 
 func _build_extension_grid() -> void:
 	var half: float = _c.FLOOR_3D_SIZE * 0.5
-	var ext: float = _c.EXTENSION_GRID_LENGTH
 	var y_offset := 0.005
 	var pane_positions: Array = _c.EXTENSION_PANE_POSITIONS
 
@@ -660,24 +659,19 @@ func _build_extension_grid() -> void:
 	for s in ["+x", "-x", "+z", "-z"]:
 		var rot_y := 0.0
 		var origin: Vector3
-		var crossbar_axis_along_x := false   # whether crossbar's length runs along X
 		match s:
 			"+x":
 				rot_y = 0.0
 				origin = Vector3(half, y_offset, 0)
-				crossbar_axis_along_x = false   # crossbar along Z
 			"-x":
 				rot_y = PI
 				origin = Vector3(-half, y_offset, 0)
-				crossbar_axis_along_x = false
 			"+z":
 				rot_y = -PI * 0.5
 				origin = Vector3(0, y_offset, half)
-				crossbar_axis_along_x = true
 			"-z":
 				rot_y = PI * 0.5
 				origin = Vector3(0, y_offset, -half)
-				crossbar_axis_along_x = true
 
 		# Outgoing lines.
 		for offset in pane_positions:
