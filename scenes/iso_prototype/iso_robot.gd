@@ -18,6 +18,8 @@ extends Node3D
 # state that consumes commands queued from elsewhere. The visual + harvest
 # loop stays unchanged.
 
+const _CODY_PORTRAIT := preload("res://scenes/iso_prototype/cody_portrait.gd")
+
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -45,6 +47,15 @@ var _time := 0.0   # for LED pulse
 var _body_root: Node3D
 var _led: MeshInstance3D
 var _led_mat: StandardMaterial3D
+# Top-down warm spotlight that follows Cody from arrival through awaiting
+# activation, then fades out when the player presses E to send him to work.
+var _spotlight: SpotLight3D
+# Bobbing red "!" Label3D above Cody when his hopper is full. Hidden in
+# every other state.
+var _full_indicator: Label3D
+# Slippy-style intro dialogue panel parked bottom-left of the screen while
+# Cody is awaiting activation. Dismissed on activation.
+var _arrival_dialogue: Control
 
 
 func _ready() -> void:
@@ -53,6 +64,8 @@ func _ready() -> void:
 	if hud_path:
 		_hud = get_node(hud_path)
 	_build_visual()
+	_build_spotlight()
+	_build_full_indicator()
 	visible = false
 
 
@@ -65,6 +78,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_update_led()
+	_update_full_indicator()
 
 	match _state:
 		State.ENTERING:
@@ -106,6 +120,10 @@ func try_interact() -> bool:
 			# corner of the snake, not wherever it left off pre-activation.
 			_cursor = Vector2i(0, -1)
 			_state = State.MOVING_TO_TARGET
+			# End-of-introduction beat: dismiss the dialogue and fade the
+			# spotlight away — Cody is "going to work" now.
+			_dismiss_arrival_dialogue()
+			_fade_out_spotlight()
 			return true
 		State.FULL_AWAITING_PICKUP:
 			_gs.food_count += _capacity
@@ -138,6 +156,10 @@ func _begin_arrival() -> void:
 
 	_spawn_arrival_light()
 	_spawn_arrival_banner()
+	# Top-down warm spotlight that follows Cody. Tracks his transform.
+	if _spotlight:
+		_spotlight.light_energy = 4.0
+		_spotlight.visible = true
 
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_QUAD)
@@ -151,6 +173,8 @@ func _begin_arrival() -> void:
 
 func _finish_arrival() -> void:
 	_state = State.AWAITING_ACTIVATION
+	# Dialogue panel appears once Cody has settled in his parking spot.
+	_spawn_arrival_dialogue()
 
 
 # Tall translucent emissive column at the elevator. Reads as a beam of
@@ -257,7 +281,9 @@ func _update_harvesting(delta: float) -> void:
 	# Plot may have already been harvested by the player while we were en
 	# route; only count it if it's still stage 5.
 	if _target_plot != null and _target_plot.stage == _c.GROWTH_STAGE_COUNT:
+		var plant_name: String = _target_plot.plant_type.name
 		_iso_floor.harvest_plot(_target_plot, false)
+		_spawn_robot_harvest_feedback(plant_name)
 		_capacity += 1
 	_target_plot = null
 	_harvest_progress = 0.0
@@ -305,7 +331,8 @@ func _build_visual() -> void:
 	_body_root.name = "Chassis"
 	add_child(_body_root)
 
-	# Flat orange disc body — Roomba silhouette.
+	# Flat bluish-teal disc body — much more visible against the warm
+	# garden than the previous hardhat-orange chassis.
 	var body := MeshInstance3D.new()
 	body.name = "Body"
 	var bm := CylinderMesh.new()
@@ -313,7 +340,7 @@ func _build_visual() -> void:
 	bm.bottom_radius = 0.34
 	bm.height = 0.18
 	body.mesh = bm
-	body.material_override = _make_material(Color(0.85, 0.55, 0.25))
+	body.material_override = _make_material(Color(0.25, 0.68, 0.80))
 	body.position.y = 0.10
 	_body_root.add_child(body)
 
@@ -325,11 +352,11 @@ func _build_visual() -> void:
 	rm.bottom_radius = 0.36
 	rm.height = 0.04
 	rim.mesh = rm
-	rim.material_override = _make_material(Color(0.18, 0.18, 0.20))
+	rim.material_override = _make_material(Color(0.08, 0.16, 0.22))
 	rim.position.y = 0.04
 	_body_root.add_child(rim)
 
-	# Tapered dome on top — slightly back-tilted shoulder where the LED sits.
+	# Tapered dome on top — light grey-blue, complements the teal chassis.
 	var dome := MeshInstance3D.new()
 	dome.name = "Dome"
 	var dm := CylinderMesh.new()
@@ -337,7 +364,7 @@ func _build_visual() -> void:
 	dm.bottom_radius = 0.26
 	dm.height = 0.10
 	dome.mesh = dm
-	dome.material_override = _make_material(Color(0.30, 0.30, 0.32))
+	dome.material_override = _make_material(Color(0.46, 0.50, 0.56))
 	dome.position.y = 0.24
 	_body_root.add_child(dome)
 
@@ -411,3 +438,176 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	m.albedo_color = color
 	m.roughness = 0.65
 	return m
+
+
+# Top-down warm spotlight that lives as a child of the robot, so it follows
+# the chassis through arrival and across the floor while awaiting activation.
+# Faded out via tween when the player presses E to send Cody to work.
+func _build_spotlight() -> void:
+	_spotlight = SpotLight3D.new()
+	_spotlight.name = "TopDownSpot"
+	_spotlight.light_color = Color(1.0, 0.92, 0.65)
+	_spotlight.light_energy = 4.0
+	_spotlight.spot_range = 6.0
+	_spotlight.spot_angle = 30.0
+	_spotlight.spot_attenuation = 0.9
+	_spotlight.position = Vector3(0, 4.0, 0)
+	# SpotLight3D casts down its local -Z. Rotating X by -90° points -Z to
+	# world -Y, so the cone illuminates the chassis from straight above.
+	_spotlight.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	_spotlight.visible = false
+	add_child(_spotlight)
+
+
+func _fade_out_spotlight() -> void:
+	if _spotlight == null:
+		return
+	var spot := _spotlight
+	var tween := create_tween()
+	tween.tween_property(spot, "light_energy", 0.0, 0.5)
+	tween.tween_callback(func(): spot.visible = false)
+
+
+# Bobbing red "!" Label3D that hovers above Cody when his hopper is full.
+# Always created but hidden — visibility flips in _update_full_indicator.
+func _build_full_indicator() -> void:
+	_full_indicator = Label3D.new()
+	_full_indicator.name = "FullIndicator"
+	_full_indicator.text = "!"
+	_full_indicator.font_size = 96
+	_full_indicator.outline_size = 14
+	_full_indicator.modulate = Color(1.0, 0.30, 0.20, 1.0)
+	_full_indicator.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+	_full_indicator.pixel_size = 0.012
+	_full_indicator.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_full_indicator.no_depth_test = true
+	_full_indicator.position = Vector3(0, 1.55, 0)
+	_full_indicator.visible = false
+	add_child(_full_indicator)
+
+
+func _update_full_indicator() -> void:
+	if _full_indicator == null:
+		return
+	var should_show := _state == State.FULL_AWAITING_PICKUP
+	_full_indicator.visible = should_show
+	if should_show:
+		# Bob up and down, plus an alpha pulse, to draw the eye.
+		var bob: float = sin(_time * TAU / 0.6) * 0.18
+		_full_indicator.position.y = 1.55 + bob
+		var alpha: float = 0.7 + sin(_time * TAU / 0.6) * 0.3
+		_full_indicator.modulate.a = alpha
+
+
+# +1 floater above Cody whenever he completes a harvest — visual companion
+# to GameState's food count climbing on player collection. Fires per-plot,
+# so the player can see Cody working without having to track him directly.
+func _spawn_robot_harvest_feedback(plant_name: String) -> void:
+	var label := Label3D.new()
+	label.text = "+1 %s" % plant_name
+	label.font_size = 36
+	label.outline_size = 6
+	label.modulate = Color(0.55, 1.0, 0.50, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.85)
+	label.pixel_size = 0.010
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0.0, 1.0, 0.0)   # above the dome
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 1.2, 0.9)
+	tween.tween_property(label, ^"modulate:a", 0.0, 0.9)
+	tween.finished.connect(label.queue_free)
+
+
+# Slippy-style intro dialogue panel: bottom-left of the screen, with a
+# programmatic Cody portrait on the left and an introduction on the right.
+# Persists during AWAITING_ACTIVATION; dismissed by _dismiss_arrival_dialogue
+# when the player activates Cody.
+func _spawn_arrival_dialogue() -> void:
+	if _hud == null:
+		return
+
+	var dialogue := PanelContainer.new()
+	dialogue.name = "ArrivalDialogue"
+	dialogue.anchor_left = 0.0
+	dialogue.anchor_right = 0.0
+	dialogue.anchor_top = 1.0
+	dialogue.anchor_bottom = 1.0
+	dialogue.offset_left = 24.0
+	dialogue.offset_top = -180.0
+	dialogue.offset_right = 620.0
+	dialogue.offset_bottom = -24.0
+	dialogue.modulate.a = 0.0
+	dialogue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.10, 0.16, 0.92)
+	style.border_color = Color(0.30, 0.68, 0.78, 0.70)
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_right = 10
+	style.corner_radius_bottom_left = 10
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+	style.shadow_size = 12
+	style.shadow_offset = Vector2(0, 4)
+	dialogue.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	dialogue.add_child(margin)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 16)
+	margin.add_child(hbox)
+
+	# Programmatic portrait Control — drawn via cody_portrait.gd's _draw.
+	var portrait := Control.new()
+	portrait.set_script(_CODY_PORTRAIT)
+	portrait.custom_minimum_size = Vector2(120, 120)
+	hbox.add_child(portrait)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 8)
+	hbox.add_child(vbox)
+
+	var name_label := Label.new()
+	name_label.text = "CODY GX-5"
+	name_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
+	name_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	name_label.add_theme_constant_override("outline_size", 4)
+	name_label.add_theme_font_size_override("font_size", 24)
+	vbox.add_child(name_label)
+
+	var dialogue_label := Label.new()
+	dialogue_label.text = "Cody GX-5 here, ready to help!\nActivate me with E to start harvesting.\nI'll signal when my hopper is full."
+	dialogue_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+	dialogue_label.add_theme_font_size_override("font_size", 18)
+	dialogue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(dialogue_label)
+
+	_hud.add_child(dialogue)
+	_arrival_dialogue = dialogue
+
+	var tween := create_tween()
+	tween.tween_property(dialogue, "modulate:a", 1.0, 0.5).set_delay(0.6)
+
+
+func _dismiss_arrival_dialogue() -> void:
+	if _arrival_dialogue == null:
+		return
+	var d := _arrival_dialogue
+	_arrival_dialogue = null
+	var tween := create_tween()
+	tween.tween_property(d, "modulate:a", 0.0, 0.4)
+	tween.tween_callback(d.queue_free)
