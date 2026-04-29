@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://c63jddsadj8we"]
+[gd_scene load_steps=8 format=3 uid="uid://c63jddsadj8we"]
 
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
@@ -11,6 +11,25 @@ background_color = Color(0.06, 0.06, 0.08, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.55, 0.6, 0.7, 1)
 ambient_light_energy = 0.5
+
+[sub_resource type="StyleBoxFlat" id="ResourcePanelStyle"]
+bg_color = Color(0.07, 0.075, 0.09, 0.86)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.7, 0.3, 0.55)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 8
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxLine" id="ResourcePanelDivider"]
+color = Color(0.85, 0.7, 0.3, 0.4)
+thickness = 1
 
 [node name="IsoPrototype" type="Node3D"]
 
@@ -58,18 +77,78 @@ Wheel · = / -   Zoom
 Middle-drag     Pan
 E               Hold to harvest a ready plant"
 
-[node name="FoodCount" type="Label" parent="HUD"]
+[node name="ResourcesPanel" type="PanelContainer" parent="HUD"]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -340.0
-offset_top = 16.0
-offset_right = -20.0
-offset_bottom = 92.0
+offset_left = -300.0
+offset_top = 18.0
+offset_right = -18.0
+theme_override_styles/panel = SubResource("ResourcePanelStyle")
+
+[node name="Margin" type="MarginContainer" parent="HUD/ResourcesPanel"]
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="VBox" type="VBoxContainer" parent="HUD/ResourcesPanel/Margin"]
+theme_override_constants/separation = 8
+
+[node name="TitleLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox"]
+text = "RESOURCES"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.95, 0.82, 0.42, 0.95)
+theme_override_constants/outline_size = 0
+theme_override_font_sizes/font_size = 16
+
+[node name="Divider" type="HSeparator" parent="HUD/ResourcesPanel/Margin/VBox"]
+theme_override_styles/separator = SubResource("ResourcePanelDivider")
+
+[node name="FoodRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
+alignment = 1
+
+[node name="FoodLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/FoodRow"]
+size_flags_horizontal = 3
+text = "Food"
+theme_override_colors/font_color = Color(0.95, 0.95, 0.85, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 28
+
+[node name="FoodCount" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/FoodRow"]
+text = "0"
+horizontal_alignment = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.34, 1)
 theme_override_colors/font_outline_color = Color(0.05, 0.04, 0, 1)
-theme_override_constants/outline_size = 12
-theme_override_font_sizes/font_size = 44
-text = "Food: 0"
-horizontal_alignment = 2
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 38
 script = ExtResource("4_food")
+
+[node name="EnergyRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
+
+[node name="EnergyLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/EnergyRow"]
+size_flags_horizontal = 3
+text = "Energy"
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 0.55)
+theme_override_font_sizes/font_size = 18
+
+[node name="EnergyValue" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/EnergyRow"]
+text = "—"
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 0.55)
+theme_override_font_sizes/font_size = 18
+
+[node name="PopulationRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
+
+[node name="PopulationLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/PopulationRow"]
+size_flags_horizontal = 3
+text = "Population"
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 0.55)
+theme_override_font_sizes/font_size = 18
+
+[node name="PopulationValue" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/PopulationRow"]
+text = "—"
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 0.55)
+theme_override_font_sizes/font_size = 18

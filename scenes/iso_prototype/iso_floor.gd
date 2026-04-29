@@ -355,10 +355,9 @@ func _build_plot(x: float, z: float) -> Dictionary:
 	]
 	var plant_color: Color = greens[_rng.randi() % greens.size()]
 	# Pick a plant type — drives the harvest prompt's "<name>" and the
-	# fruit-accent colour shown at stage 5.
+	# shape/colour of the fruit visible at stage 5.
 	var types: Array = _c.PLANT_TYPES
 	var plant_type: Dictionary = types[_rng.randi() % types.size()]
-	var fruit_color: Color = plant_type.fruit_color
 
 	# Soil — its material is shared (we mutate albedo when stage = 0 to read
 	# as freshly turned dirt). Each plot gets its own StandardMaterial3D.
@@ -382,26 +381,9 @@ func _build_plot(x: float, z: float) -> Dictionary:
 	plant.material_override = _make_material(plant_color)
 	add_child(plant)
 
-	# Two fruit accents — visible only at stage 5; colour by plant type.
-	var fruit_a := MeshInstance3D.new()
-	fruit_a.name = "FruitA"
-	var fa_mesh := SphereMesh.new()
-	fa_mesh.radius = 0.08
-	fa_mesh.height = 0.16
-	fruit_a.mesh = fa_mesh
-	fruit_a.material_override = _make_material(fruit_color)
-	fruit_a.position = Vector3(x + 0.18, 0.45, z + 0.12)
-	add_child(fruit_a)
-
-	var fruit_b := MeshInstance3D.new()
-	fruit_b.name = "FruitB"
-	var fb_mesh := SphereMesh.new()
-	fb_mesh.radius = 0.06
-	fb_mesh.height = 0.12
-	fruit_b.mesh = fb_mesh
-	fruit_b.material_override = _make_material(fruit_color)
-	fruit_b.position = Vector3(x - 0.14, 0.42, z - 0.16)
-	add_child(fruit_b)
+	# Per-type fruit visuals — shape + count + position vary by plant type.
+	# All start hidden; _refresh_plot_visuals shows them at stage 5.
+	var fruits: Array = _build_fruits_for_type(plant_type, x, z)
 
 	# Initial state — randomise across stages 1..5 with random elapsed time
 	# inside the stage so the field reads as already alive when the player
@@ -415,8 +397,7 @@ func _build_plot(x: float, z: float) -> Dictionary:
 		"plant_type": plant_type,
 		"soil": soil,
 		"plant": plant,
-		"fruit_a": fruit_a,
-		"fruit_b": fruit_b,
+		"fruits": fruits,
 	}
 	_refresh_plot_visuals(plot)
 	return plot
@@ -428,8 +409,9 @@ func _refresh_plot_visuals(plot: Dictionary) -> void:
 	var stage: int = plot.stage
 	var has_plant: bool = stage >= 1 and stage <= _c.GROWTH_STAGE_COUNT
 	plot.plant.visible = has_plant
-	plot.fruit_a.visible = stage == _c.GROWTH_STAGE_COUNT
-	plot.fruit_b.visible = stage == _c.GROWTH_STAGE_COUNT
+	var show_fruits: bool = stage == _c.GROWTH_STAGE_COUNT
+	for fruit in plot.fruits:
+		fruit.visible = show_fruits
 	if has_plant:
 		var r: float = _stage_to_plant_radius(stage)
 		plot.plant.scale = Vector3(r, r, r)
@@ -450,6 +432,112 @@ func _stage_to_plant_radius(stage: int) -> float:
 	# Stages 1..5 → progressively larger foliage.
 	var radii := [0.05, 0.11, 0.17, 0.23, 0.28]
 	return radii[stage - 1]
+
+
+# Build the stage-5 fruit visuals for a plant type. Each crop has a
+# distinct shape (scale-warped sphere or cylinder) and count; everything
+# stays hidden until _refresh_plot_visuals() flips visibility at stage 5.
+func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array:
+	var fruits: Array = []
+	var color: Color = plant_type.fruit_color
+	match plant_type.name:
+		"Tomato":
+			# Cluster of 3 small round red tomatoes spread around the foliage.
+			for i in range(3):
+				var f := MeshInstance3D.new()
+				f.name = "Tomato"
+				var m := SphereMesh.new()
+				m.radius = 0.085
+				m.height = 0.17
+				f.mesh = m
+				f.material_override = _make_material(color)
+				var angle: float = float(i) * (TAU / 3.0) + 0.5
+				var dx: float = cos(angle) * 0.14
+				var dz: float = sin(angle) * 0.14
+				f.position = Vector3(x + dx, 0.42 + float(i) * 0.05, z + dz)
+				add_child(f)
+				fruits.append(f)
+		"Pepper":
+			# Two slim, vertically-elongated peppers hanging at the sides.
+			for i in range(2):
+				var f := MeshInstance3D.new()
+				f.name = "Pepper"
+				var m := SphereMesh.new()
+				m.radius = 0.06
+				m.height = 0.12
+				f.mesh = m
+				f.scale = Vector3(1.0, 1.9, 1.0)
+				f.material_override = _make_material(color)
+				var sign_v: int = -1 if i == 0 else 1
+				f.position = Vector3(x + sign_v * 0.16, 0.34, z + 0.04)
+				add_child(f)
+				fruits.append(f)
+		"Eggplant":
+			# One vertical purple ellipsoid with a small green calyx on top.
+			var body := MeshInstance3D.new()
+			body.name = "EggplantBody"
+			var bm := SphereMesh.new()
+			bm.radius = 0.11
+			bm.height = 0.22
+			body.mesh = bm
+			body.scale = Vector3(0.7, 1.45, 0.7)
+			body.material_override = _make_material(color)
+			body.position = Vector3(x + 0.08, 0.36, z + 0.08)
+			add_child(body)
+			fruits.append(body)
+			var cap := MeshInstance3D.new()
+			cap.name = "EggplantCap"
+			var cm := BoxMesh.new()
+			cm.size = Vector3(0.08, 0.05, 0.08)
+			cap.mesh = cm
+			cap.material_override = _make_material(Color(0.30, 0.50, 0.20))
+			cap.position = Vector3(x + 0.08, 0.50, z + 0.08)
+			add_child(cap)
+			fruits.append(cap)
+		"Pumpkin":
+			# One large squashed orange sphere sitting on the soil.
+			var body := MeshInstance3D.new()
+			body.name = "PumpkinBody"
+			var bm := SphereMesh.new()
+			bm.radius = 0.20
+			bm.height = 0.40
+			body.mesh = bm
+			body.scale = Vector3(1.0, 0.7, 1.0)
+			body.material_override = _make_material(color)
+			body.position = Vector3(x + 0.12, 0.32, z + 0.12)
+			add_child(body)
+			fruits.append(body)
+			# Dark green stem on top.
+			var stem := MeshInstance3D.new()
+			stem.name = "PumpkinStem"
+			var sm := CylinderMesh.new()
+			sm.top_radius = 0.025
+			sm.bottom_radius = 0.04
+			sm.height = 0.09
+			stem.mesh = sm
+			stem.material_override = _make_material(Color(0.25, 0.40, 0.15))
+			stem.position = Vector3(x + 0.12, 0.50, z + 0.12)
+			add_child(stem)
+			fruits.append(stem)
+		"Cucumber":
+			# Two long thin green cylinders, tilted opposite directions.
+			for i in range(2):
+				var f := MeshInstance3D.new()
+				f.name = "Cucumber"
+				var m := CylinderMesh.new()
+				m.top_radius = 0.04
+				m.bottom_radius = 0.04
+				m.height = 0.26
+				f.mesh = m
+				f.material_override = _make_material(color)
+				var sign_v: int = -1 if i == 0 else 1
+				f.rotation = Vector3(0, 0, deg_to_rad(20.0 * sign_v))
+				f.position = Vector3(x + sign_v * 0.16, 0.36, z - 0.04 * sign_v)
+				add_child(f)
+				fruits.append(f)
+	for f in fruits:
+		f.visible = false
+	return fruits
 
 
 func _build_plot_grow_light(x: float, z: float) -> void:

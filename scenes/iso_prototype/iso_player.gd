@@ -502,27 +502,27 @@ func _build_e_prompt() -> void:
 	_e_prompt = Label3D.new()
 	_e_prompt.name = "EKey"
 	_e_prompt.text = "E"
-	_e_prompt.font_size = 28
-	_e_prompt.outline_size = 4
-	_e_prompt.modulate = Color(1, 1, 1, 0.85)
-	_e_prompt.outline_modulate = Color(0, 0, 0, 0.85)
+	_e_prompt.font_size = 84
+	_e_prompt.outline_size = 12
+	_e_prompt.modulate = Color(1, 1, 1, 0.92)
+	_e_prompt.outline_modulate = Color(0, 0, 0, 0.9)
 	_e_prompt.pixel_size = 0.008
 	_e_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_e_prompt.no_depth_test = true
-	_e_prompt.position = Vector3(0, 0.32, 0)
+	_e_prompt.position = Vector3(0, 0.55, 0)
 	_prompt_root.add_child(_e_prompt)
 
 	_harvest_label = Label3D.new()
 	_harvest_label.name = "HarvestLabel"
 	_harvest_label.text = "Harvest"
-	_harvest_label.font_size = 24
-	_harvest_label.outline_size = 4
-	_harvest_label.modulate = Color(0.9, 0.98, 0.8, 0.85)
-	_harvest_label.outline_modulate = Color(0, 0, 0, 0.85)
+	_harvest_label.font_size = 72
+	_harvest_label.outline_size = 12
+	_harvest_label.modulate = Color(0.92, 0.99, 0.82, 0.92)
+	_harvest_label.outline_modulate = Color(0, 0, 0, 0.9)
 	_harvest_label.pixel_size = 0.008
 	_harvest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_harvest_label.no_depth_test = true
-	_harvest_label.position = Vector3(0, 0.12, 0)
+	_harvest_label.position = Vector3(0, -0.25, 0)
 	_prompt_root.add_child(_harvest_label)
 
 
