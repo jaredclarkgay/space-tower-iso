@@ -357,17 +357,15 @@ func _is_elevator_cell(i: int, j: int) -> bool:
 # foliage sphere (scaled per stage), and two fruit accents (visible only at
 # stage 5). Returns the plot Dictionary for the floor's _plots array.
 func _build_plot(x: float, z: float) -> Dictionary:
-	var greens := [
-		_c.PLANTER_GREEN,
-		Color(0.32, 0.55, 0.22),
-		Color(0.45, 0.7, 0.34),
-		Color(0.25, 0.45, 0.18),
-	]
-	var plant_color: Color = greens[_rng.randi() % greens.size()]
-	# Pick a plant type — drives the harvest prompt's "<name>" and the
-	# shape/colour of the fruit visible at stage 5.
+	# Pick a plant type — drives the harvest prompt's "<name>", the
+	# shape/colour of the fruit visible at stage 5, and the foliage tint
+	# at every stage. Foliage tint is now per-type so plots read as
+	# visually different even when the fruit is too small to see from
+	# camera distance (was: random green from a small palette, which made
+	# all plots look the same hue).
 	var types: Array = _c.PLANT_TYPES
 	var plant_type: Dictionary = types[_rng.randi() % types.size()]
+	var plant_color: Color = plant_type.foliage_color
 
 	# Soil — its material is shared (we mutate albedo when stage = 0 to read
 	# as freshly turned dirt). Each plot gets its own StandardMaterial3D.
@@ -484,24 +482,27 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 				fruits.append(f)
 		"Eggplant":
 			# One vertical purple ellipsoid with a small green calyx on top.
+			# Bumped from radius 0.11 → 0.16 — at iso distance the previous
+			# size barely registered against the foliage and the field
+			# read as no-purple-anywhere.
 			var body := MeshInstance3D.new()
 			body.name = "EggplantBody"
 			var bm := SphereMesh.new()
-			bm.radius = 0.11
-			bm.height = 0.22
+			bm.radius = 0.16
+			bm.height = 0.32
 			body.mesh = bm
 			body.scale = Vector3(0.7, 1.45, 0.7)
 			body.material_override = _make_material(color)
-			body.position = Vector3(x + 0.08, 0.36, z + 0.08)
+			body.position = Vector3(x + 0.08, 0.40, z + 0.08)
 			add_child(body)
 			fruits.append(body)
 			var cap := MeshInstance3D.new()
 			cap.name = "EggplantCap"
 			var cm := BoxMesh.new()
-			cm.size = Vector3(0.08, 0.05, 0.08)
+			cm.size = Vector3(0.10, 0.05, 0.10)
 			cap.mesh = cm
 			cap.material_override = _make_material(Color(0.30, 0.50, 0.20))
-			cap.position = Vector3(x + 0.08, 0.50, z + 0.08)
+			cap.position = Vector3(x + 0.08, 0.60, z + 0.08)
 			add_child(cap)
 			fruits.append(cap)
 		"Pumpkin":
@@ -657,7 +658,13 @@ func _make_window_material() -> StandardMaterial3D:
 func _build_extension_grid() -> void:
 	var half: float = _c.FLOOR_3D_SIZE * 0.5
 	var y_offset := 0.005
-	var pane_positions: Array = _c.EXTENSION_PANE_POSITIONS
+	# 6 lines per side, evenly spaced across the wall — computed from the
+	# floor size so the grid auto-rebalances if GARDEN_GRID_SIZE changes.
+	var pane_count: int = int(_c.EXTENSION_PANE_COUNT)
+	var pane_step: float = _c.FLOOR_3D_SIZE / float(pane_count)
+	var pane_positions: Array = []
+	for k in range(pane_count):
+		pane_positions.append(-half + (float(k) + 0.5) * pane_step)
 
 	var line_mesh := _make_extension_line_mesh()
 	var line_mat := _make_extension_line_material()

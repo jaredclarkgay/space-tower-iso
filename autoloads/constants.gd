@@ -26,7 +26,7 @@ const ISO_TILE_H := 32
 # BLOCK_WIDTH/FLOOR_HEIGHT (above, 2D pixel values) are kept for sibling
 # parity but unused in the iso scene; iso geometry uses the GARDEN_* and
 # FLOOR_3D_* constants below.
-const GARDEN_GRID_SIZE := 20             # plots per side
+const GARDEN_GRID_SIZE := 22             # plots per side (operator: +2 on each axis)
 const GARDEN_PLOT_SIZE := 1.0            # metres per plot
 const ELEVATOR_RADIUS := 2               # plot cells from grid center on each axis
 const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
@@ -48,7 +48,7 @@ const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 28.0 # initial size (smaller = zoomed in); fits 20×20 floor
+const CAMERA_ORTHO_SIZE_DEFAULT := 30.0 # initial size (smaller = zoomed in); fits 22×22 floor
 const CAMERA_ORTHO_SIZE_MIN := 6.0
 const CAMERA_ORTHO_SIZE_MAX := 36.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
@@ -78,14 +78,38 @@ const HARVEST_RADIUS := 1.2
 const HARVEST_KNEEL_SCALE_Y := 0.55
 
 # Plant types — each plot is randomly assigned one. Drives the prompt text
-# ("Harvest Tomato") and the fruit-accent colour at stage 5. Add types here
-# and the floor picks them up automatically.
+# ("Harvest Tomato"), the fruit-accent colour at stage 5, and the foliage
+# tint at every stage so plots read as visually distinct even when the
+# fruits are too small to see from camera distance.
+#
+# Fruit palette: red, golden-yellow, vivid purple, deep orange, lime.
+# Five clearly different hues so the field stops reading as monotone-warm.
 const PLANT_TYPES := [
-	{ "name": "Tomato",   "fruit_color": Color(0.85, 0.25, 0.20) },
-	{ "name": "Pepper",   "fruit_color": Color(1.00, 0.55, 0.10) },
-	{ "name": "Eggplant", "fruit_color": Color(0.45, 0.20, 0.55) },
-	{ "name": "Pumpkin",  "fruit_color": Color(0.95, 0.45, 0.10) },
-	{ "name": "Cucumber", "fruit_color": Color(0.40, 0.65, 0.30) },
+	{
+		"name": "Tomato",
+		"fruit_color": Color(0.85, 0.25, 0.20),
+		"foliage_color": Color(0.42, 0.62, 0.28),
+	},
+	{
+		"name": "Pepper",
+		"fruit_color": Color(1.00, 0.78, 0.15),
+		"foliage_color": Color(0.52, 0.65, 0.28),
+	},
+	{
+		"name": "Eggplant",
+		"fruit_color": Color(0.60, 0.20, 0.75),
+		"foliage_color": Color(0.32, 0.40, 0.32),
+	},
+	{
+		"name": "Pumpkin",
+		"fruit_color": Color(0.95, 0.45, 0.10),
+		"foliage_color": Color(0.40, 0.52, 0.22),
+	},
+	{
+		"name": "Cucumber",
+		"fruit_color": Color(0.65, 0.85, 0.25),
+		"foliage_color": Color(0.40, 0.55, 0.30),
+	},
 ]
 
 # --- Helper robot (Roomba MK1) -----------------------------------------------
@@ -120,7 +144,7 @@ const EXTENSION_GRID_UNIT := FLOOR_3D_STORY_HEIGHT  # 3 m — one floor height
 const EXTENSION_GRID_LENGTH := 2.0 * EXTENSION_GRID_UNIT          # 6 m
 const EXTENSION_LINE_SOLID_LENGTH := 1.0 * EXTENSION_GRID_UNIT    # 3 m
 const EXTENSION_LINE_PEAK_ALPHA := 0.30   # very subtle even at full opacity
-const EXTENSION_PANE_POSITIONS := [-8.333, -5.0, -1.667, 1.667, 5.0, 8.333]
+const EXTENSION_PANE_COUNT := 6           # extension lines per side; positions computed at runtime
 
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)

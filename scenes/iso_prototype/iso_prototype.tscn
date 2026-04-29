@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
 [ext_resource type="Script" uid="uid://cjmfqleqpthof" path="res://scenes/iso_prototype/food_count_hud.gd" id="4_food"]
-[ext_resource type="Script" path="res://scenes/iso_prototype/iso_robot.gd" id="5_robot"]
+[ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/iso_prototype/iso_robot.gd" id="5_robot"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -46,9 +46,9 @@ iso_floor_path = NodePath("../IsoFloor")
 iso_robot_path = NodePath("../IsoRobot")
 
 [node name="IsoRobot" type="Node3D" parent="World"]
+visible = false
 script = ExtResource("5_robot")
 iso_floor_path = NodePath("../IsoFloor")
-visible = false
 
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
