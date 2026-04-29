@@ -91,9 +91,33 @@ func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Va
 
 
 func harvest_plot(plot: Dictionary) -> void:
+	# Spawn a "+1 <PlantName>" floating label that rises and fades. Fired
+	# *before* mutating the plot so the plant_type is still the type the
+	# player just harvested (it's set once at build, but keeping this order
+	# makes future re-randomisation safe).
+	_spawn_harvest_feedback(plot)
 	plot.stage = 0
 	plot.time_in_stage = 0.0
 	_refresh_plot_visuals(plot)
+
+
+func _spawn_harvest_feedback(plot: Dictionary) -> void:
+	var label := Label3D.new()
+	label.text = "+1 %s" % plot.plant_type.name
+	label.font_size = 40
+	label.outline_size = 6
+	label.modulate = Color(0.7, 1.0, 0.55, 1)
+	label.outline_modulate = Color(0, 0, 0, 0.85)
+	label.pixel_size = 0.011
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = plot.world_pos + Vector3(0, 0.7, 0)
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 1.4, 1.0)
+	tween.tween_property(label, ^"modulate:a", 0.0, 1.0)
+	tween.finished.connect(label.queue_free)
 
 
 # --- Slab -------------------------------------------------------------------
@@ -330,6 +354,11 @@ func _build_plot(x: float, z: float) -> Dictionary:
 		Color(0.25, 0.45, 0.18),
 	]
 	var plant_color: Color = greens[_rng.randi() % greens.size()]
+	# Pick a plant type — drives the harvest prompt's "<name>" and the
+	# fruit-accent colour shown at stage 5.
+	var types: Array = _c.PLANT_TYPES
+	var plant_type: Dictionary = types[_rng.randi() % types.size()]
+	var fruit_color: Color = plant_type.fruit_color
 
 	# Soil — its material is shared (we mutate albedo when stage = 0 to read
 	# as freshly turned dirt). Each plot gets its own StandardMaterial3D.
@@ -353,14 +382,14 @@ func _build_plot(x: float, z: float) -> Dictionary:
 	plant.material_override = _make_material(plant_color)
 	add_child(plant)
 
-	# Two fruit accents — visible only at stage 5.
+	# Two fruit accents — visible only at stage 5; colour by plant type.
 	var fruit_a := MeshInstance3D.new()
 	fruit_a.name = "FruitA"
 	var fa_mesh := SphereMesh.new()
 	fa_mesh.radius = 0.08
 	fa_mesh.height = 0.16
 	fruit_a.mesh = fa_mesh
-	fruit_a.material_override = _make_material(Color(0.85, 0.25, 0.2))
+	fruit_a.material_override = _make_material(fruit_color)
 	fruit_a.position = Vector3(x + 0.18, 0.45, z + 0.12)
 	add_child(fruit_a)
 
@@ -370,7 +399,7 @@ func _build_plot(x: float, z: float) -> Dictionary:
 	fb_mesh.radius = 0.06
 	fb_mesh.height = 0.12
 	fruit_b.mesh = fb_mesh
-	fruit_b.material_override = _make_material(Color(0.85, 0.25, 0.2))
+	fruit_b.material_override = _make_material(fruit_color)
 	fruit_b.position = Vector3(x - 0.14, 0.42, z - 0.16)
 	add_child(fruit_b)
 
@@ -383,6 +412,7 @@ func _build_plot(x: float, z: float) -> Dictionary:
 		"world_pos": Vector3(x, 0, z),
 		"stage": initial_stage,
 		"time_in_stage": initial_t,
+		"plant_type": plant_type,
 		"soil": soil,
 		"plant": plant,
 		"fruit_a": fruit_a,

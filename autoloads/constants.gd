@@ -73,9 +73,20 @@ const GROWTH_STAGE_COUNT := 5
 const GROWTH_TOTAL_DURATION := 30.0
 const GROWTH_STAGE_DURATION := GROWTH_TOTAL_DURATION / float(GROWTH_STAGE_COUNT)
 const POST_HARVEST_DURATION := 10.0
-const HARVEST_DURATION := 1.5
+const HARVEST_DURATION := 0.5             # was 1.5 — operator wanted 1/3
 const HARVEST_RADIUS := 1.2
 const HARVEST_KNEEL_SCALE_Y := 0.55
+
+# Plant types — each plot is randomly assigned one. Drives the prompt text
+# ("Harvest Tomato") and the fruit-accent colour at stage 5. Add types here
+# and the floor picks them up automatically.
+const PLANT_TYPES := [
+	{ "name": "Tomato",   "fruit_color": Color(0.85, 0.25, 0.20) },
+	{ "name": "Pepper",   "fruit_color": Color(1.00, 0.55, 0.10) },
+	{ "name": "Eggplant", "fruit_color": Color(0.45, 0.20, 0.55) },
+	{ "name": "Pumpkin",  "fruit_color": Color(0.95, 0.45, 0.10) },
+	{ "name": "Cucumber", "fruit_color": Color(0.40, 0.65, 0.30) },
+]
 
 # --- Tuck-and-flip (triggered above a charge threshold) ---
 # Charge threshold expressed as a fraction of PLAYER_JUMP_CHARGE_DURATION;

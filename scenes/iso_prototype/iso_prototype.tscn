@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
-[ext_resource type="Script" path="res://scenes/iso_prototype/food_count_hud.gd" id="4_food"]
+[ext_resource type="Script" uid="uid://cjmfqleqpthof" path="res://scenes/iso_prototype/food_count_hud.gd" id="4_food"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -59,17 +59,17 @@ Middle-drag     Pan
 E               Hold to harvest a ready plant"
 
 [node name="FoodCount" type="Label" parent="HUD"]
+anchors_preset = 1
 anchor_left = 1.0
-anchor_top = 0.0
 anchor_right = 1.0
-anchor_bottom = 0.0
-offset_left = -200.0
+offset_left = -340.0
 offset_top = 16.0
 offset_right = -20.0
-offset_bottom = 64.0
-horizontal_alignment = 2
+offset_bottom = 92.0
+theme_override_colors/font_color = Color(1, 0.88, 0.34, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.04, 0, 1)
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/font_size = 44
 text = "Food: 0"
-theme_override_colors/font_color = Color(1, 1, 1, 0.92)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 6
+horizontal_alignment = 2
 script = ExtResource("4_food")

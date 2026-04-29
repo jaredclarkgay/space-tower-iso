@@ -55,10 +55,13 @@ var _harvest_progress := 0.0          # 0..1
 var _harvest_target: Variant = null   # plot Dictionary returned by iso_floor
 var _nearest_plot: Variant = null     # cached this frame for E-prompt visibility
 
-# E-prompt: a Label3D billboarded above the head when a harvestable plot
-# is in range. Harvest gauge: a horizontal green bar slightly below the
-# E-prompt that fills over HARVEST_DURATION seconds.
+# Prompt above the head when a harvestable plot is in range. Two stacked
+# Label3Ds: a tiny "E" key label, and a slightly larger "Harvest <PlantName>"
+# line below it. Both billboard so they stay readable from any iso angle.
+# Harvest gauge: a horizontal green bar that fills over HARVEST_DURATION.
+var _prompt_root: Node3D
 var _e_prompt: Label3D
+var _harvest_label: Label3D
 var _harvest_bar_root: Node3D
 var _harvest_bar_fill_pivot: Node3D
 var _harvest_bar_fill_mesh: MeshInstance3D
@@ -235,13 +238,16 @@ func _physics_process(delta: float) -> void:
 	_update_harvest_bar(_harvest_progress if _is_harvesting else 0.0)
 	# E prompt visible when there's a harvestable plot in range, we're on
 	# the ground, not currently harvesting, and not charging a jump.
-	if _e_prompt:
-		_e_prompt.visible = (
+	if _prompt_root:
+		var should_show: bool = (
 			_nearest_plot != null
 			and is_on_floor()
 			and not _is_harvesting
 			and charge_progress <= 0.001
 		)
+		_prompt_root.visible = should_show
+		if should_show and _harvest_label:
+			_harvest_label.text = "Harvest %s" % _nearest_plot.plant_type.name
 
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position
@@ -483,22 +489,41 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	return m
 
 
-# E-prompt sits above the head when a harvestable plot is in range. Label3D
-# with billboard so it stays readable from any iso camera angle.
+# Tiny "E" key + "Harvest <PlantName>" subtext above the head, shown when a
+# harvestable plot is in range. Parent group toggles visibility so both
+# labels appear/disappear together.
 func _build_e_prompt() -> void:
+	_prompt_root = Node3D.new()
+	_prompt_root.name = "EPromptGroup"
+	_prompt_root.position = Vector3(0, 2.55, 0)
+	_prompt_root.visible = false
+	add_child(_prompt_root)
+
 	_e_prompt = Label3D.new()
-	_e_prompt.name = "EPrompt"
+	_e_prompt.name = "EKey"
 	_e_prompt.text = "E"
-	_e_prompt.font_size = 64
-	_e_prompt.outline_size = 8
-	_e_prompt.modulate = Color(1, 1, 1, 0.95)
+	_e_prompt.font_size = 28
+	_e_prompt.outline_size = 4
+	_e_prompt.modulate = Color(1, 1, 1, 0.85)
 	_e_prompt.outline_modulate = Color(0, 0, 0, 0.85)
-	_e_prompt.pixel_size = 0.012
+	_e_prompt.pixel_size = 0.008
 	_e_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_e_prompt.no_depth_test = true
-	_e_prompt.position = Vector3(0, 2.85, 0)
-	_e_prompt.visible = false
-	add_child(_e_prompt)
+	_e_prompt.position = Vector3(0, 0.32, 0)
+	_prompt_root.add_child(_e_prompt)
+
+	_harvest_label = Label3D.new()
+	_harvest_label.name = "HarvestLabel"
+	_harvest_label.text = "Harvest"
+	_harvest_label.font_size = 24
+	_harvest_label.outline_size = 4
+	_harvest_label.modulate = Color(0.9, 0.98, 0.8, 0.85)
+	_harvest_label.outline_modulate = Color(0, 0, 0, 0.85)
+	_harvest_label.pixel_size = 0.008
+	_harvest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_harvest_label.no_depth_test = true
+	_harvest_label.position = Vector3(0, 0.12, 0)
+	_prompt_root.add_child(_harvest_label)
 
 
 # Horizontal harvest gauge — fills left-to-right over HARVEST_DURATION.
