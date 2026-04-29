@@ -23,8 +23,10 @@ extends CharacterBody3D
 # Camera the player should be relative to. Set by iso_prototype.tscn.
 @export var camera_pivot_path: NodePath
 @export var iso_floor_path: NodePath
+@export var iso_robot_path: NodePath
 var _camera_pivot: Node3D
 var _iso_floor: Node3D
+var _iso_robot: Node3D
 # Visual root — rotates Y with movement direction. Separate from the
 # CharacterBody3D so the collision capsule doesn't spin with the body.
 var _visual: Node3D
@@ -90,6 +92,8 @@ func _ready() -> void:
 		_camera_pivot = get_node(camera_pivot_path)
 	if iso_floor_path:
 		_iso_floor = get_node(iso_floor_path)
+	if iso_robot_path:
+		_iso_robot = get_node(iso_robot_path)
 
 
 func _physics_process(delta: float) -> void:
@@ -109,10 +113,19 @@ func _physics_process(delta: float) -> void:
 		-input.x * sin(yaw) + input.y * cos(yaw),
 	)
 
-	# Harvest interaction. Look up the nearest harvestable plot every frame so
-	# the E-prompt visibility tracks the player's position. Press-and-hold E
-	# starts the harvest; movement, releasing E, or leaving the floor cancels.
-	if _iso_floor:
+	# Interactions: robot (instant press E) takes priority over plot harvest
+	# (held E). Robot interactability is computed once per frame; if true,
+	# the harvest-plot lookup is skipped so the prompt and the press both
+	# route to the robot.
+	var robot_interactable: bool = (
+		_iso_robot != null
+		and _iso_robot.is_interactable_at(global_position, _c.ROBOT_INTERACT_RADIUS)
+	)
+	var robot_label: String = ""
+	if robot_interactable:
+		robot_label = _iso_robot.get_interaction_label()
+		_nearest_plot = null
+	elif _iso_floor:
 		_nearest_plot = _iso_floor.find_nearest_harvestable_plot_near(
 			global_position, _c.HARVEST_RADIUS
 		)
@@ -136,16 +149,18 @@ func _physics_process(delta: float) -> void:
 				_harvest_progress = 0.0
 				_harvest_target = null
 	elif Input.is_action_just_pressed(&"interact") \
-			and _nearest_plot != null \
 			and is_on_floor() \
 			and input.length_squared() < 0.001:
-		_is_harvesting = true
-		_harvest_target = _nearest_plot
-		_harvest_progress = 0.0
-		# Snap the body to face the plot we're about to harvest.
-		var to_plot: Vector3 = _harvest_target.world_pos - global_position
-		if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
-			_facing_yaw = atan2(to_plot.x, to_plot.z)
+		if robot_interactable:
+			_iso_robot.try_interact()
+		elif _nearest_plot != null:
+			_is_harvesting = true
+			_harvest_target = _nearest_plot
+			_harvest_progress = 0.0
+			# Snap the body to face the plot we're about to harvest.
+			var to_plot: Vector3 = _harvest_target.world_pos - global_position
+			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
+				_facing_yaw = atan2(to_plot.x, to_plot.z)
 
 	if _is_harvesting:
 		velocity.x = 0.0
@@ -236,18 +251,22 @@ func _physics_process(delta: float) -> void:
 	_update_charge_bar(charge_progress)
 	# Harvest gauge fill while harvesting; hidden otherwise.
 	_update_harvest_bar(_harvest_progress if _is_harvesting else 0.0)
-	# E prompt visible when there's a harvestable plot in range, we're on
-	# the ground, not currently harvesting, and not charging a jump.
+	# E prompt visible when robot or plot is in range, we're on the ground,
+	# not currently harvesting, and not charging a jump.
 	if _prompt_root:
+		var has_interaction: bool = robot_interactable or _nearest_plot != null
 		var should_show: bool = (
-			_nearest_plot != null
+			has_interaction
 			and is_on_floor()
 			and not _is_harvesting
 			and charge_progress <= 0.001
 		)
 		_prompt_root.visible = should_show
 		if should_show and _harvest_label:
-			_harvest_label.text = "Harvest %s" % _nearest_plot.plant_type.name
+			if robot_interactable:
+				_harvest_label.text = robot_label
+			else:
+				_harvest_label.text = "Harvest %s" % _nearest_plot.plant_type.name
 
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position

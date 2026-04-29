@@ -88,6 +88,21 @@ const PLANT_TYPES := [
 	{ "name": "Cucumber", "fruit_color": Color(0.40, 0.65, 0.30) },
 ]
 
+# --- Helper robot (Roomba MK1) -----------------------------------------------
+# Earned after the player manually harvests this many plants. On unlock the
+# robot appears beside the elevator awaiting activation. After E-press the
+# robot snake-scans the field row-by-row, harvesting stage-5 plots one by
+# one until its hopper fills; the player walks over and presses E again to
+# collect, which empties the hopper into food_count and the robot resumes.
+# Long-term: this state machine is the place LLM-driven directives would
+# plug in (override target plot, override pattern, etc.).
+const ROBOT_UNLOCK_THRESHOLD := 5         # food_count needed to unlock
+const ROBOT_SPEED := 2.0                  # m/s — slower than the player
+const ROBOT_HARVEST_DURATION := 2.5       # seconds at each plot
+const ROBOT_CAPACITY := 10                # plots before pickup needed
+const ROBOT_INTERACT_RADIUS := 1.5        # m — player must be this close
+const ROBOT_REACH_DISTANCE := 0.7         # m — robot stops to harvest at this distance
+
 # --- Tuck-and-flip (triggered above a charge threshold) ---
 # Charge threshold expressed as a fraction of PLAYER_JUMP_CHARGE_DURATION;
 # 0.3 corresponds to ~1.3× tap-jump velocity (10 + 0.3 × (20-10) = 13 m/s).

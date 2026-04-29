@@ -35,6 +35,8 @@ var _rng := RandomNumberGenerator.new()
 # Plot dictionaries are returned by find_nearest_harvestable_plot_near() and
 # mutated by harvest_plot() — see iso_player.gd for the call sites.
 var _plots: Array = []
+# Plots also indexed by (row, col) so iso_robot.gd can snake-scan the grid.
+var _plot_grid: Dictionary = {}
 
 
 func _ready() -> void:
@@ -90,12 +92,13 @@ func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Va
 	return best
 
 
-func harvest_plot(plot: Dictionary) -> void:
-	# Spawn a "+1 <PlantName>" floating label that rises and fades. Fired
-	# *before* mutating the plot so the plant_type is still the type the
-	# player just harvested (it's set once at build, but keeping this order
-	# makes future re-randomisation safe).
-	_spawn_harvest_feedback(plot)
+func harvest_plot(plot: Dictionary, with_feedback: bool = true) -> void:
+	# Spawn a "+1 <PlantName>" floating label only when the player drives the
+	# harvest. The robot defers feedback until the player collects from it,
+	# so its individual plant grabs are silent — the +N is delivered when
+	# food_count actually moves in GameState.
+	if with_feedback:
+		_spawn_harvest_feedback(plot)
 	plot.stage = 0
 	plot.time_in_stage = 0.0
 	_refresh_plot_visuals(plot)
@@ -329,11 +332,18 @@ func _build_garden_grid() -> void:
 				continue
 			var x: float = origin + float(i) * _c.GARDEN_PLOT_SIZE
 			var z: float = origin + float(j) * _c.GARDEN_PLOT_SIZE
-			_plots.append(_build_plot(x, z))
+			var plot := _build_plot(x, z)
+			_plots.append(plot)
+			_plot_grid[Vector2i(i, j)] = plot
 			# Sparse grow-light fixtures on a 4×4 stride so the field has
 			# warm overhead glow without 384 OmniLights eating the GPU.
 			if i % 4 == 1 and j % 4 == 1:
 				_build_plot_grow_light(x, z)
+
+
+# Public lookup used by iso_robot.gd to snake-scan the grid.
+func get_plot_at(i: int, j: int) -> Variant:
+	return _plot_grid.get(Vector2i(i, j), null)
 
 
 func _is_elevator_cell(i: int, j: int) -> bool:
