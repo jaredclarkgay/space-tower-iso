@@ -1,6 +1,6 @@
 extends Node3D
 
-# Roomba MK1 — the player's first helper robot. State machine:
+# Cody GX-5 — the player's first helper robot. State machine:
 #
 #   OFFLINE              not yet earned (food_count < ROBOT_UNLOCK_THRESHOLD)
 #   AWAITING_ACTIVATION  parked beside the elevator, "Activate Roomba" prompt
@@ -92,7 +92,7 @@ func is_interactable_at(world_pos: Vector3, radius: float) -> bool:
 func get_interaction_label() -> String:
 	match _state:
 		State.AWAITING_ACTIVATION:
-			return "Activate Roomba"
+			return "Activate Cody"
 		State.FULL_AWAITING_PICKUP:
 			return "Collect %d Crops" % _capacity
 	return ""
@@ -175,10 +175,14 @@ func _spawn_arrival_light() -> void:
 	col.position = Vector3(0, 3.0, 0)
 	get_parent().add_child(col)
 
+	# MeshInstance3D doesn't have `modulate` (that's CanvasItem); fade via
+	# the material's albedo alpha and emission energy directly.
 	var tween := create_tween()
 	tween.tween_interval(2.6)
-	tween.tween_property(col, "modulate:a", 0.0, 1.0)
-	tween.tween_callback(col.queue_free)
+	tween.set_parallel(true)
+	tween.tween_property(mat, "albedo_color:a", 0.0, 1.0)
+	tween.tween_property(mat, "emission_energy_multiplier", 0.0, 1.0)
+	tween.chain().tween_callback(col.queue_free)
 
 
 # Two-line on-screen banner: title (gold) + subtitle (cream). Fades in for
@@ -197,7 +201,7 @@ func _spawn_arrival_banner() -> void:
 	_hud.add_child(banner)
 
 	var title := Label.new()
-	title.text = "ROOMBA MK1"
+	title.text = "CODY GX-5"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	title.offset_top = 0

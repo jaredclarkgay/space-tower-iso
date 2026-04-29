@@ -26,7 +26,7 @@ const ISO_TILE_H := 32
 # BLOCK_WIDTH/FLOOR_HEIGHT (above, 2D pixel values) are kept for sibling
 # parity but unused in the iso scene; iso geometry uses the GARDEN_* and
 # FLOOR_3D_* constants below.
-const GARDEN_GRID_SIZE := 22             # plots per side (operator: +2 on each axis)
+const GARDEN_GRID_SIZE := 30             # plots per side; operator: +2 pane-units → +8 plots/side
 const GARDEN_PLOT_SIZE := 1.0            # metres per plot
 const ELEVATOR_RADIUS := 2               # plot cells from grid center on each axis
 const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
@@ -48,9 +48,9 @@ const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 30.0 # initial size (smaller = zoomed in); fits 22×22 floor
-const CAMERA_ORTHO_SIZE_MIN := 6.0
-const CAMERA_ORTHO_SIZE_MAX := 36.0
+const CAMERA_ORTHO_SIZE_DEFAULT := 40.0 # initial size (smaller = zoomed in); fits 30×30 floor
+const CAMERA_ORTHO_SIZE_MIN := 8.0
+const CAMERA_ORTHO_SIZE_MAX := 50.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 
 # --- Player movement (3D) ---
@@ -73,7 +73,7 @@ const GROWTH_STAGE_COUNT := 5
 const GROWTH_TOTAL_DURATION := 30.0
 const GROWTH_STAGE_DURATION := GROWTH_TOTAL_DURATION / float(GROWTH_STAGE_COUNT)
 const POST_HARVEST_DURATION := 10.0
-const HARVEST_DURATION := 0.05            # was 0.5 — operator wanted 90% faster (near-instant)
+const HARVEST_DURATION := 0.25            # quick but the bar visibly plays — a real beat
 const HARVEST_RADIUS := 1.2
 const HARVEST_KNEEL_SCALE_Y := 0.55
 
@@ -122,7 +122,7 @@ const PLANT_TYPES := [
 # plug in (override target plot, override pattern, etc.).
 const ROBOT_UNLOCK_THRESHOLD := 5         # food_count needed to unlock
 const ROBOT_SPEED := 2.0                  # m/s — slower than the player
-const ROBOT_HARVEST_DURATION := 2.5       # seconds at each plot
+const ROBOT_HARVEST_DURATION := 0.83      # seconds at each plot — operator: 3× faster (was 2.5)
 const ROBOT_CAPACITY := 10                # plots before pickup needed
 const ROBOT_INTERACT_RADIUS := 1.5        # m — player must be this close
 const ROBOT_REACH_DISTANCE := 0.7         # m — robot stops to harvest at this distance
