@@ -73,7 +73,7 @@ const GROWTH_STAGE_COUNT := 5
 const GROWTH_TOTAL_DURATION := 30.0
 const GROWTH_STAGE_DURATION := GROWTH_TOTAL_DURATION / float(GROWTH_STAGE_COUNT)
 const POST_HARVEST_DURATION := 10.0
-const HARVEST_DURATION := 0.5             # was 1.5 — operator wanted 1/3
+const HARVEST_DURATION := 0.05            # was 0.5 — operator wanted 90% faster (near-instant)
 const HARVEST_RADIUS := 1.2
 const HARVEST_KNEEL_SCALE_Y := 0.55
 

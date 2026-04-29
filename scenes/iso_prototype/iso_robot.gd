@@ -22,10 +22,13 @@ extends Node3D
 @onready var _gs: Node = get_node("/root/GameState")
 
 @export var iso_floor_path: NodePath
+@export var hud_path: NodePath
 var _iso_floor: Node3D
+var _hud: CanvasLayer
 
 enum State {
 	OFFLINE,
+	ENTERING,                # ceremonial arrival animation; not interactable
 	AWAITING_ACTIVATION,
 	MOVING_TO_TARGET,
 	HARVESTING,
@@ -47,6 +50,8 @@ var _led_mat: StandardMaterial3D
 func _ready() -> void:
 	if iso_floor_path:
 		_iso_floor = get_node(iso_floor_path)
+	if hud_path:
+		_hud = get_node(hud_path)
 	_build_visual()
 	visible = false
 
@@ -56,12 +61,15 @@ func _physics_process(delta: float) -> void:
 
 	if _state == State.OFFLINE:
 		if _gs.food_count >= _c.ROBOT_UNLOCK_THRESHOLD:
-			_enter_awaiting_activation()
+			_begin_arrival()
 		return
 
 	_update_led()
 
 	match _state:
+		State.ENTERING:
+			# Position is being driven by Tween; nothing to do here.
+			pass
 		State.AWAITING_ACTIVATION, State.FULL_AWAITING_PICKUP:
 			# Idle, waiting for the player to press E nearby.
 			pass
@@ -109,14 +117,114 @@ func try_interact() -> bool:
 
 # --- State updates ---------------------------------------------------------
 
-func _enter_awaiting_activation() -> void:
-	_state = State.AWAITING_ACTIVATION
-	# Spawn just outside the elevator on its +Z edge so the player can read
-	# "the robot came up the elevator". Y sits the robot's wheels on the slab.
-	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
-	global_position = Vector3(0, 0.05, elev_size * 0.5 + 0.7)
-	rotation.y = 0.0
+# Ceremonial arrival — the robot is the first NPC to join the player. The
+# entrance has to feel like a moment, not a node turning visible. Sequence:
+#  1. A tall amber light column appears at the elevator and pulses.
+#  2. The robot rises through the elevator from below the slab.
+#  3. It slides outward to its parking spot beside the elevator.
+#  4. A big "ROOMBA MK1 / joined the team" banner fades in over the room.
+#  5. After the animation finishes, the state transitions to
+#     AWAITING_ACTIVATION and the player can press E to bring it online.
+func _begin_arrival() -> void:
+	_state = State.ENTERING
 	visible = true
+	rotation.y = 0.0
+	# Spawn at elevator centre, below the slab. The translucent shaft means
+	# the player sees the robot rising up through the column.
+	global_position = Vector3(0, -1.8, 0)
+
+	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
+	var park_pos := Vector3(0, 0.05, elev_size * 0.5 + 0.7)
+
+	_spawn_arrival_light()
+	_spawn_arrival_banner()
+
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	# Phase 1: rise inside the elevator shaft.
+	tween.tween_property(self, "global_position:y", 0.55, 1.5)
+	# Phase 2: slide outward to the parking spot.
+	tween.tween_property(self, "global_position", park_pos, 1.0)
+	tween.tween_callback(_finish_arrival)
+
+
+func _finish_arrival() -> void:
+	_state = State.AWAITING_ACTIVATION
+
+
+# Tall translucent emissive column at the elevator. Reads as a beam of
+# light catching the robot as it ascends. Fades out after the entrance.
+func _spawn_arrival_light() -> void:
+	var col := MeshInstance3D.new()
+	col.name = "ArrivalLight"
+	var cm := CylinderMesh.new()
+	cm.top_radius = 1.4
+	cm.bottom_radius = 1.4
+	cm.height = 6.0
+	col.mesh = cm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.85, 0.30, 0.22)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.85, 0.30)
+	mat.emission_energy_multiplier = 2.4
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	col.material_override = mat
+	col.position = Vector3(0, 3.0, 0)
+	get_parent().add_child(col)
+
+	var tween := create_tween()
+	tween.tween_interval(2.6)
+	tween.tween_property(col, "modulate:a", 0.0, 1.0)
+	tween.tween_callback(col.queue_free)
+
+
+# Two-line on-screen banner: title (gold) + subtitle (cream). Fades in for
+# half a second, holds, then fades out. Whole thing queue_freed afterward.
+func _spawn_arrival_banner() -> void:
+	if _hud == null:
+		return
+
+	var banner := Control.new()
+	banner.name = "ArrivalBanner"
+	banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner.offset_top = 220
+	banner.offset_bottom = 420
+	banner.modulate.a = 0.0
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(banner)
+
+	var title := Label.new()
+	title.text = "ROOMBA MK1"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	title.offset_top = 0
+	title.offset_bottom = 100
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30, 1))
+	title.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0, 1))
+	title.add_theme_constant_override("outline_size", 14)
+	title.add_theme_font_size_override("font_size", 76)
+	banner.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.text = "joined the team"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	subtitle.offset_top = 110
+	subtitle.offset_bottom = 170
+	subtitle.add_theme_color_override("font_color", Color(0.95, 0.92, 0.78, 0.95))
+	subtitle.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0, 1))
+	subtitle.add_theme_constant_override("outline_size", 6)
+	subtitle.add_theme_font_size_override("font_size", 32)
+	banner.add_child(subtitle)
+
+	var tween := create_tween()
+	tween.tween_property(banner, "modulate:a", 1.0, 0.5)
+	tween.tween_interval(2.4)
+	tween.tween_property(banner, "modulate:a", 0.0, 0.7)
+	tween.tween_callback(banner.queue_free)
 
 
 func _update_moving(delta: float) -> void:
@@ -275,6 +383,9 @@ func _update_led() -> void:
 	var color: Color
 	var energy: float
 	match _state:
+		State.ENTERING:
+			color = Color(1.0, 0.85, 0.30)   # warm gold — matches the arrival beam
+			energy = 2.0 + sin(_time * TAU / 0.5) * 1.0
 		State.AWAITING_ACTIVATION:
 			color = Color(1.0, 0.82, 0.20)   # yellow
 			energy = 1.4 + sin(_time * TAU / 1.2) * 0.7
