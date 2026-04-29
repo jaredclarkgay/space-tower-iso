@@ -8,4 +8,5 @@ extends Label
 
 
 func _process(_delta: float) -> void:
-	text = "Food: %d" % _gs.food_count
+	# Just the number — the "Food" label is a sibling Label in the row.
+	text = "%d" % _gs.food_count

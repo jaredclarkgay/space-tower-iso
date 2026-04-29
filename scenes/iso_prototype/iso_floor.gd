@@ -447,14 +447,14 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 				var f := MeshInstance3D.new()
 				f.name = "Tomato"
 				var m := SphereMesh.new()
-				m.radius = 0.085
-				m.height = 0.17
+				m.radius = 0.10
+				m.height = 0.20
 				f.mesh = m
 				f.material_override = _make_material(color)
 				var angle: float = float(i) * (TAU / 3.0) + 0.5
-				var dx: float = cos(angle) * 0.14
-				var dz: float = sin(angle) * 0.14
-				f.position = Vector3(x + dx, 0.42 + float(i) * 0.05, z + dz)
+				var dx: float = cos(angle) * 0.16
+				var dz: float = sin(angle) * 0.16
+				f.position = Vector3(x + dx, 0.44 + float(i) * 0.05, z + dz)
 				add_child(f)
 				fruits.append(f)
 		"Pepper":
@@ -463,13 +463,13 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 				var f := MeshInstance3D.new()
 				f.name = "Pepper"
 				var m := SphereMesh.new()
-				m.radius = 0.06
-				m.height = 0.12
+				m.radius = 0.07
+				m.height = 0.14
 				f.mesh = m
 				f.scale = Vector3(1.0, 1.9, 1.0)
 				f.material_override = _make_material(color)
 				var sign_v: int = -1 if i == 0 else 1
-				f.position = Vector3(x + sign_v * 0.16, 0.34, z + 0.04)
+				f.position = Vector3(x + sign_v * 0.18, 0.36, z + 0.04)
 				add_child(f)
 				fruits.append(f)
 		"Eggplant":
@@ -495,16 +495,18 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 			add_child(cap)
 			fruits.append(cap)
 		"Pumpkin":
-			# One large squashed orange sphere sitting on the soil.
+			# One squashed orange sphere sitting on the soil. Smaller than the
+			# first pass — the previous 0.20-radius mesh dominated every
+			# pumpkin plot and made the whole field read as orange.
 			var body := MeshInstance3D.new()
 			body.name = "PumpkinBody"
 			var bm := SphereMesh.new()
-			bm.radius = 0.20
-			bm.height = 0.40
+			bm.radius = 0.13
+			bm.height = 0.26
 			body.mesh = bm
-			body.scale = Vector3(1.0, 0.7, 1.0)
+			body.scale = Vector3(1.0, 0.72, 1.0)
 			body.material_override = _make_material(color)
-			body.position = Vector3(x + 0.12, 0.32, z + 0.12)
+			body.position = Vector3(x + 0.13, 0.27, z + 0.10)
 			add_child(body)
 			fruits.append(body)
 			# Dark green stem on top.
@@ -513,10 +515,10 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 			var sm := CylinderMesh.new()
 			sm.top_radius = 0.025
 			sm.bottom_radius = 0.04
-			sm.height = 0.09
+			sm.height = 0.08
 			stem.mesh = sm
 			stem.material_override = _make_material(Color(0.25, 0.40, 0.15))
-			stem.position = Vector3(x + 0.12, 0.50, z + 0.12)
+			stem.position = Vector3(x + 0.13, 0.39, z + 0.10)
 			add_child(stem)
 			fruits.append(stem)
 		"Cucumber":
@@ -525,14 +527,14 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 				var f := MeshInstance3D.new()
 				f.name = "Cucumber"
 				var m := CylinderMesh.new()
-				m.top_radius = 0.04
-				m.bottom_radius = 0.04
-				m.height = 0.26
+				m.top_radius = 0.05
+				m.bottom_radius = 0.05
+				m.height = 0.30
 				f.mesh = m
 				f.material_override = _make_material(color)
 				var sign_v: int = -1 if i == 0 else 1
-				f.rotation = Vector3(0, 0, deg_to_rad(20.0 * sign_v))
-				f.position = Vector3(x + sign_v * 0.16, 0.36, z - 0.04 * sign_v)
+				f.rotation = Vector3(0, 0, deg_to_rad(22.0 * sign_v))
+				f.position = Vector3(x + sign_v * 0.18, 0.38, z - 0.04 * sign_v)
 				add_child(f)
 				fruits.append(f)
 	for f in fruits:
