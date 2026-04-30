@@ -97,15 +97,17 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# When the Cody dialogue is open, lock the player in place — number-key
-	# shortcuts in the dialogue would otherwise move the body, and movement
-	# would also drift the camera target.
+	# When the Cody dialogue or the Schematics modal is open, lock the
+	# player in place — number-key shortcuts in the dialogue would
+	# otherwise move the body, and movement would also drift the camera
+	# target.
 	var dialogue_open: bool = (
 		_iso_robot != null
 		and _iso_robot.has_method("is_dialogue_open")
 		and _iso_robot.is_dialogue_open()
 	)
-	if dialogue_open:
+	var schematic_open: bool = _gs.get("schematic_open") if _gs else false
+	if dialogue_open or schematic_open:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		velocity.y = 0.0 if is_on_floor() else (velocity.y - _c.PLAYER_GRAVITY * delta)

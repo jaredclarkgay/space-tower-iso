@@ -24,3 +24,12 @@ var camera := {
 
 # Harvested-plant counter, mirrored to the top-right HUD label.
 var food_count := 0
+
+# True while the Cody Schematics modal is open. iso_player + iso_robot
+# both freeze input/movement when this is set.
+var schematic_open := false
+
+# Customisable Cody appearance — set from the Schematics modal, applied
+# both to the live robot and to the modal's 3D preview.
+var cody_body_color: Color = Color(0.25, 0.68, 0.80)
+var cody_dome_color: Color = Color(0.46, 0.50, 0.56)

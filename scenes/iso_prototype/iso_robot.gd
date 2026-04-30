@@ -45,6 +45,8 @@ var _capacity := 0
 var _time := 0.0   # for LED pulse
 
 var _body_root: Node3D
+var _body_mat: StandardMaterial3D
+var _dome_mat: StandardMaterial3D
 var _led: MeshInstance3D
 var _led_mat: StandardMaterial3D
 # Top-down warm spotlight that follows Cody from arrival through awaiting
@@ -128,12 +130,15 @@ func get_interaction_label() -> String:
 	return ""
 
 
-# Public entry point from iso_player.gd when the player presses E. Opens
-# the conversational dialogue panel; the dialogue's first node carries the
-# context-aware "Activate" / "Collect" choice when those actions apply.
+# Public entry point from iso_player.gd when the player presses E. When
+# Cody's hopper is full this is a quick action (just collect with a +N
+# floater); otherwise the conversational dialogue panel opens.
 func try_interact() -> bool:
 	if _state == State.OFFLINE or _state == State.ENTERING:
 		return false
+	if _state == State.FULL_AWAITING_PICKUP:
+		_do_collect_with_feedback()
+		return true
 	open_dialogue()
 	return true
 
@@ -155,6 +160,43 @@ func _do_collect() -> void:
 	_gs.food_count += _capacity
 	_capacity = 0
 	_state = State.MOVING_TO_TARGET
+
+
+# Collect with a green "+N" floater above Cody. Used by the quick-press path.
+func _do_collect_with_feedback() -> void:
+	if _state != State.FULL_AWAITING_PICKUP:
+		return
+	_spawn_collect_feedback(_capacity)
+	_do_collect()
+
+
+func _spawn_collect_feedback(amount: int) -> void:
+	var label := Label3D.new()
+	label.text = "+%d" % amount
+	label.font_size = 80
+	label.outline_size = 12
+	label.modulate = Color(0.55, 1.0, 0.55, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+	label.pixel_size = 0.012
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0.0, 1.4, 0.0)
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 1.6, 1.2)
+	tween.tween_property(label, ^"modulate:a", 0.0, 1.2)
+	tween.finished.connect(label.queue_free)
+
+
+# Apply the customisations stored in GameState (colour choices from the
+# Schematics modal). Called by the modal whenever the player picks a
+# new chassis or dome colour.
+func apply_customization() -> void:
+	if _body_mat:
+		_body_mat.albedo_color = _gs.cody_body_color
+	if _dome_mat:
+		_dome_mat.albedo_color = _gs.cody_dome_color
 
 
 # --- State updates ---------------------------------------------------------
@@ -356,7 +398,8 @@ func _build_visual() -> void:
 	add_child(_body_root)
 
 	# Flat bluish-teal disc body — much more visible against the warm
-	# garden than the previous hardhat-orange chassis.
+	# garden than the previous hardhat-orange chassis. Material reference
+	# kept so the Schematics modal can swap chassis colour at runtime.
 	var body := MeshInstance3D.new()
 	body.name = "Body"
 	var bm := CylinderMesh.new()
@@ -364,7 +407,8 @@ func _build_visual() -> void:
 	bm.bottom_radius = 0.34
 	bm.height = 0.18
 	body.mesh = bm
-	body.material_override = _make_material(Color(0.25, 0.68, 0.80))
+	_body_mat = _make_material(_gs.cody_body_color)
+	body.material_override = _body_mat
 	body.position.y = 0.10
 	_body_root.add_child(body)
 
@@ -388,7 +432,8 @@ func _build_visual() -> void:
 	dm.bottom_radius = 0.26
 	dm.height = 0.10
 	dome.mesh = dm
-	dome.material_override = _make_material(Color(0.46, 0.50, 0.56))
+	_dome_mat = _make_material(_gs.cody_dome_color)
+	dome.material_override = _dome_mat
 	dome.position.y = 0.24
 	_body_root.add_child(dome)
 
