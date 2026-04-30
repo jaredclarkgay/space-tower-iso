@@ -19,6 +19,7 @@ extends Node3D
 # loop stays unchanged.
 
 const _CODY_PORTRAIT := preload("res://scenes/iso_prototype/cody_portrait.gd")
+const _CODY_3D_VIEW := preload("res://scenes/iso_prototype/cody_3d_view.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -640,10 +641,12 @@ func _spawn_arrival_dialogue() -> void:
 	hbox.add_theme_constant_override("separation", 16)
 	margin.add_child(hbox)
 
-	# Programmatic portrait Control — drawn via cody_portrait.gd's _draw.
-	var portrait := Control.new()
-	portrait.set_script(_CODY_PORTRAIT)
-	portrait.custom_minimum_size = Vector2(120, 120)
+	# 3D Cody preview matching the chat / schematic windows.
+	var portrait := _CODY_3D_VIEW.new()
+	portrait.custom_minimum_size = Vector2(140, 140)
+	portrait.rotatable = false
+	portrait.auto_spin = true
+	portrait.auto_spin_rate = 0.55
 	hbox.add_child(portrait)
 
 	var vbox := VBoxContainer.new()
@@ -766,9 +769,13 @@ func _build_dialogue_panel() -> void:
 	hbox.add_theme_constant_override("separation", 18)
 	margin.add_child(hbox)
 
-	var portrait := Control.new()
-	portrait.set_script(_CODY_PORTRAIT)
-	portrait.custom_minimum_size = Vector2(140, 140)
+	# 3D Cody preview (auto-spinning) — same component the Schematics modal
+	# uses, so the dialogue and the schematic show identical chassis.
+	var portrait := _CODY_3D_VIEW.new()
+	portrait.custom_minimum_size = Vector2(160, 160)
+	portrait.rotatable = false
+	portrait.auto_spin = true
+	portrait.auto_spin_rate = 0.55
 	hbox.add_child(portrait)
 
 	var vbox := VBoxContainer.new()

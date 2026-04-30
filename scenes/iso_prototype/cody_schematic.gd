@@ -7,23 +7,22 @@ extends Control
 #   3. Skill tree placeholder showing future progression nodes
 # ESC closes; click outside the panel does not (modal is dismissive only via
 # the close button or ESC).
+#
+# The 3D Cody preview is delegated to cody_3d_view.gd, the same component
+# the dialogue panel uses, so the chat pop-up and the schematic show the
+# exact same robot.
+
+const _CODY_3D_VIEW := preload("res://scenes/iso_prototype/cody_3d_view.gd")
 
 @onready var _gs: Node = get_node("/root/GameState")
 
 @export var iso_robot_path: NodePath
 var _iso_robot: Node3D
 
-var _viewport: SubViewport
-var _model_pivot: Node3D
-var _viewport_container: SubViewportContainer
-var _is_dragging: bool = false
-var _drag_yaw: float = 0.6
-var _drag_pitch: float = -0.4
-
-# Material refs on the schematic-side Cody so colour-picker clicks update
-# the preview live.
-var _model_body_mat: StandardMaterial3D
-var _model_dome_mat: StandardMaterial3D
+# References for animated open/close.
+var _bg: ColorRect
+var _panel: PanelContainer
+var _cody_view: Node   # cody_3d_view.gd instance
 
 # Body / dome colour palettes the player can choose from.
 const BODY_COLORS := [
@@ -58,16 +57,47 @@ func _ready() -> void:
 
 func open() -> void:
 	_gs.schematic_open = true
-	_drag_yaw = 0.6
-	_drag_pitch = -0.4
-	_apply_drag_to_pivot()
-	_sync_model_colors_from_state()
 	visible = true
+	if _cody_view:
+		_cody_view.reset_pose(0.6, -0.4)
+		_cody_view.sync_colors_from_state()
+	_animate_open()
 
 
 func close() -> void:
-	_gs.schematic_open = false
+	if not visible:
+		return
+	_animate_close()
+
+
+# Eye-grabbing entrance: dim background fades in, panel scales up from 88%
+# with TRANS_BACK so it overshoots slightly before settling, panel alpha
+# fades in. Total duration ~0.4s.
+func _animate_open() -> void:
+	if _bg == null or _panel == null:
+		return
+	_bg.modulate.a = 0.0
+	_panel.modulate.a = 0.0
+	_panel.pivot_offset = Vector2(560, 310)   # half of the 1120×620 panel
+	_panel.scale = Vector2(0.86, 0.86)
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(_bg, "modulate:a", 1.0, 0.30)
+	tween.tween_property(_panel, "modulate:a", 1.0, 0.32)
+	tween.tween_property(_panel, "scale", Vector2(1.0, 1.0), 0.42) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _animate_close() -> void:
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(_bg, "modulate:a", 0.0, 0.18)
+	tween.tween_property(_panel, "modulate:a", 0.0, 0.18)
+	tween.tween_property(_panel, "scale", Vector2(0.94, 0.94), 0.18)
+	tween.chain().tween_callback(_finalize_close)
+
+
+func _finalize_close() -> void:
 	visible = false
+	_gs.schematic_open = false
 
 
 func _input(event: InputEvent) -> void:
@@ -85,15 +115,17 @@ func _build_modal() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	# Dimming background
-	var bg := ColorRect.new()
-	bg.color = Color(0.0, 0.0, 0.0, 0.55)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(bg)
+	# Dimming background — kept as a member so _animate_open can fade it.
+	_bg = ColorRect.new()
+	_bg.color = Color(0.0, 0.0, 0.0, 0.55)
+	_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_bg)
 
-	# Centered main panel
+	# Centered main panel — also a member, so the open animation can scale
+	# and fade it without a node-find.
 	var panel := PanelContainer.new()
+	_panel = panel
 	panel.anchor_left = 0.5
 	panel.anchor_right = 0.5
 	panel.anchor_top = 0.5
@@ -175,45 +207,14 @@ func _build_viewport_column(parent: Container) -> void:
 	label.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(label)
 
-	# SubViewportContainer hosts a SubViewport with its own World3D.
-	_viewport_container = SubViewportContainer.new()
-	_viewport_container.stretch = true
-	_viewport_container.custom_minimum_size = Vector2(360, 360)
-	_viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_viewport_container.mouse_filter = Control.MOUSE_FILTER_STOP
-	_viewport_container.gui_input.connect(_on_viewport_input)
-	vbox.add_child(_viewport_container)
-
-	_viewport = SubViewport.new()
-	_viewport.size = Vector2i(360, 360)
-	_viewport.own_world_3d = true
-	_viewport.transparent_bg = false
-	_viewport_container.add_child(_viewport)
-
-	# Camera + light + model. add_child must happen before look_at, since
-	# look_at reads the node's global transform (only valid in-tree).
-	var cam := Camera3D.new()
-	cam.fov = 35
-	_viewport.add_child(cam)
-	cam.look_at_from_position(Vector3(0, 0.5, 1.7), Vector3(0, 0.25, 0), Vector3.UP)
-
-	var key_light := DirectionalLight3D.new()
-	key_light.rotation_degrees = Vector3(-50, 30, 0)
-	key_light.light_color = Color(1.0, 0.94, 0.85)
-	key_light.light_energy = 1.4
-	_viewport.add_child(key_light)
-
-	var fill_light := DirectionalLight3D.new()
-	fill_light.rotation_degrees = Vector3(-25, -45, 0)
-	fill_light.light_color = Color(0.6, 0.75, 1.0)
-	fill_light.light_energy = 0.4
-	_viewport.add_child(fill_light)
-
-	_model_pivot = Node3D.new()
-	_viewport.add_child(_model_pivot)
-	_build_chassis_into(_model_pivot)
-	_apply_drag_to_pivot()
+	# Cody 3D view — drag-rotatable, no auto-spin (the player drives it).
+	_cody_view = _CODY_3D_VIEW.new()
+	_cody_view.custom_minimum_size = Vector2(360, 360)
+	_cody_view.rotatable = true
+	_cody_view.auto_spin = false
+	_cody_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cody_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_cody_view)
 
 	var hint := Label.new()
 	hint.text = "Click and drag to rotate."
@@ -392,122 +393,15 @@ func _make_color_button(color: Color, label_text: String, callback: Callable) ->
 
 func _on_body_color_picked(color: Color) -> void:
 	_gs.cody_body_color = color
-	_sync_model_colors_from_state()
+	if _cody_view:
+		_cody_view.sync_colors_from_state()
 	if _iso_robot and _iso_robot.has_method("apply_customization"):
 		_iso_robot.apply_customization()
 
 
 func _on_dome_color_picked(color: Color) -> void:
 	_gs.cody_dome_color = color
-	_sync_model_colors_from_state()
+	if _cody_view:
+		_cody_view.sync_colors_from_state()
 	if _iso_robot and _iso_robot.has_method("apply_customization"):
 		_iso_robot.apply_customization()
-
-
-func _sync_model_colors_from_state() -> void:
-	if _model_body_mat:
-		_model_body_mat.albedo_color = _gs.cody_body_color
-	if _model_dome_mat:
-		_model_dome_mat.albedo_color = _gs.cody_dome_color
-
-
-# --- 3D model builder + drag handler -------------------------------------
-
-func _on_viewport_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			_is_dragging = event.pressed
-	elif event is InputEventMouseMotion and _is_dragging:
-		_drag_yaw -= event.relative.x * 0.01
-		_drag_pitch -= event.relative.y * 0.008
-		_drag_pitch = clamp(_drag_pitch, -1.2, 0.6)
-		_apply_drag_to_pivot()
-
-
-func _apply_drag_to_pivot() -> void:
-	if _model_pivot:
-		_model_pivot.rotation = Vector3(_drag_pitch, _drag_yaw, 0.0)
-
-
-# Standalone Cody chassis built into the SubViewport. Material refs kept
-# locally so customisation buttons can mutate them live.
-func _build_chassis_into(parent: Node3D) -> void:
-	# Body
-	_model_body_mat = _make_material(_gs.cody_body_color)
-	var body := MeshInstance3D.new()
-	var bm := CylinderMesh.new()
-	bm.top_radius = 0.32
-	bm.bottom_radius = 0.34
-	bm.height = 0.18
-	body.mesh = bm
-	body.material_override = _model_body_mat
-	body.position.y = 0.10
-	parent.add_child(body)
-
-	# Rim
-	var rim := MeshInstance3D.new()
-	var rm := CylinderMesh.new()
-	rm.top_radius = 0.36
-	rm.bottom_radius = 0.36
-	rm.height = 0.04
-	rim.mesh = rm
-	rim.material_override = _make_material(Color(0.08, 0.16, 0.22))
-	rim.position.y = 0.04
-	parent.add_child(rim)
-
-	# Dome
-	_model_dome_mat = _make_material(_gs.cody_dome_color)
-	var dome := MeshInstance3D.new()
-	var dm := CylinderMesh.new()
-	dm.top_radius = 0.18
-	dm.bottom_radius = 0.26
-	dm.height = 0.10
-	dome.mesh = dm
-	dome.material_override = _model_dome_mat
-	dome.position.y = 0.24
-	parent.add_child(dome)
-
-	# Direction nub
-	var nub := MeshInstance3D.new()
-	var nubm := BoxMesh.new()
-	nubm.size = Vector3(0.10, 0.05, 0.06)
-	nub.mesh = nubm
-	nub.material_override = _make_material(Color(0.10, 0.10, 0.12))
-	nub.position = Vector3(0.0, 0.24, 0.20)
-	parent.add_child(nub)
-
-	# LED — solid green here (no state pulse in the schematic)
-	var led := MeshInstance3D.new()
-	var lm := BoxMesh.new()
-	lm.size = Vector3(0.07, 0.05, 0.07)
-	led.mesh = lm
-	var led_mat := StandardMaterial3D.new()
-	led_mat.albedo_color = Color(0.45, 0.90, 0.45)
-	led_mat.emission_enabled = true
-	led_mat.emission = Color(0.45, 0.90, 0.45)
-	led_mat.emission_energy_multiplier = 1.6
-	led_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	led.material_override = led_mat
-	led.position.y = 0.32
-	parent.add_child(led)
-
-	# Wheels
-	for i in range(4):
-		var wheel := MeshInstance3D.new()
-		var wm := CylinderMesh.new()
-		wm.top_radius = 0.05
-		wm.bottom_radius = 0.05
-		wm.height = 0.05
-		wheel.mesh = wm
-		wheel.material_override = _make_material(Color(0.08, 0.08, 0.10))
-		wheel.rotation = Vector3(0.0, 0.0, deg_to_rad(90.0))
-		var angle: float = float(i) * (TAU / 4.0) + PI * 0.25
-		wheel.position = Vector3(cos(angle) * 0.30, 0.04, sin(angle) * 0.30)
-		parent.add_child(wheel)
-
-
-func _make_material(color: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = 0.65
-	return m

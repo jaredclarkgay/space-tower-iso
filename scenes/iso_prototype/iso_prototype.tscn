@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
 [ext_resource type="Script" uid="uid://cjmfqleqpthof" path="res://scenes/iso_prototype/food_count_hud.gd" id="4_food"]
 [ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/iso_prototype/iso_robot.gd" id="5_robot"]
-[ext_resource type="Script" path="res://scenes/iso_prototype/cody_schematic.gd" id="6_schem"]
+[ext_resource type="Script" uid="uid://3pwgdeqy808o" path="res://scenes/iso_prototype/cody_schematic.gd" id="6_schem"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
