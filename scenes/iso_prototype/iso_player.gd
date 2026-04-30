@@ -185,8 +185,11 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	else:
-		velocity.x = world_dir.x * _c.PLAYER_MOVE_SPEED
-		velocity.z = world_dir.z * _c.PLAYER_MOVE_SPEED
+		var move_speed: float = _c.PLAYER_MOVE_SPEED
+		if Input.is_action_pressed(&"sprint"):
+			move_speed *= _c.PLAYER_SPRINT_MULTIPLIER
+		velocity.x = world_dir.x * move_speed
+		velocity.z = world_dir.z * move_speed
 
 	# Charge + jump. Hold Space to accumulate charge; release fires the jump
 	# with a velocity scaled between PLAYER_JUMP_VELOCITY (tap) and

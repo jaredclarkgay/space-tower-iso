@@ -55,6 +55,7 @@ const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 
 # --- Player movement (3D) ---
 const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
+const PLAYER_SPRINT_MULTIPLIER := 1.75  # held Shift → run at 1.75× walk speed
 const PLAYER_GRAVITY := 32.0            # m/s² downward — heavier feel, less floaty
 const PLAYER_JUMP_VELOCITY := 10.0      # m/s upward impulse on tap (~1.56 m peak)
 const PLAYER_JUMP_VELOCITY_MAX := 20.0  # m/s upward impulse at full charge (4× height)
