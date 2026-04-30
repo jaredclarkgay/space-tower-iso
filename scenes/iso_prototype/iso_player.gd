@@ -97,6 +97,23 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# When the Cody dialogue is open, lock the player in place — number-key
+	# shortcuts in the dialogue would otherwise move the body, and movement
+	# would also drift the camera target.
+	var dialogue_open: bool = (
+		_iso_robot != null
+		and _iso_robot.has_method("is_dialogue_open")
+		and _iso_robot.is_dialogue_open()
+	)
+	if dialogue_open:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		velocity.y = 0.0 if is_on_floor() else (velocity.y - _c.PLAYER_GRAVITY * delta)
+		move_and_slide()
+		if _prompt_root:
+			_prompt_root.visible = false
+		return
+
 	# Horizontal input — camera-relative.
 	var input := Vector2(
 		Input.get_action_strength(&"move_right") - Input.get_action_strength(&"move_left"),

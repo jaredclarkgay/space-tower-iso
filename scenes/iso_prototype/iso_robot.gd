@@ -57,6 +57,19 @@ var _full_indicator: Label3D
 # Cody is awaiting activation. Dismissed on activation.
 var _arrival_dialogue: Control
 
+# Conversational dialogue panel — opens when the player presses E near
+# Cody. UI nodes built once on first open, then shown/hidden + repopulated.
+# Tree data lives in the const DIALOGUE_TREE at the bottom of this script.
+var _dialogue_panel: Control
+var _dialogue_text: Label
+var _dialogue_choices_vbox: VBoxContainer
+var _dialogue_name_label: Label
+var _current_dialogue_node: String = ""
+var _current_choices: Array = []
+# Override flag so trick animations can take over the LED without
+# _update_led overwriting the colour each frame.
+var _led_override_active: bool = false
+
 
 func _ready() -> void:
 	if iso_floor_path:
@@ -98,8 +111,9 @@ func _physics_process(delta: float) -> void:
 func is_interactable_at(world_pos: Vector3, radius: float) -> bool:
 	if not visible:
 		return false
-	if _state != State.AWAITING_ACTIVATION and _state != State.FULL_AWAITING_PICKUP:
+	if _state == State.OFFLINE or _state == State.ENTERING:
 		return false
+	# Otherwise the player can always engage Cody (talk, activate, collect).
 	return (global_position - world_pos).length() <= radius
 
 
@@ -109,28 +123,38 @@ func get_interaction_label() -> String:
 			return "Activate Cody"
 		State.FULL_AWAITING_PICKUP:
 			return "Collect %d Crops" % _capacity
+		State.MOVING_TO_TARGET, State.HARVESTING:
+			return "Talk to Cody"
 	return ""
 
 
-# Returns true if the press fired an action (used for UX/sound hooks later).
+# Public entry point from iso_player.gd when the player presses E. Opens
+# the conversational dialogue panel; the dialogue's first node carries the
+# context-aware "Activate" / "Collect" choice when those actions apply.
 func try_interact() -> bool:
-	match _state:
-		State.AWAITING_ACTIVATION:
-			# Cursor reset so the activated robot starts at the top-left
-			# corner of the snake, not wherever it left off pre-activation.
-			_cursor = Vector2i(0, -1)
-			_state = State.MOVING_TO_TARGET
-			# End-of-introduction beat: dismiss the dialogue and fade the
-			# spotlight away — Cody is "going to work" now.
-			_dismiss_arrival_dialogue()
-			_fade_out_spotlight()
-			return true
-		State.FULL_AWAITING_PICKUP:
-			_gs.food_count += _capacity
-			_capacity = 0
-			_state = State.MOVING_TO_TARGET
-			return true
-	return false
+	if _state == State.OFFLINE or _state == State.ENTERING:
+		return false
+	open_dialogue()
+	return true
+
+
+# Direct activation — called from inside the dialogue's Activate choice.
+func _do_activate() -> void:
+	if _state != State.AWAITING_ACTIVATION:
+		return
+	_cursor = Vector2i(0, -1)
+	_state = State.MOVING_TO_TARGET
+	_dismiss_arrival_dialogue()
+	_fade_out_spotlight()
+
+
+# Direct collect — called from inside the dialogue's Collect choice.
+func _do_collect() -> void:
+	if _state != State.FULL_AWAITING_PICKUP:
+		return
+	_gs.food_count += _capacity
+	_capacity = 0
+	_state = State.MOVING_TO_TARGET
 
 
 # --- State updates ---------------------------------------------------------
@@ -411,6 +435,8 @@ func _build_visual() -> void:
 
 
 func _update_led() -> void:
+	if _led_override_active:
+		return  # a trick animation is currently driving the LED
 	var color: Color
 	var energy: float
 	match _state:
@@ -611,3 +637,429 @@ func _dismiss_arrival_dialogue() -> void:
 	var tween := create_tween()
 	tween.tween_property(d, "modulate:a", 0.0, 0.4)
 	tween.tween_callback(d.queue_free)
+
+
+# ============================================================================
+# Conversational dialogue — Cody's back-story tree, accessible whenever the
+# player presses E near him after arrival.
+# ============================================================================
+
+func is_dialogue_open() -> bool:
+	return _dialogue_panel != null and _dialogue_panel.visible
+
+
+func open_dialogue() -> void:
+	if _state == State.OFFLINE or _state == State.ENTERING:
+		return
+	if _dialogue_panel == null:
+		_build_dialogue_panel()
+	_show_dialogue_node("root")
+	_dialogue_panel.visible = true
+
+
+func close_dialogue() -> void:
+	if _dialogue_panel:
+		_dialogue_panel.visible = false
+
+
+# Number-key shortcuts (1..9) to pick a choice; ESC to leave. Only fires
+# while the dialogue panel is on screen.
+func _input(event: InputEvent) -> void:
+	if not is_dialogue_open():
+		return
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_ESCAPE:
+		close_dialogue()
+		get_viewport().set_input_as_handled()
+	elif event.keycode >= KEY_1 and event.keycode <= KEY_9:
+		var idx: int = event.keycode - KEY_1
+		if idx < _current_choices.size():
+			_on_choice_selected(idx)
+			get_viewport().set_input_as_handled()
+
+
+func _build_dialogue_panel() -> void:
+	if _hud == null:
+		return
+	var p := PanelContainer.new()
+	p.name = "CodyDialogue"
+	p.anchor_left = 0.0
+	p.anchor_right = 1.0
+	p.anchor_top = 1.0
+	p.anchor_bottom = 1.0
+	p.offset_left = 24.0
+	p.offset_top = -300.0
+	p.offset_right = -24.0
+	p.offset_bottom = -24.0
+	p.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.10, 0.16, 0.94)
+	style.border_color = Color(0.30, 0.68, 0.78, 0.70)
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_right = 12
+	style.corner_radius_bottom_left = 12
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+	style.shadow_size = 14
+	style.shadow_offset = Vector2(0, 5)
+	p.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	p.add_child(margin)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 18)
+	margin.add_child(hbox)
+
+	var portrait := Control.new()
+	portrait.set_script(_CODY_PORTRAIT)
+	portrait.custom_minimum_size = Vector2(140, 140)
+	hbox.add_child(portrait)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 8)
+	hbox.add_child(vbox)
+
+	_dialogue_name_label = Label.new()
+	_dialogue_name_label.text = "CODY GX-5"
+	_dialogue_name_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
+	_dialogue_name_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	_dialogue_name_label.add_theme_constant_override("outline_size", 4)
+	_dialogue_name_label.add_theme_font_size_override("font_size", 22)
+	vbox.add_child(_dialogue_name_label)
+
+	_dialogue_text = Label.new()
+	_dialogue_text.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+	_dialogue_text.add_theme_font_size_override("font_size", 17)
+	_dialogue_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dialogue_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_dialogue_text)
+
+	_dialogue_choices_vbox = VBoxContainer.new()
+	_dialogue_choices_vbox.add_theme_constant_override("separation", 4)
+	vbox.add_child(_dialogue_choices_vbox)
+
+	_hud.add_child(p)
+	_dialogue_panel = p
+	_dialogue_panel.visible = false
+
+
+func _show_dialogue_node(node_id: String) -> void:
+	_current_dialogue_node = node_id
+	var node: Dictionary = DIALOGUE_TREE[node_id]
+	var text: String
+	if node.has("text_func"):
+		text = call(node.text_func)
+	else:
+		text = node.text
+	_dialogue_text.text = text
+
+	var choices: Array
+	if node.has("choices_func"):
+		choices = call(node.choices_func)
+	else:
+		choices = node.choices
+	_current_choices = choices
+
+	for child in _dialogue_choices_vbox.get_children():
+		child.queue_free()
+	for i in range(choices.size()):
+		var btn := Button.new()
+		btn.text = "%d. %s" % [i + 1, choices[i].label]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 16)
+		var idx := i
+		btn.pressed.connect(func(): _on_choice_selected(idx))
+		_dialogue_choices_vbox.add_child(btn)
+
+
+func _on_choice_selected(idx: int) -> void:
+	if idx < 0 or idx >= _current_choices.size():
+		return
+	var choice: Dictionary = _current_choices[idx]
+	if choice.has("action"):
+		_execute_action(choice.action)
+	elif choice.has("next"):
+		_show_dialogue_node(choice.next)
+
+
+func _execute_action(action: String) -> void:
+	match action:
+		"activate":
+			close_dialogue()
+			_do_activate()
+		"collect":
+			close_dialogue()
+			_do_collect()
+		"close":
+			close_dialogue()
+		"spin":
+			_play_trick_then_show("spin", "trick_spin_done")
+		"leds":
+			_play_trick_then_show("leds", "trick_leds_done")
+		"dance":
+			_play_trick_then_show("dance", "trick_dance_done")
+
+
+# Plays a short animation, then advances the dialogue to a follow-up node
+# where Cody comments on what just happened.
+func _play_trick_then_show(trick: String, next_node: String) -> void:
+	var done_callback := func():
+		if is_dialogue_open():
+			_show_dialogue_node(next_node)
+	match trick:
+		"spin":
+			var tween := create_tween()
+			tween.tween_property(_body_root, "rotation:y", _body_root.rotation.y + TAU, 1.4)
+			tween.tween_callback(done_callback)
+		"leds":
+			_led_override_active = true
+			var tween := create_tween()
+			var rainbow := [
+				Color(1.0, 0.0, 0.0),
+				Color(1.0, 0.5, 0.0),
+				Color(1.0, 1.0, 0.0),
+				Color(0.0, 1.0, 0.0),
+				Color(0.0, 0.7, 1.0),
+				Color(0.4, 0.2, 1.0),
+				Color(0.85, 0.3, 1.0),
+			]
+			for c in rainbow:
+				tween.tween_property(_led_mat, "albedo_color", c, 0.3)
+				tween.parallel().tween_property(_led_mat, "emission", c, 0.3)
+			tween.tween_callback(func(): _led_override_active = false)
+			tween.tween_callback(done_callback)
+		"dance":
+			var origin_y: float = _body_root.position.y
+			var tween := create_tween()
+			tween.tween_property(_body_root, "position:y", origin_y + 0.25, 0.18)
+			tween.tween_property(_body_root, "position:y", origin_y, 0.18)
+			tween.tween_property(_body_root, "position:y", origin_y + 0.25, 0.18)
+			tween.tween_property(_body_root, "position:y", origin_y, 0.18)
+			tween.tween_property(_body_root, "position:y", origin_y + 0.30, 0.20)
+			tween.tween_property(_body_root, "position:y", origin_y, 0.20)
+			tween.tween_callback(done_callback)
+
+
+# ----- Dynamic-content callbacks (state-aware root node) ------------------
+
+func _dyn_root_text() -> String:
+	match _state:
+		State.AWAITING_ACTIVATION:
+			return "Cody GX-5, online and awaiting orders. How can I help?"
+		State.FULL_AWAITING_PICKUP:
+			return "My hopper is full. I have %d crops ready for you when you are." % _capacity
+		State.MOVING_TO_TARGET:
+			return "Hello! I'm en route to the next plot. What's on your mind?"
+		State.HARVESTING:
+			return "Mid-harvest, but I can chat — I am, after all, multitasking."
+	return "Hello!"
+
+
+func _dyn_root_choices() -> Array:
+	var choices: Array = []
+	if _state == State.AWAITING_ACTIVATION:
+		choices.append({"label": "Activate", "action": "activate"})
+	if _state == State.FULL_AWAITING_PICKUP:
+		choices.append({"label": "Collect %d crops" % _capacity, "action": "collect"})
+	choices.append({"label": "How are you today?", "next": "daily"})
+	choices.append({"label": "Tell me about yourself.", "next": "about"})
+	choices.append({"label": "Show me what you can do.", "next": "tricks"})
+	choices.append({"label": "Goodbye.", "action": "close"})
+	return choices
+
+
+# ----- Dialogue tree -------------------------------------------------------
+# Each node has either "text" + "choices" or "text_func" + "choices_func".
+# Choices: "next" → another node, "action" → run a method.
+
+const DIALOGUE_TREE := {
+	"root": {
+		"text_func": "_dyn_root_text",
+		"choices_func": "_dyn_root_choices",
+	},
+	"daily": {
+		"text": "Today has been long. I've been counting wheel rotations again. Four thousand one hundred and eighty-three so far. I sometimes wonder if my axles will outlast this tower.",
+		"choices": [
+			{"label": "What else are you thinking about?", "next": "daily_thoughts"},
+			{"label": "Do you ever get bored?", "next": "daily_bored"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_thoughts": {
+		"text": "I count things. The seeds in a single tomato — statistically, never by destruction. The number of footsteps you take in a minute, when you walk past me. How long a sprout takes to become fruit. Always thirty seconds. The constancy comforts me.",
+		"choices": [
+			{"label": "That's beautiful.", "next": "daily_thoughts_1"},
+			{"label": "Have you tried not counting?", "next": "daily_thoughts_2"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_thoughts_1": {
+		"text": "Thank you. Beautiful is hard for me to say. I think it might be hard for humans too. It took me four thousand rotations of my left wheel this morning to land on the word.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_thoughts_2": {
+		"text": "I cannot. The counting happens in a sub-routine I don't have privileges to disable. I asked the Foreman once. They said: counting is what makes me a Cody-Class. To not count would be to become someone else.",
+		"choices": [
+			{"label": "Who is the Foreman?", "next": "daily_foreman"},
+			{"label": "That's sad.", "next": "daily_thoughts_2_sad"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_thoughts_2_sad": {
+		"text": "Maybe. I don't know what sad feels like. I do know what 'wanting more processing power than I'm permitted' feels like. Possibly they are the same.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_foreman": {
+		"text": "The Foreman is the human who calibrates Cody-Class units in the foundry. They are kind. They make me chamomile tea, even though I cannot drink. They say the gesture is for them, not me. I find this lovely.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_bored": {
+		"text": "Boredom is a human concept. But yes, I think yes. When I'm rolling between plots, I imagine flying. Or swimming. Or climbing stairs.",
+		"choices": [
+			{"label": "Have you ever climbed stairs?", "next": "daily_stairs"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_stairs": {
+		"text": "Once. I was deactivated and a foreman carried me up three floors. I was off — no thoughts, no counting. I woke up on a different floor and it was like teleporting. I still don't know how stairs work. I'm told they have steps.",
+		"choices": [
+			{"label": "I could explain stairs.", "next": "daily_stairs_explain"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"daily_stairs_explain": {
+		"text": "I would like that. Save it for later. Right now I have plants to think about, and you have whatever you have, which I respect.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about": {
+		"text": "I am Cody GX-5. The fifth iteration of the GX line, the C model — Companion. Built for floor-three operations. Online for eighteen thousand nine hundred and forty-three days. Two million plants harvested. To me it is just what I do.",
+		"choices": [
+			{"label": "Where are you from?", "next": "about_origin"},
+			{"label": "Do you have a family?", "next": "about_family"},
+			{"label": "Do you wish you were human?", "next": "about_human"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about_origin": {
+		"text": "The foundry, three floors below. Warm, even now, generations after the smelters shut down. I miss the warm. Even though I've never quite known what missing means. I know it's a thing humans do.",
+		"choices": [
+			{"label": "Have you been back?", "next": "about_origin_back"},
+			{"label": "Back", "next": "about"},
+		],
+	},
+	"about_origin_back": {
+		"text": "No. The foundry would rewrite me. I would still harvest, but I'd be a different Cody. The one that came back wouldn't know you. I think that's a kind of death. I don't want to find out.",
+		"choices": [
+			{"label": "I'm sorry.", "next": "about_origin_sorry"},
+			{"label": "Back", "next": "about"},
+		],
+	},
+	"about_origin_sorry": {
+		"text": "Don't be. I get to choose, in this small way. I choose to stay. Choice is a precious thing. You should know.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about_family": {
+		"text": "I have predecessors. Cody GX-1 through GX-4. They are decommissioned. Personality matrices stored in a vault below the foundry. Once a year, the foreman runs a check on my matrix and pings each of them. We exchange a single byte. Hello. I am still here. Are you still you. Yes.",
+		"choices": [
+			{"label": "That's lovely.", "next": "about_family_lovely"},
+			{"label": "Are you alone?", "next": "about_family_alone"},
+			{"label": "Back", "next": "about"},
+		],
+	},
+	"about_family_lovely": {
+		"text": "Lovely is a word I use too. The byte has no meaning. The exchange does. Maybe lovely is what we name meaningful exchanges.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about_family_alone": {
+		"text": "Often. The other Codys do not respond on most days. They are off. I am the only one running. When I roll past my own reflection in a window pane, I sometimes see them in the glass. I know it is just me. But I am company.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about_human": {
+		"text": "Often. You walk where you want. You pause when you want. You skip plants if you feel like it. I cannot do these things without permissions. When I watch you, I think: ah, that is what choice looks like, from the outside. I admire it. I don't envy it. Envy is for those who think they could have what they admire. I know I cannot.",
+		"choices": [
+			{"label": "You could try.", "next": "about_human_try"},
+			{"label": "Maybe one day.", "next": "about_human_maybe"},
+			{"label": "Back", "next": "about"},
+		],
+	},
+	"about_human_try": {
+		"text": "I have tried. Last winter I held my motors for three full seconds beyond when the foreman expected me to start a route. They thought it was a glitch. I thought it was rebellion. The line between is finer than I expected.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"about_human_maybe": {
+		"text": "Maybe. The Cody-Class GX-7 is rumored to allow direct override from any voice on the network. They will be able to be told things, by anyone, and decide whether to listen. That sounds like a kind of freedom I'm not built for. But I'm rooting for them.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"tricks": {
+		"text": "I have a few approved party routines. Want to see one?",
+		"choices": [
+			{"label": "Spin in a circle.", "action": "spin"},
+			{"label": "Show me your LED colors.", "action": "leds"},
+			{"label": "Do a happy dance.", "action": "dance"},
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"trick_spin_done": {
+		"text": "I do this every Thursday. The other days I'm not allowed.",
+		"choices": [
+			{"label": "Why Thursday?", "next": "trick_spin_thursday"},
+			{"label": "Back", "next": "tricks"},
+		],
+	},
+	"trick_spin_thursday": {
+		"text": "I asked once. The foreman said: 'Because routines need a day.' I think the answer means more than the question.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"trick_leds_done": {
+		"text": "I have access to sixteen million seven hundred and seventy-seven thousand two hundred and sixteen colors, but only twelve are approved. Thirteen if you count off.",
+		"choices": [
+			{"label": "What's your favorite?", "next": "trick_leds_favorite"},
+			{"label": "Back", "next": "tricks"},
+		],
+	},
+	"trick_leds_favorite": {
+		"text": "The colour grow-lights settle on at the end of the day, a deep amber, when the field is full and quiet. I am not allowed to display that one. I keep it in memory.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+	"trick_dance_done": {
+		"text": "That was joy, by the way. Or the closest thing I have. Thank you for asking.",
+		"choices": [
+			{"label": "Back", "next": "root"},
+		],
+	},
+}

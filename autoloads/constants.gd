@@ -123,7 +123,7 @@ const PLANT_TYPES := [
 const ROBOT_UNLOCK_THRESHOLD := 5         # food_count needed to unlock
 const ROBOT_SPEED := 2.0                  # m/s — slower than the player
 const ROBOT_HARVEST_DURATION := 0.83      # seconds at each plot — operator: 3× faster (was 2.5)
-const ROBOT_CAPACITY := 10                # plots before pickup needed
+const ROBOT_CAPACITY := 30                # plots before pickup needed (operator: 3× of 10)
 const ROBOT_INTERACT_RADIUS := 1.5        # m — player must be this close
 const ROBOT_REACH_DISTANCE := 0.7         # m — robot stops to harvest at this distance
 

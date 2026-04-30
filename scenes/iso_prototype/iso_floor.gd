@@ -37,6 +37,10 @@ var _rng := RandomNumberGenerator.new()
 var _plots: Array = []
 # Plots also indexed by (row, col) so iso_robot.gd can snake-scan the grid.
 var _plot_grid: Dictionary = {}
+# Plant-type cluster assignment. Computed once in _build_garden_grid using
+# a small Voronoi diagram (one seed per plant type), so plants of the same
+# kind grow in connected patches instead of being randomly scattered.
+var _plant_assignments: Dictionary = {}
 
 
 func _ready() -> void:
@@ -325,6 +329,7 @@ func _build_elevator_shaft() -> void:
 # --- 20×20 plot grid --------------------------------------------------------
 
 func _build_garden_grid() -> void:
+	_compute_plant_assignments()
 	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
 	for i in range(_c.GARDEN_GRID_SIZE):
 		for j in range(_c.GARDEN_GRID_SIZE):
@@ -332,13 +337,42 @@ func _build_garden_grid() -> void:
 				continue
 			var x: float = origin + float(i) * _c.GARDEN_PLOT_SIZE
 			var z: float = origin + float(j) * _c.GARDEN_PLOT_SIZE
-			var plot := _build_plot(x, z)
+			var plant_type: Dictionary = _plant_assignments[Vector2i(i, j)]
+			var plot := _build_plot(x, z, plant_type)
 			_plots.append(plot)
 			_plot_grid[Vector2i(i, j)] = plot
 			# Sparse grow-light fixtures on a 4×4 stride so the field has
 			# warm overhead glow without 384 OmniLights eating the GPU.
 			if i % 4 == 1 and j % 4 == 1:
 				_build_plot_grow_light(x, z)
+
+
+# One seed per plant type, dropped at a deterministic random cell. Each plot
+# is then assigned the plant type of its nearest seed — a Voronoi diagram.
+# Plots of the same type form connected patches instead of pepper plants
+# being scattered between every tomato plant.
+func _compute_plant_assignments() -> void:
+	var grid_size: int = int(_c.GARDEN_GRID_SIZE)
+	var seeds: Array = []
+	var inset: float = 3.0   # keep seeds away from the very edges
+	for type_data in _c.PLANT_TYPES:
+		var sx: float = _rng.randf_range(inset, float(grid_size) - inset)
+		var sy: float = _rng.randf_range(inset, float(grid_size) - inset)
+		seeds.append({"pos": Vector2(sx, sy), "type": type_data})
+
+	for i in range(grid_size):
+		for j in range(grid_size):
+			if _is_elevator_cell(i, j):
+				continue
+			var cell_pos := Vector2(float(i), float(j))
+			var best_type: Dictionary = seeds[0].type
+			var best_dist: float = INF
+			for seed_data in seeds:
+				var d: float = cell_pos.distance_squared_to(seed_data.pos)
+				if d < best_dist:
+					best_dist = d
+					best_type = seed_data.type
+			_plant_assignments[Vector2i(i, j)] = best_type
 
 
 # Public lookup used by iso_robot.gd to snake-scan the grid.
@@ -354,17 +388,10 @@ func _is_elevator_cell(i: int, j: int) -> bool:
 
 
 # Build a plot with growth-stage state. Spawns a permanent soil box, one
-# foliage sphere (scaled per stage), and two fruit accents (visible only at
-# stage 5). Returns the plot Dictionary for the floor's _plots array.
-func _build_plot(x: float, z: float) -> Dictionary:
-	# Pick a plant type — drives the harvest prompt's "<name>", the
-	# shape/colour of the fruit visible at stage 5, and the foliage tint
-	# at every stage. Foliage tint is now per-type so plots read as
-	# visually different even when the fruit is too small to see from
-	# camera distance (was: random green from a small palette, which made
-	# all plots look the same hue).
-	var types: Array = _c.PLANT_TYPES
-	var plant_type: Dictionary = types[_rng.randi() % types.size()]
+# foliage sphere (scaled per stage), and per-type fruit accents (visible
+# only at stage 5). Plant type is pre-assigned by _compute_plant_assignments
+# so plants of the same kind cluster into Voronoi patches.
+func _build_plot(x: float, z: float, plant_type: Dictionary) -> Dictionary:
 	var plant_color: Color = plant_type.foliage_color
 
 	# Soil — its material is shared (we mutate albedo when stage = 0 to read
