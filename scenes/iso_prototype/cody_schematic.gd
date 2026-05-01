@@ -49,10 +49,13 @@ const SKILL_NODES := [
 
 
 func _ready() -> void:
+	# Hide first so any frame between scene load and _build_modal can't
+	# show the modal — operator caught a regression where the schematic
+	# was visible at game start.
+	visible = false
 	if iso_robot_path:
 		_iso_robot = get_node(iso_robot_path)
 	_build_modal()
-	visible = false
 
 
 func open() -> void:

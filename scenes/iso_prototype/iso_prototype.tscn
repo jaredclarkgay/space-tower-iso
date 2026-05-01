@@ -187,6 +187,7 @@ theme_override_font_sizes/font_size = 18
 text = "▸  CODY SCHEMATICS"
 
 [node name="CodySchematic" type="Control" parent="HUD"]
+visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
