@@ -162,8 +162,10 @@ func _physics_process(delta: float) -> void:
 			_harvest_progress += delta / _c.HARVEST_DURATION
 			if _harvest_progress >= 1.0:
 				if _iso_floor and _harvest_target != null:
+					var value: int = int(_harvest_target.plant_type.get("value", 1))
 					_iso_floor.harvest_plot(_harvest_target)
-				_gs.food_count += 1
+					_gs.food_count += value
+					_gs.plants_harvested += 1
 				_is_harvesting = false
 				_harvest_progress = 0.0
 				_harvest_target = null

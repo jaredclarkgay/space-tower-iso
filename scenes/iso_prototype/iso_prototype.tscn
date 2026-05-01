@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://c63jddsadj8we"]
+[gd_scene load_steps=11 format=3 uid="uid://c63jddsadj8we"]
 
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://cjmfqleqpthof" path="res://scenes/iso_prototype/food_count_hud.gd" id="4_food"]
 [ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/iso_prototype/iso_robot.gd" id="5_robot"]
 [ext_resource type="Script" uid="uid://3pwgdeqy808o" path="res://scenes/iso_prototype/cody_schematic.gd" id="6_schem"]
+[ext_resource type="Script" path="res://scenes/iso_prototype/schematics_button.gd" id="7_btn"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -181,11 +182,15 @@ horizontal_alignment = 2
 layout_mode = 2
 
 [node name="SchematicsButton" type="Button" parent="HUD/ResourcesPanel/Margin/VBox"]
+visible = false
 layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_color = Color(0.94, 0.83, 0.45, 0.95)
 theme_override_font_sizes/font_size = 18
 text = "▸  CODY SCHEMATICS"
+script = ExtResource("7_btn")
+divider_path = NodePath("../SchematicsDivider")
+unlock_threshold = 10
 
 [node name="CodySchematic" type="Control" parent="HUD"]
 visible = false

@@ -67,13 +67,16 @@ func _process(delta: float) -> void:
 func _update_plot(plot: Dictionary, delta: float) -> void:
 	plot.time_in_stage += delta
 	var stage: int = plot.stage
+	# Per-type grow rate. Violet plants take 3× longer per stage and 3×
+	# longer to regrow after harvest; reds grow at the base rate.
+	var multiplier: float = float(plot.plant_type.get("grow_multiplier", 1.0))
 	if stage == 0:
-		if plot.time_in_stage >= _c.POST_HARVEST_DURATION:
+		if plot.time_in_stage >= _c.POST_HARVEST_DURATION * multiplier:
 			plot.stage = 1
 			plot.time_in_stage = 0.0
 			_refresh_plot_visuals(plot)
 	elif stage >= 1 and stage <= _c.GROWTH_STAGE_COUNT - 1:
-		if plot.time_in_stage >= _c.GROWTH_STAGE_DURATION:
+		if plot.time_in_stage >= _c.GROWTH_STAGE_DURATION * multiplier:
 			plot.stage += 1
 			plot.time_in_stage = 0.0
 			_refresh_plot_visuals(plot)
@@ -109,13 +112,35 @@ func harvest_plot(plot: Dictionary, with_feedback: bool = true) -> void:
 
 
 func _spawn_harvest_feedback(plot: Dictionary) -> void:
+	var value: int = int(plot.plant_type.get("value", 1))
+	# Higher-value crops get bigger, gold-then-violet floaters so the
+	# rarer hauls feel rewarding instead of just a same-sized "+N".
+	var color: Color
+	var pixel_size: float
+	var font_size: int
+	if value >= 15:
+		color = Color(0.85, 0.45, 1.00, 1.0)   # violet
+		pixel_size = 0.014
+		font_size = 56
+	elif value >= 5:
+		color = Color(0.45, 0.65, 1.00, 1.0)   # blue
+		pixel_size = 0.012
+		font_size = 48
+	elif value >= 2:
+		color = Color(0.95, 0.85, 0.30, 1.0)   # gold
+		pixel_size = 0.011
+		font_size = 44
+	else:
+		color = Color(0.70, 1.00, 0.55, 1.0)   # green
+		pixel_size = 0.011
+		font_size = 40
 	var label := Label3D.new()
-	label.text = "+1 %s" % plot.plant_type.name
-	label.font_size = 40
+	label.text = "+%d %s" % [value, plot.plant_type.name]
+	label.font_size = font_size
 	label.outline_size = 6
-	label.modulate = Color(0.7, 1.0, 0.55, 1)
+	label.modulate = color
 	label.outline_modulate = Color(0, 0, 0, 0.85)
-	label.pixel_size = 0.011
+	label.pixel_size = pixel_size
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.position = plot.world_pos + Vector3(0, 0.7, 0)
@@ -347,18 +372,21 @@ func _build_garden_grid() -> void:
 				_build_plot_grow_light(x, z)
 
 
-# One seed per plant type, dropped at a deterministic random cell. Each plot
-# is then assigned the plant type of its nearest seed — a Voronoi diagram.
-# Plots of the same type form connected patches instead of pepper plants
-# being scattered between every tomato plant.
+# Multiple seeds per plant type, dropped at deterministic random cells. Each
+# plot is then assigned the plant type of its nearest seed — a Voronoi
+# diagram. Per-type seed_count tunes scarcity: Tomato gets 5 seeds (~25%
+# of the field), Eggplant gets 2 (~10%, the rarest). Plots of the same
+# type form connected patches instead of being randomly scattered.
 func _compute_plant_assignments() -> void:
 	var grid_size: int = int(_c.GARDEN_GRID_SIZE)
 	var seeds: Array = []
 	var inset: float = 3.0   # keep seeds away from the very edges
 	for type_data in _c.PLANT_TYPES:
-		var sx: float = _rng.randf_range(inset, float(grid_size) - inset)
-		var sy: float = _rng.randf_range(inset, float(grid_size) - inset)
-		seeds.append({"pos": Vector2(sx, sy), "type": type_data})
+		var seed_count: int = int(type_data.get("seed_count", 1))
+		for _s in range(seed_count):
+			var sx: float = _rng.randf_range(inset, float(grid_size) - inset)
+			var sy: float = _rng.randf_range(inset, float(grid_size) - inset)
+			seeds.append({"pos": Vector2(sx, sy), "type": type_data})
 
 	for i in range(grid_size):
 		for j in range(grid_size):
@@ -578,6 +606,25 @@ func _build_fruits_for_type(plant_type: Dictionary, x: float, z: float) -> Array
 				var sign_v: int = -1 if i == 0 else 1
 				f.rotation = Vector3(0, 0, deg_to_rad(22.0 * sign_v))
 				f.position = Vector3(x + sign_v * 0.16, 0.55, z - 0.05 * sign_v)
+				add_child(f)
+				fruits.append(f)
+		"Blueberries":
+			# Cluster of 6 small blue berries above the foliage canopy at
+			# slightly varied heights. Reads as a hanging berry bunch from
+			# any iso angle.
+			for i in range(6):
+				var f := MeshInstance3D.new()
+				f.name = "Blueberry"
+				var m := SphereMesh.new()
+				m.radius = 0.055
+				m.height = 0.11
+				f.mesh = m
+				f.material_override = _make_material(color)
+				var angle: float = float(i) * (TAU / 6.0)
+				var dx: float = cos(angle) * 0.12
+				var dz: float = sin(angle) * 0.12
+				var dy: float = 0.62 + float(i % 3) * 0.04
+				f.position = Vector3(x + dx, dy, z + dz)
 				add_child(f)
 				fruits.append(f)
 	for f in fruits:

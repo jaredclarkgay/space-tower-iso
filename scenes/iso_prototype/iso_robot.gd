@@ -43,6 +43,7 @@ var _target_plot: Variant = null
 var _harvest_progress := 0.0
 var _cursor: Vector2i = Vector2i(0, -1)   # before first cell; first advance lands at (0,0)
 var _capacity := 0
+var _capacity_value := 0   # sum of plant values harvested into the hopper
 var _time := 0.0   # for LED pulse
 
 var _body_root: Node3D
@@ -89,7 +90,9 @@ func _physics_process(delta: float) -> void:
 	_time += delta
 
 	if _state == State.OFFLINE:
-		if _gs.food_count >= _c.ROBOT_UNLOCK_THRESHOLD:
+		# Unlock keyed off plants_harvested (count) so the pace doesn't
+		# accelerate when the player picks up high-value violets.
+		if _gs.plants_harvested >= _c.ROBOT_UNLOCK_THRESHOLD:
 			_begin_arrival()
 		return
 
@@ -158,8 +161,9 @@ func _do_activate() -> void:
 func _do_collect() -> void:
 	if _state != State.FULL_AWAITING_PICKUP:
 		return
-	_gs.food_count += _capacity
+	_gs.food_count += _capacity_value
 	_capacity = 0
+	_capacity_value = 0
 	_state = State.MOVING_TO_TARGET
 
 
@@ -167,7 +171,7 @@ func _do_collect() -> void:
 func _do_collect_with_feedback() -> void:
 	if _state != State.FULL_AWAITING_PICKUP:
 		return
-	_spawn_collect_feedback(_capacity)
+	_spawn_collect_feedback(_capacity_value)
 	_do_collect()
 
 
@@ -349,9 +353,11 @@ func _update_harvesting(delta: float) -> void:
 	# route; only count it if it's still stage 5.
 	if _target_plot != null and _target_plot.stage == _c.GROWTH_STAGE_COUNT:
 		var plant_name: String = _target_plot.plant_type.name
+		var plant_value: int = int(_target_plot.plant_type.get("value", 1))
 		_iso_floor.harvest_plot(_target_plot, false)
-		_spawn_robot_harvest_feedback(plant_name)
+		_spawn_robot_harvest_feedback(plant_name, plant_value)
 		_capacity += 1
+		_capacity_value += plant_value
 	_target_plot = null
 	_harvest_progress = 0.0
 	if _capacity >= _c.ROBOT_CAPACITY:
@@ -574,12 +580,22 @@ func _update_full_indicator() -> void:
 # +1 floater above Cody whenever he completes a harvest — visual companion
 # to GameState's food count climbing on player collection. Fires per-plot,
 # so the player can see Cody working without having to track him directly.
-func _spawn_robot_harvest_feedback(plant_name: String) -> void:
+func _spawn_robot_harvest_feedback(plant_name: String, value: int) -> void:
+	# Match the player's tiered floater colours so Cody's hauls read with
+	# the same value cues — gold for mid, blue for blueberries, violet
+	# for the rare ones.
+	var color := Color(0.55, 1.0, 0.50, 1.0)
+	if value >= 15:
+		color = Color(0.85, 0.45, 1.00, 1.0)
+	elif value >= 5:
+		color = Color(0.45, 0.65, 1.00, 1.0)
+	elif value >= 2:
+		color = Color(0.95, 0.85, 0.30, 1.0)
 	var label := Label3D.new()
-	label.text = "+1 %s" % plant_name
+	label.text = "+%d %s" % [value, plant_name]
 	label.font_size = 36
 	label.outline_size = 6
-	label.modulate = Color(0.55, 1.0, 0.50, 1.0)
+	label.modulate = color
 	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.85)
 	label.pixel_size = 0.010
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED

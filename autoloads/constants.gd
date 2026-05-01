@@ -78,38 +78,64 @@ const HARVEST_DURATION := 0.25            # quick but the bar visibly plays — 
 const HARVEST_RADIUS := 1.2
 const HARVEST_KNEEL_SCALE_Y := 0.55
 
-# Plant types — each plot is randomly assigned one. Drives the prompt text
-# ("Harvest Tomato"), the fruit-accent colour at stage 5, and the foliage
-# tint at every stage so plots read as visually distinct even when the
-# fruits are too small to see from camera distance.
-#
-# Fruit palette: red, golden-yellow, vivid purple, deep orange, lime.
-# Five clearly different hues so the field stops reading as monotone-warm.
+# Plant types — each plot is randomly assigned one. Drives the prompt
+# text, fruit-accent colour at stage 5, foliage tint at every stage,
+# AND a ROYGBV value/scarcity/grow-rate gradient:
+#   - Red end of the spectrum: cheap, fast-growing, common.
+#   - Violet end: 3× more valuable than the tier below, slowest grow,
+#     rarest spawn (~10% of plots).
+# `seed_count` is how many Voronoi seeds this type plants in the grid:
+# more seeds → bigger area / more common. `grow_multiplier` scales both
+# GROWTH_STAGE_DURATION and POST_HARVEST_DURATION so a Violet plant takes
+# 3× longer per stage and 3× longer to regrow after harvest.
 const PLANT_TYPES := [
 	{
 		"name": "Tomato",
 		"fruit_color": Color(0.85, 0.25, 0.20),
 		"foliage_color": Color(0.42, 0.62, 0.28),
-	},
-	{
-		"name": "Pepper",
-		"fruit_color": Color(1.00, 0.78, 0.15),
-		"foliage_color": Color(0.52, 0.65, 0.28),
-	},
-	{
-		"name": "Eggplant",
-		"fruit_color": Color(0.60, 0.20, 0.75),
-		"foliage_color": Color(0.32, 0.40, 0.32),
+		"value": 1,
+		"grow_multiplier": 1.0,
+		"seed_count": 5,
 	},
 	{
 		"name": "Pumpkin",
 		"fruit_color": Color(0.95, 0.45, 0.10),
 		"foliage_color": Color(0.40, 0.52, 0.22),
+		"value": 1,
+		"grow_multiplier": 1.0,
+		"seed_count": 4,
+	},
+	{
+		"name": "Pepper",
+		"fruit_color": Color(1.00, 0.78, 0.15),
+		"foliage_color": Color(0.52, 0.65, 0.28),
+		"value": 2,
+		"grow_multiplier": 1.2,
+		"seed_count": 3,
 	},
 	{
 		"name": "Cucumber",
 		"fruit_color": Color(0.65, 0.85, 0.25),
 		"foliage_color": Color(0.40, 0.55, 0.30),
+		"value": 3,
+		"grow_multiplier": 1.4,
+		"seed_count": 3,
+	},
+	{
+		"name": "Blueberries",
+		"fruit_color": Color(0.30, 0.45, 0.85),
+		"foliage_color": Color(0.30, 0.50, 0.40),
+		"value": 5,
+		"grow_multiplier": 2.0,
+		"seed_count": 3,
+	},
+	{
+		"name": "Eggplant",
+		"fruit_color": Color(0.60, 0.20, 0.75),
+		"foliage_color": Color(0.32, 0.40, 0.32),
+		"value": 15,
+		"grow_multiplier": 3.0,
+		"seed_count": 2,
 	},
 ]
 
@@ -121,7 +147,7 @@ const PLANT_TYPES := [
 # collect, which empties the hopper into food_count and the robot resumes.
 # Long-term: this state machine is the place LLM-driven directives would
 # plug in (override target plot, override pattern, etc.).
-const ROBOT_UNLOCK_THRESHOLD := 5         # food_count needed to unlock
+const ROBOT_UNLOCK_THRESHOLD := 10        # plants_harvested needed to unlock Cody
 const ROBOT_SPEED := 2.0                  # m/s — slower than the player
 const ROBOT_HARVEST_DURATION := 0.83      # seconds at each plot — operator: 3× faster (was 2.5)
 const ROBOT_CAPACITY := 30                # plots before pickup needed (operator: 3× of 10)

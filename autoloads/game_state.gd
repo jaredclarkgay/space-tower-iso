@@ -22,8 +22,14 @@ var camera := {
 	"angle_step": 0,
 }
 
-# Harvested-plant counter, mirrored to the top-right HUD label.
+# Cumulative harvest VALUE (Red=1 ... Violet=15). Mirrored to the
+# top-right HUD label.
 var food_count := 0
+# Number of times the player has manually harvested a plant. Drives the
+# Cody-arrival threshold and the Schematics-button reveal — count, not
+# value, so the unlock pace is steady regardless of which crops the
+# player picks.
+var plants_harvested := 0
 
 # True while the Cody Schematics modal is open. iso_player + iso_robot
 # both freeze input/movement when this is set.
