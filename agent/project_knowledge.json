@@ -1,73 +1,84 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "doc_version_synced": "v3",
-  "last_updated": "2026-04-26",
-  "scope": "iso_vertical_slice",
-  "pivot_rationale": "Test collapsing Space Tower's two visual modes (3D exterior + 2D side-on sim) into a single isometric view as the baseline. This slice exists in a separate repo from the existing game so the iso experiment can be archived if it does not feel right, with no impact on shipping work.",
-  "target": {
-    "floor": "Floor 3 — The Garden of Eden",
-    "scope": "one floor, controllable character, pannable/zoomable/rotatable iso camera",
-    "out_of_scope": [
-      "modules / build mechanic",
-      "NPCs",
-      "economy / resources",
-      "UI",
-      "other floors",
-      "the Reckoning",
-      "the RGB / Keeper",
-      "save/load",
-      "audio"
-    ]
+  "last_updated": "2026-04-30",
+  "scope": "iso_vertical_slice (operator-evolved beyond original brief)",
+  "pivot_rationale": "Test collapsing Space Tower's two visual modes (3D exterior + 2D side-on sim) into a single isometric view as the baseline. Slice lives in a separate repo from the existing game so the experiment can be archived if it doesn't feel right, with no impact on shipping work.",
+  "current_state": {
+    "phase": "iterative_polish",
+    "originally_planned_scope": "one Garden floor + character + camera + STOP",
+    "actual_evolved_scope": "30×30 plot grid with ROYGBV value gradient, perimeter walls with translucent windows + window spotlights, animated extension grid (blueprint frame), 4×4 elevator shaft, player with hardhat-orange jumpsuit + jump/charge/sprint/harvest, Cody GX-5 helper robot with arrival ceremony + Slippy-style chat with backstory dialogue tree + tricks + Schematics modal with 3D preview and skill-tree placeholder.",
+    "operator_decision": "Brief's 'STOP at scope creep' guidance overridden by operator. The slice is the prototype game now."
   },
   "engine": {
-    "engine": "godot_4.6",
+    "engine": "godot_4.4_running_4.6_features",
     "language": "gdscript_only",
     "renderer": "gl_compatibility",
     "export_target": "web (must remain possible)",
     "no_csharp": true,
     "no_plugins": true
   },
+  "design_pillars_locked_in": {
+    "feel_a_moment": "Operator consistently asks for ceremony at state transitions: Cody arrival uses light column + rising chassis + banner + Slippy intro panel; Schematics reveal uses bounce-in scale + alpha; chat opens with camera close-up + slow orbit. Don't ship a state change as a bare visibility toggle.",
+    "visual_consistency": "Same Cody chassis (cody_3d_view.gd shared component) renders in chat dialogue, schematic preview, and in-world. Customization in the schematic mirrors live to the world robot via apply_customization().",
+    "operator_aesthetic": "garden-of-eden / utopian / tower-building / construction-worker — warm earth tones (terracotta, amber, moss) + gold accents + cream text. Not generic dark-grey-with-blue UI.",
+    "narrative_depth": "Cody isn't a tool. He has loneliness, an origin (the foundry), predecessors (Cody GX-1..4 stored in a vault), admiration for human free will. Tricks reveal personality.",
+    "tunable_game_feel": "All key knobs in autoloads/constants.gd: PLAYER_MOVE_SPEED, PLAYER_SPRINT_MULTIPLIER, HARVEST_DURATION, ROBOT_HARVEST_DURATION, ROBOT_CAPACITY, ROBOT_UNLOCK_THRESHOLD, GROWTH_STAGE_DURATION, POST_HARVEST_DURATION, plant grow_multiplier per type, CAMERA_*."
+  },
+  "operator_long_term_vision": [
+    "Cody evolves: Roomba MK1 (current) → Speed Boost → Capacity → Builder Mode → Steel Frame → Combat Module → Companion Bond. Schematics modal already shows this skill tree as visual placeholder.",
+    "Player + Cody build the tower TOGETHER. Co-op construction.",
+    "Combat — boss fights, floor invasions.",
+    "LLM-controlled Cody remotely. Mentioned in dialogue lore ('Cody-Class GX-7 will allow direct override from any voice on the network'); the state machine in iso_robot.gd is the seam where LLM-driven _find_next_plot or REMOTE state plugs in.",
+    "BYOK culmination — original brief mentioned this. Player connects own LLM, talks to a real AI character (The Keeper) inside the restaurant. Floor 5 is the threshold."
+  ],
+  "rooms_for_growth": [
+    "Skill tree currently visual-only. Need actual unlock logic — food cost, dependency graph traversal, applied effects.",
+    "Plant value gradient is in but no win condition / progression goal yet — value just accumulates in food_count.",
+    "Cody dialogue tree is rich but narratively static — same lines every time. Could vary by Cody's personal-experience counter (number of harvests, days online).",
+    "Camera works but doesn't follow the player on horizontal movement — fixed view at world origin. Floor is large enough that player can walk off-screen at default zoom.",
+    "No save/load, no audio, no music."
+  ],
   "garden_visual_signature": {
     "summary": "Stacked planters with crops ripening, translucent water pipes with visibly flowing water, warm grow-light glow.",
     "elements": [
-      "Stacked planters with tomatoes and fruit ripening on the planters",
-      "Translucent water pipes with flowing water visible through/beneath the planter boxes",
-      "Warm grow-light glow over the planters; emissive amber light",
-      "Color palette: warm greens (plants), translucent blues (water), amber/gold (grow lights). No cold greys."
-    ],
-    "animation": [
-      "Continuous water flow in pipes",
-      "Grow lights pulse on a 2–3s cycle",
-      "Plants sway slightly"
-    ],
-    "sources": [
-      "docs/space-tower-project-knowledge-v3.md",
-      "docs/player-journey-map-v3-final.html (step 07 \"The Garden of Eden\")"
+      "30×30 plot grid (468 buildable plots minus 16 elevator footprint)",
+      "Voronoi-clustered crops by type: Tomato, Pumpkin, Pepper, Cucumber, Blueberries, Eggplant",
+      "Per-plot soil + foliage sphere (per-type tinted) + per-type fruit accents at stage 5",
+      "Translucent water pipes around the perimeter inset",
+      "Warm grow-light fixtures every 4×4 cells",
+      "Perimeter walls: low solid base + vertical posts + translucent window panels + thin trim",
+      "4 SpotLight3D outside the walls casting inward — reads as sunlight through the windows",
+      "Faint blueprint extension grid (6 lines per side + crossbar) suggesting where the tower could expand"
     ]
   },
-  "design_principles_that_must_survive": [
-    "The player's body is the tool — walking on the iso floor must feel like a person, not a cursor.",
-    "Discovery over instruction — no tutorials. If a control is unclear, redesign it.",
-    "Character dignity — even programmatic placeholder characters should read as people.",
-    "Fixed block identities with direct causal consequences — each planter / pipe / light is a thing, not abstract decoration.",
-    "Exterior/interior unification via iso — the iso view replaces the old split between 3D exterior and 2D sim.",
-    "RGB boundary is sacred — the sim is handcrafted; only the RGB is procedurally alive (not in scope here, but do not erode the boundary)."
-  ],
-  "faction_vocabulary_to_retain": {
-    "factions": ["builders", "suits"],
-    "phrases": ["the job (builders)", "the work (suits)"]
+  "constants_canonical": {
+    "BLOCKS_PER_FLOOR": "12 (sibling parity, unused in iso scope)",
+    "GARDEN_GRID_SIZE": 30,
+    "GARDEN_PLOT_SIZE": 1.0,
+    "FLOOR_3D_SIZE": 30.0,
+    "ELEVATOR_RADIUS": 2,
+    "PLAYER_MOVE_SPEED": 7.0,
+    "PLAYER_SPRINT_MULTIPLIER": 1.75,
+    "PLAYER_GRAVITY": 32.0,
+    "PLAYER_JUMP_VELOCITY": 10.0,
+    "PLAYER_JUMP_VELOCITY_MAX": 20.0,
+    "HARVEST_DURATION": 0.25,
+    "ROBOT_UNLOCK_THRESHOLD": 10,
+    "ROBOT_HARVEST_DURATION": 0.83,
+    "ROBOT_CAPACITY": 30,
+    "GROWTH_STAGE_COUNT": 5,
+    "GROWTH_STAGE_DURATION": "6 s base × per-type multiplier",
+    "POST_HARVEST_DURATION": "10 s base × per-type multiplier",
+    "PLANT_VALUES": "Red 1, Orange 1, Yellow 2, Green 3, Blue 5, Violet 15 (3× blue)",
+    "PLANT_GROW_MULTIPLIERS": "Red 1.0, Orange 1.0, Yellow 1.2, Green 1.1, Blue 1.3, Violet 1.5 (60 s full cycle)",
+    "PLANT_SCARCITY_VIA_VORONOI_SEED_COUNT": "Red 5, Orange 4, Yellow 3, Green 3, Blue 3, Violet 2 → ~10% violet",
+    "CAMERA_TILT_DEG": -30,
+    "CAMERA_YAW_DEG_INITIAL": 45,
+    "CAMERA_DIALOGUE_FOCUS_SIZE": 7.0,
+    "CAMERA_DIALOGUE_ORBIT_RATE": "0.15 rad/s"
   },
-  "constants_canonical_for_iso": {
-    "BLOCKS_PER_FLOOR": 12,
-    "BLOCK_WIDTH": 180,
-    "FLOOR_HEIGHT": 144,
-    "FLOOR_SLAB": 4,
-    "ISO_TILE_W": 64,
-    "ISO_TILE_H": 32,
-    "GARDEN_FLOOR_INDEX": 2,
-    "notes": "BLOCK_WIDTH and FLOOR_HEIGHT carried forward from sibling space-tower/autoloads/constants.gd. ISO_TILE_W/H are placeholders; refined after Phase 1 research."
-  },
-  "the_reckoning_one_paragraph": "Floor 8 is the conflict floor. When Floor 8 reaches buildout stage 5 and all floors are stage ≥ 1, The Reckoning triggers: a 90-second mini-game where 12 builder AI vs. 18 suit AI in squads fight for block territory on floors 6–8. The player claims blocks by standing on them. Post-reckoning, 30 civilian NPCs flood in. The player's color choice (builder faction) persists. Out of scope here, but Phase 4 self-evaluation must speculate on how this would look in an iso view.",
+  "the_reckoning_one_paragraph": "Floor 8 is the conflict floor. When Floor 8 reaches buildout stage 5 and all floors are stage ≥ 1, The Reckoning triggers: a 90-second mini-game where 12 builder AI vs. 18 suit AI in squads fight for block territory on floors 6-8. Player claims blocks by standing. Post-reckoning, 30 civilian NPCs flood in. Out of scope here, but Phase-N consideration as Cody picks up Combat Module.",
   "adjacent_repos": {
     "space_tower_godot": "/Users/jaredgay/Library/CloudStorage/Dropbox/Unwind/10-Dev/space-tower (Godot 4.6, full game in progress; reference for autoload shape and idioms)",
     "space_tower_browser_prototype": "/Users/jaredgay/Library/CloudStorage/Dropbox/Unwind/10-Dev/Space-Tower-Browser-Prototype (vanilla JS + Canvas 2D + Three.js; original mechanics playtest)"

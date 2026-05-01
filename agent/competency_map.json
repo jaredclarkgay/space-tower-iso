@@ -1,25 +1,108 @@
 {
-  "version": "1.0",
-  "last_updated": "2026-04-26",
+  "version": "1.1",
+  "last_updated": "2026-04-30",
   "domains": {
     "godot_isometric": {
-      "confidence": "medium",
+      "confidence": "high",
       "evidence": [
-        "Read the official Godot Isometric Game Demo (Compatibility renderer, single-floor TileMap with vertical offsets, StaticBody2D + CollisionPolygon2D bases, Y-sorted parent). Source: references/godot_iso_demo/.",
-        "Cataloged the goblin demo player movement pattern — CharacterBody2D + move_and_slide, motion.y /= 2 for 2:1 dimetric projection, 8-direction sprite picker via floor(angle/45). Source: references/godot_iso_demo/player/goblin.gd:32–54.",
-        "Documented the canonical Godot 4.4 stacked-TileMapLayer pattern — parent YSortEnabled + per-layer position.y offset + matching y_sort_origin compensation + sides-only tile variants. Sources: forum.godotengine.org/t/best-practice-for-stacking-tilemaplayer-nodes-with-ysort-in-godot-4-4/120306, /t/how-do-i-correctly-stack-isometric-tilemaplayers/113870.",
-        "Confirmed Compatibility renderer + WebGL 2.0 single-threaded constraints for web export. Forward+ features unavailable on web; Safari unreliable; develop in Chrome/Firefox.",
-        "Identified Camera3D-orthographic vs Camera2D-rotated trade-off — 2D-rotated requires multi-angle pre-rendered art; 3D-orthographic gives rotation/zoom/stacking nearly free at cost of pixel-perfect 2D look."
+        "Built and shipped a 3D-orthographic iso prototype with Camera3D pivot, drag pan, wheel zoom, 90° rotate snaps, and the Phase-3 Garden floor.",
+        "Camera3D framing math (F-003): for a tilt of θ at distance d, the camera's local position must be (0, d·sin|θ|, d·cos|θ|) for the look ray to hit the pivot's origin.",
+        "DirectionalLight3D direction = -basis_z (F-002). Hand-authoring transforms requires getting the basis right or the light shines the wrong way.",
+        "Stacked-floor TileMapLayer pattern: parent YSortEnabled + per-layer position.y offset + matching y_sort_origin compensation + sides-only tile variants. Documented but not yet used (one floor for now).",
+        "Voronoi-based crop clustering with per-type seed_count tunes scarcity at the same time it produces natural patches."
       ],
       "rules_learned": [
-        "Use 2:1 dimetric projection (ISO_TILE_W = 2 * ISO_TILE_H). The single line `motion.y /= 2` makes WASD/arrow input feel correct on the iso plane.",
-        "For rotation + stacking, prefer Camera3D orthographic over Camera2D + scene rotation. The trade-off is pixel-perfect 2D, which doesn't matter for programmatic placeholder visuals.",
-        "For Y-sort across stacked floors, set y_sort_origin equal in magnitude (opposite sign) to the layer's position.y offset. The parent must have YSortEnabled = true for any of this to work.",
-        "Snap 90° camera rotations with a ~0.2s tween, never an instant jump. Pivot around the camera target, not the camera origin."
+        "Use 2:1 dimetric projection (ISO_TILE_W = 2 * ISO_TILE_H). The line `motion.y /= 2` makes WASD/arrow input feel correct on the iso plane.",
+        "Camera3D orthographic on a 3D scene graph beats Camera2D + scene rotation when the design needs rotation, zoom, and stacking. Pixel-perfect 2D is the trade-off; for programmatic placeholders it's free.",
+        "Snap 90° camera rotations with a ~0.2 s tween on a pivot, never the camera itself, so the X tilt stays locked.",
+        "Pan responds to camera-relative basis (pivot.basis.x and .z), not world axes, so 'screen-right' stays right after rotation."
+      ],
+      "failure_patterns": [
+        "Hand-rolling 3D transform matrices without verifying the resulting basis vectors → wrong-direction lights, off-target cameras (F-002, F-003)."
+      ],
+      "needs_from_human": []
+    },
+    "godot_ui_modal": {
+      "confidence": "medium",
+      "evidence": [
+        "Built two modals: Cody Schematics (full-screen with three columns + close button) and the chat dialogue panel (bottom-anchored with portrait + text + N choice buttons).",
+        "Animated entrance pattern: PanelContainer pivot_offset = size * 0.5, scale 0.86 → 1.0 with TRANS_BACK / EASE_OUT (slight overshoot), modulate.a 0 → 1 in parallel. ~0.4 s feels like a moment.",
+        "Reveal-on-unlock pattern (Schematics button): hidden visible=false in .tscn, polled per-frame via attached script, set_process(false) after first reveal so it costs nothing once shown.",
+        "GameState boolean flags as cross-module handshake (dialogue_open, schematic_open) — camera + player + robot all read these to gate input/movement/animation."
+      ],
+      "rules_learned": [
+        "For a modal that scales-in around its centre, set pivot_offset BEFORE the tween starts. Default pivot_offset is (0,0) — top-left — and the scale animation from there reads as a wonky slide.",
+        "When tweening a Control's rotation back via the short path after extended movement, normalize first: `wrapf(current - saved + PI, 0, TAU) - PI`. Without that, an orbit that advanced past one or more turns will tween backward through every degree.",
+        "Hide a modal in BOTH the .tscn (visible = false on the node) and in _ready as belt-and-suspenders. The .tscn baseline kills first-frame flashes; _ready resets state on subsequent loads."
+      ],
+      "failure_patterns": [
+        "Default Button.focus_mode = FOCUS_ALL + project rebinding Space to jump → ui_accept activates a focused button when the player jumps (F-008). Always set focus_mode = 0 on Buttons that don't need keyboard activation."
+      ],
+      "needs_from_human": []
+    },
+    "godot_subviewport_3d": {
+      "confidence": "medium",
+      "evidence": [
+        "Shared component cody_3d_view.gd extends SubViewportContainer. Builds its own SubViewport with own_world_3d, key + fill DirectionalLight3D, Camera3D with look_at_from_position, and a chassis builder. Used by both the Schematics modal and the dialogue chat pop-up.",
+        "Drag-rotate vs auto-spin gated by exported flags. Auto-spin via _process(delta) accumulator on the model pivot's rotation.y."
+      ],
+      "rules_learned": [
+        "SubViewportContainer needs custom_minimum_size set BEFORE it enters the tree so the inner SubViewport can pick up the right Vector2i size in _ready.",
+        "Use `look_at_from_position` rather than `position = ...; look_at(...)` to avoid the 'Node not inside tree' error from look_at when the camera isn't yet in the scene tree (F-006 pattern).",
+        "Set mouse_filter = MOUSE_FILTER_IGNORE on a SubViewportContainer when it shouldn't capture input — otherwise it intercepts clicks intended for nodes underneath."
+      ],
+      "failure_patterns": [],
+      "needs_from_human": []
+    },
+    "godot_tween_3d": {
+      "confidence": "medium",
+      "evidence": [
+        "Faded 3D MeshInstance3D nodes (arrival light column) by tweening StandardMaterial3D.albedo_color:a and emission_energy_multiplier instead of CanvasItem-only `modulate:a` (F-007).",
+        "Used set_parallel(true) + chain() pattern to run multiple tweeners simultaneously then a sequential cleanup callback."
+      ],
+      "rules_learned": [
+        "MeshInstance3D / GeometryInstance3D do NOT have `modulate`. To fade a 3D mesh, keep a ref to its StandardMaterial3D and tween albedo_color:a (and emission_energy_multiplier if it's emissive). For Label3D, modulate exists and tweens normally.",
+        "tween.set_parallel(true) makes subsequent tweeners run in parallel until tween.chain() flips back to sequential. Useful for parallel transform tweens followed by a queue_free callback."
+      ],
+      "failure_patterns": [
+        "Reaching for `modulate` on any visible 3D object — works for Label3D, fails for MeshInstance3D and SpotLight3D (F-007)."
+      ],
+      "needs_from_human": []
+    },
+    "operator_iteration_loop": {
+      "confidence": "high",
+      "evidence": [
+        "Operator loop: takes an in-game screenshot, drops the file path, describes the desired delta. Diagnose → fix → commit/push → operator F5s and reports back. Loop has run 30+ rounds in a single sitting.",
+        "Operator preferences inferred over the session: wants moments to FEEL like moments (Cody arrival ceremony, Schematics reveal, dialogue camera close-up); wants visual consistency across surfaces (3D Cody in chat AND schematic AND in-world); wants game-feel knobs tunable via Constants (sprint multiplier, harvest duration, grow multipliers); wants narrative depth (dialogue tree with backstory, loneliness theme, admiration for human free will); appreciates concise summaries with specific click-here-do-this instructions; iterates fast — short, decisive responses preferred over long technical explanations.",
+        "Operator long-term vision: Cody as evolving party member (Roomba MK1 → Builder → Combat → Companion), eventually LLM-controlled remote. Tower-building together. Combat with bosses. Garden-of-Eden + utopian + tower-building + construction-worker aesthetic."
+      ],
+      "rules_learned": [
+        "When the operator sends a screenshot + complaint, the screenshot often disagrees with the complaint due to timing or context-switching. Read the screenshot first, describe what's actually visible, then ask if that matches their experience before applying a fix.",
+        "Operator says '+2 units' and means an integer count of grid cells, not a metric distance. When grid scale changes (pane spacing → cell count), translate the spec literally rather than computing exactly.",
+        "Aesthetic feedback ('elevate the design sensibility', 'should feel more like X') is a license to make taste-driven choices and ship — not to ask for clarification. The operator critiques after seeing it, which is faster than nailing it from a description.",
+        "When something appears 'out the gates' that shouldn't, suspect three things in this order: (1) a default property value the .tscn doesn't override, (2) Godot editor cache holding stale state, (3) an event-system quirk like Button focus + ui_accept."
+      ],
+      "failure_patterns": [
+        "Diagnosing a 'modal opens at start' bug as a code logic issue when the actual cause was the editor cache (F-009) — three commits of code-level fixes were needed to convince me the runtime wasn't the problem.",
+        "Suggesting plan mode or asking for confirmation on aesthetic iterations slows the loop. The operator is in an iterative groove; ship something, observe their reaction, adjust."
+      ],
+      "needs_from_human": []
+    },
+    "dialogue_tree_design": {
+      "confidence": "medium",
+      "evidence": [
+        "Designed and shipped Cody's 22-node CYOA dialogue tree. Branches: how-are-you (today, counting, foreman, boredom, stairs), about-yourself (origin, family, admiration for human free will), tricks (spin, LED rainbow, dance) with per-trick follow-up commentary nodes.",
+        "State-aware root: text_func + choices_func callbacks compute greeting and available choices from the robot's current state machine — Activate appears in AWAITING_ACTIVATION, Collect appears in FULL_AWAITING_PICKUP, Talk-only choices in MOVING/HARVESTING.",
+        "Tricks dispatch through _execute_action then _play_trick_then_show, which runs an animation Tween then advances the dialogue to a {trick}_done node with Cody's reflection on it."
+      ],
+      "rules_learned": [
+        "For a state-aware dialogue root, use `text_func` and `choices_func` keys that point at method names; resolve via `call(node.text_func)` and `call(node.choices_func)`. Lets choices be context-sensitive without mutating the static tree.",
+        "Number-key shortcuts (KEY_1..KEY_9) as alternative button activators speed up tree navigation for keyboard players. Hook in _input on the dialogue script with `event.keycode - KEY_1` as the choice index.",
+        "Per-trick follow-up node ('That was joy, by the way. Or the closest thing I have.') turns a one-off animation into a character beat. Worth the ~1 extra dialogue node per trick."
       ],
       "failure_patterns": [],
       "needs_from_human": [
-        "Phase 2 architecture decision — Path A (pure iso) vs Path B (renderer swap). Recommendation pending: Path B realized as Camera3D orthographic on a 3D scene graph (see references/iso_research.md, final section)."
+        "Voice direction. The current Cody voice is melancholy-with-hope (counting wheel rotations, missing the foundry, admiring human free will, predecessors stored in a vault). Operator approved tonally but hasn't directed sharper. Ready for either deeper melancholy, more humor, or more sci-fi technical density on signal."
       ]
     }
   }

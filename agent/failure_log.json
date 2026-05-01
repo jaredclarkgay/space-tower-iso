@@ -81,6 +81,57 @@
       "files_touched": [
         "scenes/iso_prototype/iso_floor.gd"
       ]
+    },
+    {
+      "id": "F-007",
+      "phase": "iteration",
+      "date": "2026-04-29",
+      "category": "godot_tween_property_3d",
+      "summary": "Tween targeted `modulate:a` on a MeshInstance3D (the Cody arrival light column). MeshInstance3D doesn't have `modulate` — that's a CanvasItem (2D) property. Result: a runtime error per Cody arrival.",
+      "trigger": "Operator screenshot showed `iso_robot.gd:180 @ _spawn_arrival_light(): The tweened property \"modulate:a\" does not exist in object \"ArrivalLight:<MeshInstance3D#...>\"`.",
+      "fix": "Fade 3D meshes by tweening the StandardMaterial3D's albedo_color:a and emission_energy_multiplier directly. Keep a reference to the material so the tween can hit it.",
+      "rule_added": "rules/godot_3d_fade.md",
+      "files_touched": [
+        "scenes/iso_prototype/iso_robot.gd"
+      ]
+    },
+    {
+      "id": "F-008",
+      "phase": "iteration",
+      "date": "2026-04-30",
+      "category": "godot_button_focus_default",
+      "summary": "Button.focus_mode defaults to FOCUS_ALL, so any Button can grab keyboard focus. Godot's built-in `ui_accept` action is bound to Space and Enter; this project also binds Space to `jump`. Pressing Space in-game globally fires ui_accept, and any focused Button activates its `pressed` signal. The first Space the operator pressed for jump was opening the Schematics modal.",
+      "trigger": "Operator screenshots showed CodySchematic modal open at game start despite a `visible = false` baseline. Headless quit-after runs were silent — only happened in editor sessions where the player pressed Space.",
+      "fix": "focus_mode = 0 (FOCUS_NONE) on the SchematicsButton in the .tscn. Mouse-only — Space/Enter can never activate it. Compounded with stale Godot editor cache (see F-009) which made the diagnosis take a few rounds.",
+      "rule_added": "rules/godot_button_focus.md",
+      "files_touched": [
+        "scenes/iso_prototype/iso_prototype.tscn"
+      ]
+    },
+    {
+      "id": "F-009",
+      "phase": "iteration",
+      "date": "2026-04-30",
+      "category": "godot_editor_cache",
+      "summary": "Godot's editor caches scene state in .godot/ (imports, script class registry, scene metadata). After multiple .tscn edits + the editor staying open, the running game used a stale in-memory state of the scene that diverged from disk. Disk had `visible = false` on CodySchematic; running game opened it anyway because cache held an older version.",
+      "trigger": "Three rounds of fixes (.tscn visible=false, _ready early visible=false, focus_mode=0) failed to suppress the modal. Headless --quit-after never reproduced. Cache theory: clear .godot/ + close-and-reopen Godot → symptom gone.",
+      "fix": "rm -rf .godot/ then close and reopen Godot. The editor re-imports everything fresh, ~10-20 s on first open. Disk fixes that were always correct now actually take effect.",
+      "rule_added": "rules/godot_editor_cache.md",
+      "files_touched": []
+    },
+    {
+      "id": "F-010",
+      "phase": "iteration",
+      "date": "2026-04-29",
+      "category": "gdscript_class_name_in_headless",
+      "summary": "class_name CodyPortrait wasn't registered yet in Godot's headless harness when iso_robot.gd tried to instantiate it via `CodyPortrait.new()`. global class registry hasn't run; identifier 'CodyPortrait' isn't declared in scope. Parse error.",
+      "trigger": "First headless --quit-after run after writing the dialogue's Cody portrait Control. `Identifier \"CodyPortrait\" not declared in the current scope.`",
+      "fix": "Drop class_name and instantiate via preload + set_script: `var ctrl := Control.new(); ctrl.set_script(preload(\"res://...gd\"))`. Works regardless of the class registry state.",
+      "rule_added": "rules/gdscript_class_name_caveats.md",
+      "files_touched": [
+        "scenes/iso_prototype/cody_portrait.gd",
+        "scenes/iso_prototype/iso_robot.gd"
+      ]
     }
   ]
 }

@@ -197,3 +197,44 @@ GameState reads/writes player_pos and camera state; iso_player and iso_camera bo
 - Phase 4 self-evaluation. Will pause for operator playthrough notes
   before writing findings to `failure_log.json` and answering the
   brief's five evaluation questions.
+
+---
+
+## Session 2 (2026-04-26 → 2026-04-30) — Iterative polish, "the slice became the game"
+
+The brief's hard STOP gates were overridden once the operator started iterating live. Each cycle: operator screenshots → diagnose → fix → commit/push → operator F5s. The loop ran 30+ rounds. This entry summarises what was built across that arc rather than listing every commit.
+
+### What landed
+- **Garden floor scaled up**: 12-block strip (brief) → 22 → 30 cells per side. Voronoi crop clustering with per-type seed_count for natural patches and tunable scarcity.
+- **Player polish**: WASD + arrows, sprint (Shift, 1.75×), jump with hold-to-charge up to 4× height + tuck-and-flip rotation synced to airtime, harvest E with green progress bar.
+- **Cody GX-5 helper robot**: arrival ceremony (rises from elevator on a beam of light, banner "joined the team", Slippy-style intro panel with 3D portrait), snake-scan harvest loop, hopper capacity 30, "I'M FULL" attention indicator, top-down spotlight during arrival, drag-rotate during chat.
+- **Cody dialogue tree**: 22 nodes covering daily life (counting wheel rotations, the Foreman, climbing stairs), about (origin in the foundry, decommissioned predecessors, admiration for human free will), tricks (spin, LED rainbow, dance) with per-trick reflection follow-ups. Number-key + click activation. State-aware root with text_func/choices_func callbacks.
+- **Camera close-up on chat**: zooms to player↔Cody midpoint, picks an entry yaw that frames both side-by-side, slowly orbits while chat is open, drag to manually rotate (orbit pauses on press, resumes on release).
+- **Schematics modal**: full-screen with 3D Cody preview (drag-rotatable, mirrors live customisation), status, chassis/dome colour pickers, 7-node skill tree placeholder. Bouncy reveal animation. Hidden until 10 plants harvested.
+- **Plant value gradient (ROYGBV)**: Tomato 1, Pumpkin 1, Pepper 2, Cucumber 3, Blueberries 5 (NEW crop), Eggplant 15 (3× blue, 60 s regrow cycle, ~10% of grid). Floater colours/sizes scale with value.
+- **Resources HUD**: warmer earth-tone Resources panel with active/dim row markers (◆/◇), Schematics button revealed at the unlock threshold.
+
+### Notable failures + their fixes
+- **F-007** Tween `modulate:a` on MeshInstance3D — that property is CanvasItem-only. Fade 3D meshes via StandardMaterial3D's albedo_color:a + emission_energy_multiplier instead.
+- **F-008** Default Button.focus_mode = FOCUS_ALL + project rebinding Space to jump → the SchematicsButton was activating on the first jump because Space also fires Godot's ui_accept on the focused button. Fix: focus_mode = 0.
+- **F-009** Godot editor cache. After the F-008 fix, the modal kept appearing at game start in the running editor. Cause: stale .godot/ cache held an older scene state. Fix: rm -rf .godot/, close-and-reopen Godot. Three rounds of code fixes were required to convince me the runtime wasn't the bug.
+- **F-010** class_name CodyPortrait wasn't visible in headless harness on first parse. Fix: drop class_name, instantiate via preload + set_script.
+
+### Operator iteration patterns (worth remembering)
+- Wants moments to FEEL like moments. Don't ship a state change as a bare visibility toggle.
+- Wants visual consistency across surfaces — same 3D Cody in chat, schematic, world.
+- Aesthetic feedback ("elevate the design sensibility") = license to make taste-driven choices and ship. The operator critiques after seeing it.
+- "+2 units" means an integer count of grid cells, translated literally rather than computed by the metric.
+- "Out the gates" bugs: suspect (1) .tscn defaults missing, (2) editor cache, (3) UI input quirks.
+
+### Architecture seams worth noting
+- **GameState boolean flags** (dialogue_open, schematic_open) as cross-module handshake. Camera + player + robot read these to gate input/movement. Cleaner than signals or direct refs for pause-style interactions.
+- **Shared 3D component** cody_3d_view.gd extends SubViewportContainer with rotatable + auto_spin flags. Used by chat dialogue and schematic. Pattern is reusable for future characters.
+- **Robot state machine** in iso_robot.gd is the LLM-control seam. Replace _find_next_plot() with an LLM-driven picker, or add a REMOTE state, and the rest of the loop unchanged.
+
+### Confidence shifts
+- godot_isometric: medium → high
+- New domains added: godot_ui_modal, godot_subviewport_3d, godot_tween_3d, operator_iteration_loop, dialogue_tree_design (see competency_map.json)
+
+### Next
+- No active stop gate. Operator's call. Likely directions: actual skill-tree unlock logic (food cost + applied effects), Cody's personal-experience counter to vary dialogue lines, camera-follow on the player, save/load, the second floor.
