@@ -32,8 +32,11 @@ var _panning := false
 # tweens back out when the dialogue closes.
 var _was_dialogue_open := false
 var _saved_pivot_pos: Vector3
+var _saved_pivot_yaw: float
 var _saved_size: float
 var _focus_tween: Tween
+# True after the entry tween finishes — gates the orbit-rotation in _process.
+var _focus_settled := false
 
 
 func _ready() -> void:
@@ -61,7 +64,7 @@ func _ready() -> void:
 	_sync_to_state()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Detect dialogue open/close transitions and trigger the close-up
 	# tween in or out.
 	var dialogue_open: bool = bool(_gs.get("dialogue_open"))
@@ -71,6 +74,10 @@ func _process(_delta: float) -> void:
 			_enter_dialogue_focus()
 		else:
 			_exit_dialogue_focus()
+
+	# Slow steady orbit while the chat is up and the entry tween has settled.
+	if dialogue_open and _focus_settled and _pivot:
+		_pivot.rotation.y += _c.CAMERA_DIALOGUE_ORBIT_RATE * delta
 
 	# Mirror our state into GameState every frame as the single source of truth.
 	if _pivot:
@@ -159,16 +166,30 @@ func _enter_dialogue_focus() -> void:
 		return
 	# Save the pre-dialogue pose so we can restore it when chat closes.
 	_saved_pivot_pos = _pivot.global_position
+	_saved_pivot_yaw = _pivot.rotation.y
 	_saved_size = size
+	_focus_settled = false
 
 	# Look at the midpoint between player and Cody at chest height. If
 	# either is missing, fall back to the saved pivot position.
 	var target: Vector3 = _saved_pivot_pos
+	var target_yaw: float = _saved_pivot_yaw
 	if _iso_player and _iso_robot and _iso_robot.visible:
 		var p1: Vector3 = _iso_player.global_position
 		var p2: Vector3 = _iso_robot.global_position
 		target = (p1 + p2) * 0.5
 		target.y = 1.0
+		# Aim the camera so its right axis aligns with the player→Cody
+		# vector — both characters land side-by-side in frame, neither
+		# occluded by the other or by the elevator. Camera-right (after a
+		# Y rotation θ) is (cos θ, 0, -sin θ); solving for the segment
+		# direction (dx, 0, dz) gives θ = atan2(-dz, dx).
+		var seg: Vector3 = p2 - p1
+		if Vector2(seg.x, seg.z).length_squared() > 0.0001:
+			target_yaw = atan2(-seg.z, seg.x)
+			# Take the short path from current yaw to target_yaw.
+			var diff: float = wrapf(target_yaw - _saved_pivot_yaw + PI, 0.0, TAU) - PI
+			target_yaw = _saved_pivot_yaw + diff
 
 	if _focus_tween:
 		_focus_tween.kill()
@@ -176,16 +197,31 @@ func _enter_dialogue_focus() -> void:
 	_focus_tween.set_trans(Tween.TRANS_QUAD)
 	_focus_tween.set_ease(Tween.EASE_OUT)
 	_focus_tween.tween_property(_pivot, "global_position", target, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+	_focus_tween.tween_property(_pivot, "rotation:y", target_yaw, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
 	_focus_tween.tween_property(self, "size", _c.CAMERA_DIALOGUE_FOCUS_SIZE, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+	_focus_tween.finished.connect(_on_focus_settled, CONNECT_ONE_SHOT)
+
+
+func _on_focus_settled() -> void:
+	_focus_settled = true
 
 
 func _exit_dialogue_focus() -> void:
 	if _pivot == null:
 		return
+	_focus_settled = false
 	if _focus_tween:
 		_focus_tween.kill()
+	# Normalize the current yaw to ±π around the saved value so the tween
+	# back is the short way around — orbit might have advanced past one or
+	# more full turns during a long chat.
+	var current_yaw: float = _pivot.rotation.y
+	var yaw_diff: float = wrapf(current_yaw - _saved_pivot_yaw + PI, 0.0, TAU) - PI
+	_pivot.rotation.y = _saved_pivot_yaw + yaw_diff
+
 	_focus_tween = create_tween().set_parallel(true)
 	_focus_tween.set_trans(Tween.TRANS_QUAD)
 	_focus_tween.set_ease(Tween.EASE_OUT)
 	_focus_tween.tween_property(_pivot, "global_position", _saved_pivot_pos, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+	_focus_tween.tween_property(_pivot, "rotation:y", _saved_pivot_yaw, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
 	_focus_tween.tween_property(self, "size", _saved_size, _c.CAMERA_DIALOGUE_FOCUS_DURATION)

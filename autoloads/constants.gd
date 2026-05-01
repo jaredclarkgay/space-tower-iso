@@ -57,6 +57,7 @@ const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 # look at the midpoint between player and Cody at this tight ortho size.
 const CAMERA_DIALOGUE_FOCUS_SIZE := 7.0
 const CAMERA_DIALOGUE_FOCUS_DURATION := 0.6   # seconds for tween in/out
+const CAMERA_DIALOGUE_ORBIT_RATE := 0.15      # rad/s; slow steady camera orbit during chat
 
 # --- Player movement (3D) ---
 const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
