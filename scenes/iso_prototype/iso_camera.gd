@@ -19,9 +19,21 @@ extends Camera3D
 @onready var _gs: Node = get_node("/root/GameState")
 
 @export var pivot_path: NodePath
+@export var iso_player_path: NodePath
+@export var iso_robot_path: NodePath
 var _pivot: Node3D
+var _iso_player: Node3D
+var _iso_robot: Node3D
 var _rotating := false
 var _panning := false
+
+# Dialogue close-up state. Camera saves its current pivot+size when the
+# player opens a Cody chat, tweens in to the player↔Cody midpoint, then
+# tweens back out when the dialogue closes.
+var _was_dialogue_open := false
+var _saved_pivot_pos: Vector3
+var _saved_size: float
+var _focus_tween: Tween
 
 
 func _ready() -> void:
@@ -42,10 +54,24 @@ func _ready() -> void:
 	if pivot_path:
 		_pivot = get_node(pivot_path)
 		_pivot.rotation_degrees.y = _c.CAMERA_YAW_DEG_INITIAL
+	if iso_player_path:
+		_iso_player = get_node(iso_player_path)
+	if iso_robot_path:
+		_iso_robot = get_node(iso_robot_path)
 	_sync_to_state()
 
 
 func _process(_delta: float) -> void:
+	# Detect dialogue open/close transitions and trigger the close-up
+	# tween in or out.
+	var dialogue_open: bool = bool(_gs.get("dialogue_open"))
+	if dialogue_open != _was_dialogue_open:
+		_was_dialogue_open = dialogue_open
+		if dialogue_open:
+			_enter_dialogue_focus()
+		else:
+			_exit_dialogue_focus()
+
 	# Mirror our state into GameState every frame as the single source of truth.
 	if _pivot:
 		_gs.camera.target = _pivot.global_position
@@ -54,6 +80,10 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Disable camera input while dialogue is open — let the focus tween
+	# do its thing without the player accidentally panning/rotating mid-chat.
+	if bool(_gs.get("dialogue_open")):
+		return
 	if event.is_action_pressed(&"camera_rotate_left"):
 		_rotate_pivot_by(-90.0)
 	elif event.is_action_pressed(&"camera_rotate_right"):
@@ -120,3 +150,42 @@ func _sync_to_state() -> void:
 	_gs.camera.target = _pivot.global_position if _pivot else Vector3.ZERO
 	_gs.camera.ortho_size = size
 	_gs.camera.angle_step = 0
+
+
+# --- Dialogue close-up ---------------------------------------------------
+
+func _enter_dialogue_focus() -> void:
+	if _pivot == null:
+		return
+	# Save the pre-dialogue pose so we can restore it when chat closes.
+	_saved_pivot_pos = _pivot.global_position
+	_saved_size = size
+
+	# Look at the midpoint between player and Cody at chest height. If
+	# either is missing, fall back to the saved pivot position.
+	var target: Vector3 = _saved_pivot_pos
+	if _iso_player and _iso_robot and _iso_robot.visible:
+		var p1: Vector3 = _iso_player.global_position
+		var p2: Vector3 = _iso_robot.global_position
+		target = (p1 + p2) * 0.5
+		target.y = 1.0
+
+	if _focus_tween:
+		_focus_tween.kill()
+	_focus_tween = create_tween().set_parallel(true)
+	_focus_tween.set_trans(Tween.TRANS_QUAD)
+	_focus_tween.set_ease(Tween.EASE_OUT)
+	_focus_tween.tween_property(_pivot, "global_position", target, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+	_focus_tween.tween_property(self, "size", _c.CAMERA_DIALOGUE_FOCUS_SIZE, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+
+
+func _exit_dialogue_focus() -> void:
+	if _pivot == null:
+		return
+	if _focus_tween:
+		_focus_tween.kill()
+	_focus_tween = create_tween().set_parallel(true)
+	_focus_tween.set_trans(Tween.TRANS_QUAD)
+	_focus_tween.set_ease(Tween.EASE_OUT)
+	_focus_tween.tween_property(_pivot, "global_position", _saved_pivot_pos, _c.CAMERA_DIALOGUE_FOCUS_DURATION)
+	_focus_tween.tween_property(self, "size", _saved_size, _c.CAMERA_DIALOGUE_FOCUS_DURATION)

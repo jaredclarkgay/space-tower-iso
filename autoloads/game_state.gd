@@ -35,6 +35,11 @@ var plants_harvested := 0
 # both freeze input/movement when this is set.
 var schematic_open := false
 
+# True while the player is mid-conversation with Cody. iso_camera tweens
+# in to a close-up on the player+Cody midpoint while this is set, and
+# tweens back out when it clears.
+var dialogue_open := false
+
 # Customisable Cody appearance — set from the Schematics modal, applied
 # both to the live robot and to the modal's 3D preview.
 var cody_body_color: Color = Color(0.25, 0.68, 0.80)

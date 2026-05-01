@@ -719,11 +719,13 @@ func open_dialogue() -> void:
 		_build_dialogue_panel()
 	_show_dialogue_node("root")
 	_dialogue_panel.visible = true
+	_gs.dialogue_open = true   # iso_camera watches this to focus on the chat
 
 
 func close_dialogue() -> void:
 	if _dialogue_panel:
 		_dialogue_panel.visible = false
+	_gs.dialogue_open = false
 
 
 # Number-key shortcuts (1..9) to pick a choice; ESC to leave. Only fires

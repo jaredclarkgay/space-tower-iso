@@ -53,6 +53,11 @@ const CAMERA_ORTHO_SIZE_MIN := 8.0
 const CAMERA_ORTHO_SIZE_MAX := 50.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
 
+# Dialogue close-up: when the Cody chat panel opens, the camera tweens to
+# look at the midpoint between player and Cody at this tight ortho size.
+const CAMERA_DIALOGUE_FOCUS_SIZE := 7.0
+const CAMERA_DIALOGUE_FOCUS_DURATION := 0.6   # seconds for tween in/out
+
 # --- Player movement (3D) ---
 const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
 const PLAYER_SPRINT_MULTIPLIER := 1.75  # held Shift → run at 1.75× walk speed
@@ -118,7 +123,7 @@ const PLANT_TYPES := [
 		"fruit_color": Color(0.65, 0.85, 0.25),
 		"foliage_color": Color(0.40, 0.55, 0.30),
 		"value": 3,
-		"grow_multiplier": 1.4,
+		"grow_multiplier": 1.1,
 		"seed_count": 3,
 	},
 	{
@@ -126,7 +131,7 @@ const PLANT_TYPES := [
 		"fruit_color": Color(0.30, 0.45, 0.85),
 		"foliage_color": Color(0.30, 0.50, 0.40),
 		"value": 5,
-		"grow_multiplier": 2.0,
+		"grow_multiplier": 1.3,
 		"seed_count": 3,
 	},
 	{
@@ -134,7 +139,7 @@ const PLANT_TYPES := [
 		"fruit_color": Color(0.60, 0.20, 0.75),
 		"foliage_color": Color(0.32, 0.40, 0.32),
 		"value": 15,
-		"grow_multiplier": 3.0,
+		"grow_multiplier": 1.5,    # 1.5× → 60 s full cycle, "a full minute to regrow"
 		"seed_count": 2,
 	},
 ]

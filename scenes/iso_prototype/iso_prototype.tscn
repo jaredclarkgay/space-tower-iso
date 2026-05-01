@@ -68,6 +68,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 17.32)
 script = ExtResource("3_camera")
 pivot_path = NodePath("..")
+iso_player_path = NodePath("../../World/IsoPlayer")
+iso_robot_path = NodePath("../../World/IsoRobot")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
