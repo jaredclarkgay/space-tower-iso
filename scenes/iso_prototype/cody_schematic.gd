@@ -23,10 +23,6 @@ var _iso_robot: Node3D
 var _bg: ColorRect
 var _panel: PanelContainer
 var _cody_view: Node   # cody_3d_view.gd instance
-# Defensive — set in _ready, cleared after one process frame. Any
-# open() that fires *before* the scene has settled is ignored. This
-# kills any "appears at game start" bug regardless of cause.
-var _is_init: bool = true
 
 # Body / dome colour palettes the player can choose from.
 const BODY_COLORS := [
@@ -54,23 +50,14 @@ const SKILL_NODES := [
 
 func _ready() -> void:
 	# Hide first so any frame between scene load and _build_modal can't
-	# show the modal — operator caught a regression where the schematic
-	# was visible at game start.
+	# show the modal — paired with `visible = false` on the .tscn node.
 	visible = false
 	if iso_robot_path:
 		_iso_robot = get_node(iso_robot_path)
 	_build_modal()
-	# Wait one process frame, then accept open() calls. Anything that
-	# fires open() during scene init is ignored.
-	await get_tree().process_frame
-	_is_init = false
 
 
 func open() -> void:
-	if _is_init:
-		# Suppress any open() that fires before the scene has settled.
-		push_warning("CodySchematic.open() suppressed during init")
-		return
 	_gs.schematic_open = true
 	visible = true
 	if _cody_view:
