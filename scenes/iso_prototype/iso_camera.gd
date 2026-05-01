@@ -75,8 +75,10 @@ func _process(delta: float) -> void:
 		else:
 			_exit_dialogue_focus()
 
-	# Slow steady orbit while the chat is up and the entry tween has settled.
-	if dialogue_open and _focus_settled and _pivot:
+	# Slow steady orbit while the chat is up and the entry tween has
+	# settled. Pauses while the player is actively drag-rotating; on
+	# release the orbit picks back up from the new heading.
+	if dialogue_open and _focus_settled and _pivot and not _panning:
 		_pivot.rotation.y += _c.CAMERA_DIALOGUE_ORBIT_RATE * delta
 
 	# Mirror our state into GameState every frame as the single source of truth.
@@ -87,9 +89,17 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Disable camera input while dialogue is open — let the focus tween
-	# do its thing without the player accidentally panning/rotating mid-chat.
+	# During dialogue, only the pan action is active — and it's repurposed
+	# to drag-rotate the camera around the focused midpoint instead of
+	# panning the world. While the player is actively dragging, the
+	# auto-orbit pauses (see _process); on release the orbit resumes.
 	if bool(_gs.get("dialogue_open")):
+		if event.is_action_pressed(&"camera_pan"):
+			_panning = true
+		elif event.is_action_released(&"camera_pan"):
+			_panning = false
+		elif event is InputEventMouseMotion and _panning:
+			_apply_dialogue_drag_rotate(event.relative)
 		return
 	if event.is_action_pressed(&"camera_rotate_left"):
 		_rotate_pivot_by(-90.0)
@@ -204,6 +214,15 @@ func _enter_dialogue_focus() -> void:
 
 func _on_focus_settled() -> void:
 	_focus_settled = true
+
+
+# Drag-rotate during chat: horizontal mouse motion rotates the camera
+# pivot's yaw. Vertical motion ignored — the tilt stays at -30° so the
+# iso framing isn't broken mid-conversation.
+func _apply_dialogue_drag_rotate(mouse_delta: Vector2) -> void:
+	if _pivot == null:
+		return
+	_pivot.rotation.y += -mouse_delta.x * 0.01
 
 
 func _exit_dialogue_focus() -> void:
