@@ -624,6 +624,13 @@ func _update_charge_bar(progress: float) -> void:
 	mat.emission_energy_multiplier = lerp(1.2, 2.4, progress)
 
 
+func get_facing_yaw() -> float:
+	# Smoothed facing yaw of the player's visual root, in radians. Used by
+	# iso_camera.gd to keep PROFILE / OTS framings aligned with the body's
+	# direction. Value is 0 when the player faces +Z (south).
+	return _facing_yaw
+
+
 func _facing_from_input(input: Vector2) -> int:
 	# Map input vector to cardinal index 0..3 (N, E, S, W). Used for future
 	# anim/sprite selection; not visually meaningful with a placeholder mesh.

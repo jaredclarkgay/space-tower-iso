@@ -62,6 +62,31 @@ const CAMERA_DIALOGUE_FOCUS_SIZE := 7.0
 const CAMERA_DIALOGUE_FOCUS_DURATION := 0.6   # seconds for tween in/out
 const CAMERA_DIALOGUE_ORBIT_RATE := 0.15      # rad/s; slow steady camera orbit during chat
 
+# --- Camera modes (toggleable from the HUD) ---
+# ISO is the default free-pan iso view. PROFILE is a perpendicular side-on
+# follow-cam that locks its yaw at mode-entry so the player can move through
+# the frame. OTS is a tight chase cam behind the player that lerps to follow
+# their facing. All non-iso modes track the player's world position and ignore
+# pan + rotate input (zoom still works).
+const CAMERA_MODE_ISO := "iso"
+const CAMERA_MODE_PROFILE := "profile"
+const CAMERA_MODE_OTS := "ots"
+
+const CAMERA_MODE_TWEEN_DURATION := 0.45      # seconds for transition between modes
+
+# PROFILE preset — slight downward tilt, mid-tight zoom, side-on framing.
+const CAMERA_PROFILE_TILT_DEG := -8.0
+const CAMERA_PROFILE_DISTANCE := 9.0
+const CAMERA_PROFILE_SIZE := 8.0
+const CAMERA_PROFILE_HEIGHT_OFFSET := 1.0     # raise pivot to player's chest
+
+# OTS preset — over-the-shoulder, very close, tracks facing yaw.
+const CAMERA_OTS_TILT_DEG := -25.0
+const CAMERA_OTS_DISTANCE := 7.0
+const CAMERA_OTS_SIZE := 5.0
+const CAMERA_OTS_HEIGHT_OFFSET := 1.4
+const CAMERA_OTS_YAW_LERP_RATE := 6.0          # rad/s — how fast pivot yaw chases player facing
+
 # --- Player movement (3D) ---
 const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
 const PLAYER_SPRINT_MULTIPLIER := 1.75  # held Shift → run at 1.75× walk speed

@@ -45,6 +45,11 @@ var dialogue_open := false
 var cody_body_color: Color = Color(0.25, 0.68, 0.80)
 var cody_dome_color: Color = Color(0.46, 0.50, 0.56)
 
+# Active camera mode — "iso" (default), "profile" (side-on follow),
+# or "ots" (over-the-shoulder). Set by the camera-mode HUD; iso_camera
+# reads this every frame and tweens between presets when it changes.
+var camera_mode: String = "iso"
+
 # Player seed pouch — counts per seed type. Filled by interacting with the
 # perimeter dispenser; drained by planting on empty plots. No cap. Keys
 # match Constants.SEED_TYPE_ORDER (lowercase).

@@ -18,7 +18,7 @@ extends Control
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-const _CELL_W := 122.0
+const _CELL_W := 168.0
 const _CELL_H := 100.0
 const _CELL_GAP := 8.0
 const _SWATCH_SIZE := 22.0

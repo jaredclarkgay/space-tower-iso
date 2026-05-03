@@ -38,6 +38,18 @@ var _focus_tween: Tween
 # True after the entry tween finishes — gates the orbit-rotation in _process.
 var _focus_settled := false
 
+# Camera-mode state. Mode is the operator's pick from the HUD ("iso" /
+# "profile" / "ots"); when it changes we save the iso state, tween the
+# camera's local pose to the new preset, and start tracking the player.
+var _mode: String = "iso"
+var _mode_tween: Tween
+# Iso-mode pose preserved while the operator is in profile / OTS so we can
+# restore their pan + rotation + zoom on return.
+var _iso_saved_pivot_pos: Vector3
+var _iso_saved_pivot_yaw: float
+var _iso_saved_size: float
+var _iso_state_saved: bool = false
+
 
 func _ready() -> void:
 	projection = PROJECTION_ORTHOGONAL
@@ -81,6 +93,14 @@ func _process(delta: float) -> void:
 	if dialogue_open and _focus_settled and _pivot and not _panning:
 		_pivot.rotation.y += _c.CAMERA_DIALOGUE_ORBIT_RATE * delta
 
+	# Camera-mode state machine. Dialogue takes priority — the close-up
+	# tween owns the camera while a chat is open, regardless of mode.
+	if not dialogue_open:
+		var requested_mode: String = String(_gs.get("camera_mode"))
+		if requested_mode != _mode:
+			_apply_mode_change(requested_mode)
+		_update_follow_mode(delta)
+
 	# Mirror our state into GameState every frame as the single source of truth.
 	if _pivot:
 		_gs.camera.target = _pivot.global_position
@@ -101,14 +121,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event is InputEventMouseMotion and _panning:
 			_apply_dialogue_drag_rotate(event.relative)
 		return
+	# Zoom is allowed in every mode (helps the operator tune the framing).
+	# Pan + 90° rotation only make sense in iso; the follow modes own the
+	# pivot pose and would otherwise fight the input.
+	if event.is_action_pressed(&"camera_zoom_in"):
+		_apply_zoom(_c.CAMERA_ZOOM_FACTOR)
+		return
+	elif event.is_action_pressed(&"camera_zoom_out"):
+		_apply_zoom(1.0 / _c.CAMERA_ZOOM_FACTOR)
+		return
+	if _mode != _c.CAMERA_MODE_ISO:
+		return
 	if event.is_action_pressed(&"camera_rotate_left"):
 		_rotate_pivot_by(-90.0)
 	elif event.is_action_pressed(&"camera_rotate_right"):
 		_rotate_pivot_by(90.0)
-	elif event.is_action_pressed(&"camera_zoom_in"):
-		_apply_zoom(_c.CAMERA_ZOOM_FACTOR)
-	elif event.is_action_pressed(&"camera_zoom_out"):
-		_apply_zoom(1.0 / _c.CAMERA_ZOOM_FACTOR)
 	elif event.is_action_pressed(&"camera_pan"):
 		_panning = true
 	elif event.is_action_released(&"camera_pan"):
@@ -223,6 +250,128 @@ func _apply_dialogue_drag_rotate(mouse_delta: Vector2) -> void:
 	if _pivot == null:
 		return
 	_pivot.rotation.y += -mouse_delta.x * 0.01
+
+
+# --- Camera modes -----------------------------------------------------------
+
+# Mode change pipeline. Saves iso state on the way out, computes the new
+# preset (tilt, distance, size, pivot pose), and tweens the camera's local
+# transform + the orthographic size + the pivot to the new pose.
+func _apply_mode_change(new_mode: String) -> void:
+	if _pivot == null:
+		return
+	# If we're leaving iso, snapshot the operator's pan/rotation/zoom so we
+	# can restore them on return.
+	if _mode == _c.CAMERA_MODE_ISO and new_mode != _c.CAMERA_MODE_ISO:
+		_iso_saved_pivot_pos = _pivot.global_position
+		_iso_saved_pivot_yaw = _pivot.rotation.y
+		_iso_saved_size = size
+		_iso_state_saved = true
+
+	# Cancel any in-flight mode tween before starting a new one.
+	if _mode_tween and _mode_tween.is_running():
+		_mode_tween.kill()
+
+	# Per-mode preset: tilt, distance from pivot, ortho size, pivot pose.
+	var tilt_deg: float
+	var distance: float
+	var target_size: float
+	var target_pivot_pos: Vector3
+	var target_pivot_yaw: float
+	match new_mode:
+		_c.CAMERA_MODE_PROFILE:
+			tilt_deg = _c.CAMERA_PROFILE_TILT_DEG
+			distance = _c.CAMERA_PROFILE_DISTANCE
+			target_size = _c.CAMERA_PROFILE_SIZE
+			target_pivot_pos = _player_anchor(_c.CAMERA_PROFILE_HEIGHT_OFFSET)
+			# Lock yaw at mode-entry to perpendicular-of-current-facing so
+			# the player walks through the frame instead of rotating it.
+			target_pivot_yaw = _player_yaw_or(_pivot.rotation.y) - PI * 0.5
+		_c.CAMERA_MODE_OTS:
+			tilt_deg = _c.CAMERA_OTS_TILT_DEG
+			distance = _c.CAMERA_OTS_DISTANCE
+			target_size = _c.CAMERA_OTS_SIZE
+			target_pivot_pos = _player_anchor(_c.CAMERA_OTS_HEIGHT_OFFSET)
+			# Behind the player — pivot.yaw + π places the camera offset on
+			# the opposite side of the pivot from where the player is looking.
+			target_pivot_yaw = _player_yaw_or(_pivot.rotation.y) + PI
+		_:
+			# Default → restore saved iso pose if we have one, otherwise
+			# fall back to the constants-default starting pose.
+			tilt_deg = _c.CAMERA_TILT_DEG
+			distance = _c.CAMERA_DISTANCE
+			if _iso_state_saved:
+				target_size = _iso_saved_size
+				target_pivot_pos = _iso_saved_pivot_pos
+				target_pivot_yaw = _iso_saved_pivot_yaw
+			else:
+				target_size = _c.CAMERA_ORTHO_SIZE_DEFAULT
+				target_pivot_pos = Vector3.ZERO
+				target_pivot_yaw = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
+
+	# Camera local position derived from tilt + distance (same math as
+	# _ready, kept consistent so the pivot origin stays the look-at).
+	var tilt_rad: float = deg_to_rad(abs(tilt_deg))
+	var target_pos := Vector3(0.0, distance * sin(tilt_rad), distance * cos(tilt_rad))
+	var target_rot_deg := Vector3(tilt_deg, 0.0, 0.0)
+
+	# Take the short angular path so the rotation tween doesn't unwind a
+	# full turn when leaving a long-running follow mode.
+	var current_yaw: float = _pivot.rotation.y
+	var yaw_diff: float = wrapf(target_pivot_yaw - current_yaw + PI, 0.0, TAU) - PI
+	var resolved_pivot_yaw: float = current_yaw + yaw_diff
+
+	_mode_tween = create_tween().set_parallel(true)
+	_mode_tween.set_trans(Tween.TRANS_QUAD)
+	_mode_tween.set_ease(Tween.EASE_OUT)
+	_mode_tween.tween_property(self, ^"position", target_pos, _c.CAMERA_MODE_TWEEN_DURATION)
+	_mode_tween.tween_property(self, ^"rotation_degrees", target_rot_deg, _c.CAMERA_MODE_TWEEN_DURATION)
+	_mode_tween.tween_property(self, ^"size", target_size, _c.CAMERA_MODE_TWEEN_DURATION)
+	_mode_tween.tween_property(_pivot, ^"global_position", target_pivot_pos, _c.CAMERA_MODE_TWEEN_DURATION)
+	_mode_tween.tween_property(_pivot, ^"rotation:y", resolved_pivot_yaw, _c.CAMERA_MODE_TWEEN_DURATION)
+
+	_mode = new_mode
+	# Returning to iso clears the saved state so the next entry into a
+	# follow mode captures fresh pan/rotation/zoom.
+	if new_mode == _c.CAMERA_MODE_ISO:
+		_iso_state_saved = false
+
+
+# Per-frame update for the follow modes. Iso doesn't need this (operator
+# controls pan + yaw directly).
+func _update_follow_mode(delta: float) -> void:
+	if _pivot == null or _iso_player == null:
+		return
+	if _mode == _c.CAMERA_MODE_ISO:
+		return
+	# A tween into the new pose is still running — let it finish before
+	# we start chasing the player, otherwise the two fight each other.
+	if _mode_tween and _mode_tween.is_running():
+		return
+	if _mode == _c.CAMERA_MODE_PROFILE:
+		_pivot.global_position = _player_anchor(_c.CAMERA_PROFILE_HEIGHT_OFFSET)
+		# Yaw stays fixed for profile — set at mode-entry, doesn't track turns.
+	elif _mode == _c.CAMERA_MODE_OTS:
+		_pivot.global_position = _player_anchor(_c.CAMERA_OTS_HEIGHT_OFFSET)
+		var target_yaw: float = _player_yaw_or(_pivot.rotation.y) + PI
+		var diff: float = wrapf(target_yaw - _pivot.rotation.y + PI, 0.0, TAU) - PI
+		var step: float = clamp(_c.CAMERA_OTS_YAW_LERP_RATE * delta, 0.0, abs(diff))
+		_pivot.rotation.y += sign(diff) * step
+
+
+func _player_anchor(height_offset: float) -> Vector3:
+	if _iso_player == null:
+		return Vector3.ZERO
+	var p: Vector3 = _iso_player.global_position
+	return Vector3(p.x, p.y + height_offset, p.z)
+
+
+func _player_yaw_or(fallback: float) -> float:
+	# Pull the player's smoothed body yaw if available, falling back to the
+	# given value if the player hasn't been resolved yet.
+	if _iso_player and _iso_player.has_method("get_facing_yaw"):
+		return _iso_player.get_facing_yaw()
+	return fallback
 
 
 func _exit_dialogue_focus() -> void:

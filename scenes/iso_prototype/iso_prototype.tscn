@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://c63jddsadj8we"]
+[gd_scene load_steps=14 format=3 uid="uid://c63jddsadj8we"]
 
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scenes/iso_prototype/schematics_button.gd" id="7_btn"]
 [ext_resource type="Script" uid="uid://b4b340og50t0n" path="res://scenes/iso_prototype/iso_dispenser.gd" id="8_disp"]
 [ext_resource type="Script" uid="uid://7ynjuwavqx76" path="res://scenes/iso_prototype/seed_hud.gd" id="9_seed"]
+[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="10_cam"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -205,6 +206,10 @@ unlock_threshold = 10
 [node name="SeedHud" type="Control" parent="HUD"]
 mouse_filter = 1
 script = ExtResource("9_seed")
+
+[node name="CameraModesHud" type="Control" parent="HUD"]
+mouse_filter = 1
+script = ExtResource("10_cam")
 
 [node name="CodySchematic" type="Control" parent="HUD"]
 visible = false
