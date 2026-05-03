@@ -93,8 +93,8 @@ Space           Jump (hold to charge, up to 4× height)
 Q / R           Rotate camera 90°
 Wheel · = / -   Zoom
 Middle / Left-drag   Pan
-1–6             Select seed type
-E               Interact (dispenser · talk · hold to harvest)
+1–6             Select seed type (at dispenser: take that seed)
+E               Interact (talk · hold to harvest)
 P               Plant selected seed on tilled plot"
 
 [node name="ResourcesPanel" type="PanelContainer" parent="HUD"]

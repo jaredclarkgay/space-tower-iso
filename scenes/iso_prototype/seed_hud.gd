@@ -8,8 +8,12 @@ extends Control
 #   - Current pouch count (× N)
 #
 # Click a cell OR press 1..6 to select. The selected cell gets a cyan
-# border + stronger modulate; the rest dim. Pouch counts live-update from
+# border; the rest get an amber border. Pouch counts live-update from
 # GameState.seed_pouch every frame.
+#
+# Reveal: hidden until GameState.dispenser_first_used flips, then header
+# fades in and each cell slides up + fades in with a staggered cascade so
+# the row builds left-to-right rather than appearing as a slab.
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -19,12 +23,17 @@ const _CELL_H := 84.0
 const _CELL_GAP := 8.0
 const _SWATCH_SIZE := 22.0
 const _BOTTOM_MARGIN := 24.0
+const _HEADER_H := 22.0
+const _CELL_RISE := 30.0           # how far below final each cell starts
+const _CELL_REVEAL_DURATION := 0.42
+const _CELL_REVEAL_STAGGER := 0.07
+const _HEADER_REVEAL_DURATION := 0.30
 
-var _cells: Dictionary = {}     # seed_key -> Dictionary of refs
+var _cells: Dictionary = {}        # seed_key -> { root, count_label, ... }
+var _header: Label
 var _style_idle: StyleBoxFlat
 var _style_selected: StyleBoxFlat
-var _revealed: bool = false      # mirrors GameState.dispenser_first_used after the reveal tween completes
-const _HEADER_H := 22.0
+var _revealed: bool = false        # mirrors GameState.dispenser_first_used after reveal
 
 
 func _ready() -> void:
@@ -45,75 +54,67 @@ func _ready() -> void:
 	offset_right = total_w * 0.5
 	offset_top = -(total_h + _BOTTOM_MARGIN)
 	offset_bottom = -_BOTTOM_MARGIN
+	# Self stays visible — per-child alpha + position drives the reveal so
+	# we can stagger individual cells.
+	modulate = Color(1, 1, 1, 1)
 
-	# Hidden until the player's first dispenser interaction. Modulate.a gates
-	# visibility (rather than `visible = false`) so the reveal tween has
-	# something to animate in on.
-	modulate = Color(1, 1, 1, 0)
-	pivot_offset = Vector2(total_w * 0.5, total_h)
+	# Header centred above the cell row. Clarifies that the × N below are
+	# seed counts, not fruit counts. Hidden until reveal.
+	_header = Label.new()
+	_header.name = "Header"
+	_header.text = "SEEDS"
+	_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_header.add_theme_font_size_override("font_size", 14)
+	_header.add_theme_color_override("font_color", Color(0.94, 0.83, 0.45, 0.85))
+	_header.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_header.add_theme_constant_override("outline_size", 4)
+	_header.anchor_left = 0.0
+	_header.anchor_right = 1.0
+	_header.offset_top = 0
+	_header.offset_bottom = _HEADER_H
+	_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_header.modulate = Color(1, 1, 1, 0)
+	add_child(_header)
 
-	# Header label centred above the cell row — clarifies what the row is
-	# counting once revealed (so the × N reads as seeds, not fruits).
-	var header := Label.new()
-	header.name = "Header"
-	header.text = "SEEDS"
-	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 14)
-	header.add_theme_color_override("font_color", Color(0.94, 0.83, 0.45, 0.85))
-	header.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	header.add_theme_constant_override("outline_size", 4)
-	header.anchor_left = 0.0
-	header.anchor_right = 1.0
-	header.offset_top = 0
-	header.offset_bottom = _HEADER_H
-	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(header)
-
-	var hbox := HBoxContainer.new()
-	hbox.name = "Cells"
-	hbox.add_theme_constant_override("separation", int(_CELL_GAP))
-	hbox.anchor_left = 0.0
-	hbox.anchor_top = 0.0
-	hbox.anchor_right = 1.0
-	hbox.anchor_bottom = 1.0
-	hbox.offset_top = _HEADER_H + 4.0
-	hbox.offset_bottom = 0
-	hbox.mouse_filter = Control.MOUSE_FILTER_PASS
-	add_child(hbox)
+	# Cells row — a plain Control with manually-positioned children so each
+	# cell can be tweened on its own Y axis without an HBoxContainer
+	# overriding positions every layout pass.
+	var row := Control.new()
+	row.name = "CellsRow"
+	row.anchor_left = 0.0
+	row.anchor_top = 0.0
+	row.anchor_right = 1.0
+	row.anchor_bottom = 1.0
+	row.offset_top = _HEADER_H + 4.0
+	row.offset_bottom = 0
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
+	add_child(row)
 
 	for idx in range(n):
 		var key: String = _c.SEED_TYPE_ORDER[idx]
-		_build_cell(hbox, key, idx + 1)
+		_build_cell(row, key, idx + 1, idx)
 
 	_refresh()
 
 
 func _process(_delta: float) -> void:
-	# First-reveal: fade + slight scale-pop the moment the player takes
-	# their first seed from the dispenser.
 	if not _revealed and _gs.dispenser_first_used:
 		_revealed = true
 		_play_reveal_tween()
 	_refresh()
 
 
-func _play_reveal_tween() -> void:
-	scale = Vector2(0.92, 0.92)
-	var tween := create_tween().set_parallel(true)
-	tween.tween_property(self, ^"modulate:a", 1.0, 0.35)
-	tween.tween_property(self, ^"scale", Vector2(1, 1), 0.4) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-
 # --- Build ---------------------------------------------------------------
 
-func _build_cell(parent: HBoxContainer, seed_key: String, number_key: int) -> void:
+func _build_cell(parent: Control, seed_key: String, number_key: int, idx: int) -> void:
 	var pt: Dictionary = _c.plant_type_by_seed(seed_key)
 	var fruit_color: Color = pt.get("fruit_color", Color.WHITE)
 
 	var cell := PanelContainer.new()
 	cell.name = "Cell_" + seed_key
-	cell.custom_minimum_size = Vector2(_CELL_W, _CELL_H)
+	cell.size = Vector2(_CELL_W, _CELL_H)
+	cell.position = Vector2(idx * (_CELL_W + _CELL_GAP), _CELL_RISE)  # off-final until reveal
+	cell.modulate = Color(1, 1, 1, 0)                                  # invisible until reveal
 	cell.add_theme_stylebox_override("panel", _style_idle)
 	cell.mouse_filter = Control.MOUSE_FILTER_STOP
 	cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -179,7 +180,29 @@ func _build_cell(parent: HBoxContainer, seed_key: String, number_key: int) -> vo
 		"root": cell,
 		"count_label": count_label,
 		"name_label": name_label,
+		"final_x": idx * (_CELL_W + _CELL_GAP),
 	}
+
+
+# --- Reveal --------------------------------------------------------------
+
+func _play_reveal_tween() -> void:
+	# Header fades in first as the row's "label", then cells cascade in
+	# with a staggered slide-up. Header isn't staggered against cells —
+	# they begin together so the empty area fills out continuously.
+	var header_tween := create_tween()
+	header_tween.tween_property(_header, ^"modulate:a", 1.0, _HEADER_REVEAL_DURATION)
+
+	for idx in range(_c.SEED_TYPE_ORDER.size()):
+		var key: String = _c.SEED_TYPE_ORDER[idx]
+		var info: Dictionary = _cells[key]
+		var cell: PanelContainer = info.root
+		var delay: float = float(idx) * _CELL_REVEAL_STAGGER
+		var t := create_tween().set_parallel(true)
+		t.tween_property(cell, ^"modulate:a", 1.0, _CELL_REVEAL_DURATION).set_delay(delay)
+		t.tween_property(cell, ^"position:y", 0.0, _CELL_REVEAL_DURATION) \
+			.set_delay(delay) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 # --- Update --------------------------------------------------------------
@@ -191,12 +214,13 @@ func _refresh() -> void:
 		var count: int = int(_gs.seed_pouch.get(key, 0))
 		info.count_label.text = "× %d" % count
 		var cell: PanelContainer = info.root
+		# Selection visual is purely the stylebox (cyan vs amber border).
+		# Modulate is reserved for the reveal animation so we don't fight
+		# the per-frame refresh.
 		if key == sel:
 			cell.add_theme_stylebox_override("panel", _style_selected)
-			cell.modulate = Color(1, 1, 1, 1)
 		else:
 			cell.add_theme_stylebox_override("panel", _style_idle)
-			cell.modulate = Color(1, 1, 1, 0.78)
 
 
 # --- Click ---------------------------------------------------------------

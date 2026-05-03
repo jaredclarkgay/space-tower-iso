@@ -223,7 +223,20 @@ func _begin_arrival() -> void:
 	global_position = Vector3(0, -1.8, 0)
 
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
-	var park_pos := Vector3(0, 0.05, elev_size * 0.5 + 0.7)
+	# Park on the side of the elevator that the default camera faces toward,
+	# so Cody isn't hidden behind the (mostly-opaque) shaft on first reveal.
+	# Camera at yaw places its world position at (sin(yaw), 0, cos(yaw)) * d
+	# from the pivot, so that direction also marks the camera-facing face of
+	# the elevator. If the operator later changes CAMERA_YAW_DEG_INITIAL
+	# this auto-tracks.
+	var yaw_rad: float = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
+	var camera_side := Vector3(sin(yaw_rad), 0.0, cos(yaw_rad)).normalized()
+	var park_offset: float = elev_size * 0.5 + 0.7
+	var park_pos := Vector3(
+		camera_side.x * park_offset,
+		0.05,
+		camera_side.z * park_offset,
+	)
 
 	_spawn_arrival_light()
 	_spawn_arrival_banner()

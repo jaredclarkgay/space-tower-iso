@@ -114,13 +114,26 @@ func _fade_overhead_label(visible_now: bool) -> void:
 
 
 func get_interaction_label() -> String:
-	var key: String = _gs.selected_seed_type
-	var stock: int = int(_stock.get(key, 0))
-	var max_stock: int = int(_c.SEED_MAX_STOCK.get(key, 0))
-	var name: String = key.capitalize()
-	if stock <= 0:
-		return "%s seeds — empty" % name
-	return "Take %s seed (%d/%d)" % [name, stock, max_stock]
+	# Players have a number-key shortcut per seed type at the dispenser, so
+	# the prompt steers them toward that rather than asking them to remember
+	# what they last selected. E still works as a fallback for the current
+	# selection (handled in iso_player.gd).
+	return "Press 1–6 to take a seed"
+
+
+# Per-seed dispense — drives the number-key shortcut at the dispenser.
+# Returns true if a seed was dispensed. Updates GameState.selected_seed_type
+# so the visual highlight + planting verb both follow the most recent ask.
+func try_dispense_type(key: String) -> bool:
+	if int(_stock.get(key, 0)) <= 0:
+		return false
+	_stock[key] = int(_stock[key]) - 1
+	_gs.seed_pouch[key] = int(_gs.seed_pouch.get(key, 0)) + 1
+	_gs.selected_seed_type = key
+	_gs.dispenser_first_used = true
+	_refresh_one_window(key)
+	_spawn_dispense_feedback(key)
+	return true
 
 
 # --- Visuals ------------------------------------------------------------
@@ -229,6 +242,26 @@ func _build_windows() -> void:
 		icon.material_override = icon_mat
 		icon.position = Vector3(col_x[col], row_y[row], z - 0.020)
 		add_child(icon)
+
+		# Tiny number label in the pane's top-left corner so the player can
+		# see at a glance which key dispenses which seed (1..6 follow
+		# SEED_TYPE_ORDER row-major top-to-bottom, left-to-right).
+		var num_label := Label3D.new()
+		num_label.name = "Num_" + key
+		num_label.text = "%d" % (idx + 1)
+		num_label.font_size = 64
+		num_label.outline_size = 8
+		num_label.modulate = Color(1.0, 0.92, 0.65, 0.95)
+		num_label.outline_modulate = Color(0.05, 0.04, 0.02, 0.95)
+		num_label.pixel_size = 0.0017
+		num_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		num_label.no_depth_test = true
+		num_label.position = Vector3(
+			col_x[col] - _WINDOW_SIZE * 0.32,
+			row_y[row] + _WINDOW_SIZE * 0.32,
+			z - 0.030,
+		)
+		add_child(num_label)
 
 		_windows[key] = {
 			"frame": pane,

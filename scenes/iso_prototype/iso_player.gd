@@ -145,19 +145,26 @@ func _physics_process(delta: float) -> void:
 		-input.x * sin(yaw) + input.y * cos(yaw),
 	)
 
-	# Number-key seed selection — works outside any locked action so the
-	# player can pre-select a seed before walking up to the dispenser.
-	for n in range(_c.SEED_TYPE_ORDER.size()):
-		if Input.is_action_just_pressed(&"seed_select_%d" % (n + 1)):
-			_gs.selected_seed_type = _c.SEED_TYPE_ORDER[n]
-
-	# Interaction priority: dispenser > robot > plot harvest. Whichever wins
-	# is the action E will trigger this frame. Plant (P) is independent and
-	# routes to the nearest empty plot regardless of E-target.
+	# Compute dispenser proximity first so number-key handling can decide
+	# whether to dispense or just select. Interaction priority: dispenser >
+	# robot > plot harvest. Plant (P) is independent and routes to the
+	# nearest empty plot regardless of E-target.
 	var dispenser_interactable: bool = (
 		_iso_dispenser != null
 		and _iso_dispenser.is_interactable_at(global_position, _c.DISPENSER_INTERACT_RADIUS)
 	)
+
+	# Number-key seed input. Outside the dispenser this only updates the
+	# selection (used by P-plant). At the dispenser, the same key dispenses
+	# a seed of that specific type — so the player gets an explicit
+	# per-press answer instead of having to remember what's selected.
+	for n in range(_c.SEED_TYPE_ORDER.size()):
+		if Input.is_action_just_pressed(&"seed_select_%d" % (n + 1)):
+			var key: String = _c.SEED_TYPE_ORDER[n]
+			if dispenser_interactable:
+				_iso_dispenser.try_dispense_type(key)
+			else:
+				_gs.selected_seed_type = key
 	var robot_interactable: bool = (
 		not dispenser_interactable
 		and _iso_robot != null
