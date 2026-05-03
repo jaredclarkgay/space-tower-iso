@@ -46,6 +46,7 @@ func _ready() -> void:
 	_build_chassis()
 	_build_windows()
 	_build_highlight()
+	_build_overhead_label()
 	_interact_anchor = position
 	_refresh_window_visuals()
 
@@ -206,6 +207,24 @@ func _build_windows() -> void:
 			"icon_mat": icon_mat,
 			"world_offset": Vector3(col_x[col], row_y[row], z - 0.04),
 		}
+
+
+# Billboarded "SEEDS" label that floats above the dispenser so the player
+# can spot it from across the floor on first spawn. Pulses gently in
+# brightness so it reads as a "kiosk" indicator rather than dead signage.
+func _build_overhead_label() -> void:
+	var label := Label3D.new()
+	label.name = "OverheadLabel"
+	label.text = "SEEDS"
+	label.font_size = 80
+	label.outline_size = 10
+	label.modulate = Color(1.0, 0.85, 0.45, 1.0)   # warm amber
+	label.outline_modulate = Color(0.10, 0.05, 0.0, 0.95)
+	label.pixel_size = 0.0085
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0, _BODY_H + 0.45, 0)
+	add_child(label)
 
 
 func _build_highlight() -> void:
