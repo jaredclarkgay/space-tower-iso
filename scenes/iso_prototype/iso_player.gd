@@ -374,7 +374,11 @@ func _physics_process(delta: float) -> void:
 		elif _nearest_plot != null:
 			prompt_action_key = "E"
 			prompt_subtext = "Harvest %s" % _nearest_plot.plant_type.name
-		elif _nearest_empty_plot != null:
+		elif _nearest_empty_plot != null and _gs.dispenser_first_used:
+			# Pre-dispenser, the player doesn't yet know what seeds are or
+			# where to get them — surfacing "No X seeds" before they've
+			# learned the loop is just confusing. Gate this prompt on the
+			# first successful dispense.
 			prompt_action_key = "P"
 			if has_seed:
 				var pouch_count: int = int(_gs.seed_pouch.get(seed_key, 0))

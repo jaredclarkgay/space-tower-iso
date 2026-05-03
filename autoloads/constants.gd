@@ -214,14 +214,16 @@ const SEED_TYPE_ORDER: Array = [
 
 # Per-type dispenser stocking. Common types refill fast and stock high so the
 # player essentially always has them; rare types (eggplant) refill slowly and
-# stock low, making them feel earned.
+# stock low, making them feel earned. Halved from the v1 values — the original
+# numbers read as a wall of seeds at game start; this trims the initial supply
+# while keeping the relative scarcity gradient intact.
 const SEED_MAX_STOCK := {
-	"tomato": 40,
-	"pumpkin": 30,
-	"pepper": 25,
-	"cucumber": 20,
-	"blueberries": 15,
-	"eggplant": 5,
+	"tomato": 20,
+	"pumpkin": 15,
+	"pepper": 12,
+	"cucumber": 10,
+	"blueberries": 8,
+	"eggplant": 3,
 }
 
 const SEED_REFILL_SECONDS := {

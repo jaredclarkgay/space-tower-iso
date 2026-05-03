@@ -223,19 +223,27 @@ func _begin_arrival() -> void:
 	global_position = Vector3(0, -1.8, 0)
 
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
-	# Park on the side of the elevator that the default camera faces toward,
-	# so Cody isn't hidden behind the (mostly-opaque) shaft on first reveal.
-	# Camera at yaw places its world position at (sin(yaw), 0, cos(yaw)) * d
-	# from the pivot, so that direction also marks the camera-facing face of
-	# the elevator. If the operator later changes CAMERA_YAW_DEG_INITIAL
-	# this auto-tracks.
+	# Park on the flat face of the elevator that's most camera-facing, so
+	# Cody isn't hidden behind the shaft AND emerges out of a clean side
+	# rather than the diagonal corner (which intersects the core's geometry).
+	# Camera world position relative to pivot is (sin(yaw), _, cos(yaw)) * d;
+	# we snap that direction to the dominant cardinal axis so Cody comes out
+	# along N/S/E/W. Auto-tracks the operator's CAMERA_YAW_DEG_INITIAL.
 	var yaw_rad: float = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
-	var camera_side := Vector3(sin(yaw_rad), 0.0, cos(yaw_rad)).normalized()
-	var park_offset: float = elev_size * 0.5 + 0.7
+	var raw_dir := Vector3(sin(yaw_rad), 0.0, cos(yaw_rad))
+	var dir: Vector3
+	if abs(raw_dir.x) > abs(raw_dir.z):
+		dir = Vector3(signf(raw_dir.x), 0.0, 0.0)
+	else:
+		dir = Vector3(0.0, 0.0, signf(raw_dir.z))
+	# 1.0 m clearance from the wall — Cody's chassis radius is ~0.34 m, so
+	# this leaves ~0.66 m visual breathing room and avoids any collision
+	# overlap with the StaticBody3D shaft.
+	var park_offset: float = elev_size * 0.5 + 1.0
 	var park_pos := Vector3(
-		camera_side.x * park_offset,
+		dir.x * park_offset,
 		0.05,
-		camera_side.z * park_offset,
+		dir.z * park_offset,
 	)
 
 	_spawn_arrival_light()
