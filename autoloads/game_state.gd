@@ -60,3 +60,9 @@ var seed_pouch := {
 # Currently selected seed type — drives both which slot the dispenser yields
 # on E and which type the player plants on P. Number keys 1..6 set this.
 var selected_seed_type: String = "tomato"
+
+# Flips true the first time the player successfully takes a seed from the
+# dispenser. Drives the bottom-of-screen seed selector HUD reveal — the
+# panel stays hidden until this flag flips so the player isn't confused by
+# a row of "× 0" entries before they understand the seed loop.
+var dispenser_first_used: bool = false

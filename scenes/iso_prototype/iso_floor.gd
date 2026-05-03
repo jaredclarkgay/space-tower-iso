@@ -424,45 +424,47 @@ func _is_dispenser_cell(i: int, j: int) -> bool:
 	return dx < 0.7 and dz < 0.6
 
 
-# Drop the existing Voronoi pattern over only ~STARTER_GARDEN_DENSITY of the
-# non-elevator cells; the rest stay empty for the player to plant into. A
-# random subset of cells is selected as the starter region, and within that
-# subset the existing per-type Voronoi clustering still applies — so the
-# starter garden reads as natural patches rather than scattered crops.
+# Fill every cell within STARTER_GARDEN_RADIUS of the grid centre with a
+# Voronoi-assigned plant type. Cells outside the radius stay empty for the
+# player to plant into. The result reads as a tidy circular garden around
+# the elevator core, with empty land beyond ready for expansion.
 func _seed_starter_garden() -> void:
 	var grid_size: int = int(_c.GARDEN_GRID_SIZE)
-	var inset: float = 3.0   # keep seeds away from the very edges
+	var center := Vector2(
+		float(grid_size) * 0.5 - 0.5,
+		float(grid_size) * 0.5 - 0.5,
+	)
+	var radius: float = float(_c.STARTER_GARDEN_RADIUS)
+	# Voronoi seeds inside the starter ring only, so per-type clusters stay
+	# inside the planted region and the inset doesn't push them beyond it.
+	var seed_inset: float = 1.0
 	var seeds: Array = []
 	for type_data in _c.PLANT_TYPES:
 		var seed_count: int = int(type_data.get("seed_count", 1))
 		for _s in range(seed_count):
-			var sx: float = _rng.randf_range(inset, float(grid_size) - inset)
-			var sy: float = _rng.randf_range(inset, float(grid_size) - inset)
+			var theta: float = _rng.randf() * TAU
+			var r: float = _rng.randf_range(0.0, max(0.0, radius - seed_inset))
+			var sx: float = center.x + cos(theta) * r
+			var sy: float = center.y + sin(theta) * r
 			seeds.append({"pos": Vector2(sx, sy), "type": type_data})
 
-	# Build a list of plantable cells, then pick STARTER_GARDEN_DENSITY of
-	# them at random for the starter garden.
-	var plantable: Array = []
 	for i in range(grid_size):
 		for j in range(grid_size):
 			if _is_elevator_cell(i, j):
 				continue
 			if _is_dispenser_cell(i, j):
 				continue
-			plantable.append(Vector2i(i, j))
-	plantable.shuffle()
-	var starter_count: int = int(round(float(plantable.size()) * _c.STARTER_GARDEN_DENSITY))
-	for k in range(starter_count):
-		var coord: Vector2i = plantable[k]
-		var cell_pos := Vector2(float(coord.x), float(coord.y))
-		var best_type: Dictionary = seeds[0].type
-		var best_dist: float = INF
-		for seed_data in seeds:
-			var d: float = cell_pos.distance_squared_to(seed_data.pos)
-			if d < best_dist:
-				best_dist = d
-				best_type = seed_data.type
-		_plant_assignments[coord] = best_type
+			var cell_pos := Vector2(float(i), float(j))
+			if cell_pos.distance_to(center) > radius:
+				continue
+			var best_type: Dictionary = seeds[0].type
+			var best_dist: float = INF
+			for seed_data in seeds:
+				var d: float = cell_pos.distance_squared_to(seed_data.pos)
+				if d < best_dist:
+					best_dist = d
+					best_type = seed_data.type
+			_plant_assignments[Vector2i(i, j)] = best_type
 
 
 # Public lookup used by iso_robot.gd to snake-scan the grid.

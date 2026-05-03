@@ -45,7 +45,10 @@ const PLAYER_FALL_RESPAWN_Y := -10.0
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
-const CAMERA_YAW_DEG_INITIAL := 45.0    # Y rotation default
+# Y rotation default — places the camera at the NW corner looking SE so the
+# south-wall seed dispenser is visible front-and-centre on first spawn,
+# rather than behind the camera (where 45° put it).
+const CAMERA_YAW_DEG_INITIAL := -135.0
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
 const CAMERA_ORTHO_SIZE_DEFAULT := 40.0 # initial size (smaller = zoomed in); fits 30×30 floor
@@ -185,7 +188,13 @@ const EXTENSION_PANE_COUNT := 6           # extension lines per side; positions 
 # empty plots the player plants into using seeds dispensed by the perimeter
 # dispenser. Total density is conserved relative to the old auto-fill so the
 # floor doesn't read sparse on first arrival.
-const STARTER_GARDEN_DENSITY := 0.3        # fraction of non-elevator plots planted at start
+# Starter garden is now a contiguous circular region around the elevator —
+# every cell within STARTER_GARDEN_RADIUS (in grid units) is planted, every
+# cell outside is left empty for the player to plant into. Voronoi cluster
+# assignment still applies inside the ring for natural patch shapes. Radius
+# is tuned so the ring's area minus the elevator footprint ≈ 30% of the
+# floor (matches the original auto-fill density).
+const STARTER_GARDEN_RADIUS := 9.5
 const STARTER_STAGE_MIN := 2               # mature mix so the floor reads alive
 const STARTER_STAGE_MAX := 5
 

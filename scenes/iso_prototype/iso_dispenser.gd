@@ -29,6 +29,12 @@ var _windows: Dictionary = {}
 var _highlight: MeshInstance3D
 var _highlight_target_world: Vector3 = Vector3.ZERO
 
+# Overhead "SEEDS" beacon — only shown while the player is in range so it
+# doesn't clutter the floor at game start.
+var _overhead_label: Label3D
+var _player_nearby: bool = false
+var _label_tween: Tween
+
 # The dispenser's interaction anchor. The player's distance is measured to
 # this point so the radius isn't skewed by the body's bounding box.
 var _interact_anchor: Vector3
@@ -70,7 +76,14 @@ func _process(delta: float) -> void:
 # --- Public interaction API ----------------------------------------------
 
 func is_interactable_at(player_world_pos: Vector3, radius: float) -> bool:
-	return _interact_anchor.distance_to(player_world_pos) <= radius
+	# Track proximity as a side-effect so the overhead label (and any other
+	# range-gated visuals) can fade in/out without the dispenser needing a
+	# direct ref to the player. The player calls this every physics frame.
+	var in_range: bool = _interact_anchor.distance_to(player_world_pos) <= radius
+	if in_range != _player_nearby:
+		_player_nearby = in_range
+		_fade_overhead_label(in_range)
+	return in_range
 
 
 func try_interact() -> bool:
@@ -79,9 +92,25 @@ func try_interact() -> bool:
 		return false
 	_stock[key] = int(_stock[key]) - 1
 	_gs.seed_pouch[key] = int(_gs.seed_pouch.get(key, 0)) + 1
+	# Reveals the bottom-of-screen seed selector HUD on first use. Once
+	# flipped this stays true for the rest of the session.
+	_gs.dispenser_first_used = true
 	_refresh_one_window(key)
 	_spawn_dispense_feedback(key)
 	return true
+
+
+func _fade_overhead_label(visible_now: bool) -> void:
+	if _overhead_label == null:
+		return
+	# Cancel any in-flight fade so rapid enter/exit doesn't stack tweens.
+	if _label_tween and _label_tween.is_running():
+		_label_tween.kill()
+	var target_text_a: float = 1.0 if visible_now else 0.0
+	var target_outline_a: float = 0.95 if visible_now else 0.0
+	_label_tween = create_tween().set_parallel(true)
+	_label_tween.tween_property(_overhead_label, ^"modulate:a", target_text_a, 0.25)
+	_label_tween.tween_property(_overhead_label, ^"outline_modulate:a", target_outline_a, 0.25)
 
 
 func get_interaction_label() -> String:
@@ -209,22 +238,23 @@ func _build_windows() -> void:
 		}
 
 
-# Billboarded "SEEDS" label that floats above the dispenser so the player
-# can spot it from across the floor on first spawn. Pulses gently in
-# brightness so it reads as a "kiosk" indicator rather than dead signage.
+# Billboarded "SEEDS" label that floats above the dispenser. Hidden by
+# default — fades in only when the player walks into interaction range so
+# the floor stays uncluttered at spawn. Sits well above the chassis so the
+# label and dispenser body don't crowd each other in iso framing.
 func _build_overhead_label() -> void:
-	var label := Label3D.new()
-	label.name = "OverheadLabel"
-	label.text = "SEEDS"
-	label.font_size = 80
-	label.outline_size = 10
-	label.modulate = Color(1.0, 0.85, 0.45, 1.0)   # warm amber
-	label.outline_modulate = Color(0.10, 0.05, 0.0, 0.95)
-	label.pixel_size = 0.0085
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.position = Vector3(0, _BODY_H + 0.45, 0)
-	add_child(label)
+	_overhead_label = Label3D.new()
+	_overhead_label.name = "OverheadLabel"
+	_overhead_label.text = "SEEDS"
+	_overhead_label.font_size = 80
+	_overhead_label.outline_size = 10
+	_overhead_label.modulate = Color(1.0, 0.85, 0.45, 0.0)   # warm amber, starts fully transparent
+	_overhead_label.outline_modulate = Color(0.10, 0.05, 0.0, 0.0)
+	_overhead_label.pixel_size = 0.0085
+	_overhead_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_overhead_label.no_depth_test = true
+	_overhead_label.position = Vector3(0, _BODY_H + 1.4, 0)   # raised — clear breathing room
+	add_child(_overhead_label)
 
 
 func _build_highlight() -> void:

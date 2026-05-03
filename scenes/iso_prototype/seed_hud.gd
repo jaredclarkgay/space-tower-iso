@@ -23,6 +23,8 @@ const _BOTTOM_MARGIN := 24.0
 var _cells: Dictionary = {}     # seed_key -> Dictionary of refs
 var _style_idle: StyleBoxFlat
 var _style_selected: StyleBoxFlat
+var _revealed: bool = false      # mirrors GameState.dispenser_first_used after the reveal tween completes
+const _HEADER_H := 22.0
 
 
 func _ready() -> void:
@@ -31,24 +33,50 @@ func _ready() -> void:
 
 	var n: int = int(_c.SEED_TYPE_ORDER.size())
 	var total_w: float = n * _CELL_W + (n - 1) * _CELL_GAP
+	var total_h: float = _CELL_H + _HEADER_H + 4.0
 
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	custom_minimum_size = Vector2(total_w, _CELL_H)
+	custom_minimum_size = Vector2(total_w, total_h)
 	anchor_left = 0.5
 	anchor_right = 0.5
 	anchor_top = 1.0
 	anchor_bottom = 1.0
 	offset_left = -total_w * 0.5
 	offset_right = total_w * 0.5
-	offset_top = -(_CELL_H + _BOTTOM_MARGIN)
+	offset_top = -(total_h + _BOTTOM_MARGIN)
 	offset_bottom = -_BOTTOM_MARGIN
+
+	# Hidden until the player's first dispenser interaction. Modulate.a gates
+	# visibility (rather than `visible = false`) so the reveal tween has
+	# something to animate in on.
+	modulate = Color(1, 1, 1, 0)
+	pivot_offset = Vector2(total_w * 0.5, total_h)
+
+	# Header label centred above the cell row — clarifies what the row is
+	# counting once revealed (so the × N reads as seeds, not fruits).
+	var header := Label.new()
+	header.name = "Header"
+	header.text = "SEEDS"
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.94, 0.83, 0.45, 0.85))
+	header.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	header.add_theme_constant_override("outline_size", 4)
+	header.anchor_left = 0.0
+	header.anchor_right = 1.0
+	header.offset_top = 0
+	header.offset_bottom = _HEADER_H
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(header)
 
 	var hbox := HBoxContainer.new()
 	hbox.name = "Cells"
 	hbox.add_theme_constant_override("separation", int(_CELL_GAP))
+	hbox.anchor_left = 0.0
+	hbox.anchor_top = 0.0
 	hbox.anchor_right = 1.0
 	hbox.anchor_bottom = 1.0
-	hbox.offset_right = 0
+	hbox.offset_top = _HEADER_H + 4.0
 	hbox.offset_bottom = 0
 	hbox.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(hbox)
@@ -61,7 +89,20 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	# First-reveal: fade + slight scale-pop the moment the player takes
+	# their first seed from the dispenser.
+	if not _revealed and _gs.dispenser_first_used:
+		_revealed = true
+		_play_reveal_tween()
 	_refresh()
+
+
+func _play_reveal_tween() -> void:
+	scale = Vector2(0.92, 0.92)
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(self, ^"modulate:a", 1.0, 0.35)
+	tween.tween_property(self, ^"scale", Vector2(1, 1), 0.4) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 # --- Build ---------------------------------------------------------------
