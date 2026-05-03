@@ -188,13 +188,13 @@ const EXTENSION_PANE_COUNT := 6           # extension lines per side; positions 
 # empty plots the player plants into using seeds dispensed by the perimeter
 # dispenser. Total density is conserved relative to the old auto-fill so the
 # floor doesn't read sparse on first arrival.
-# Starter garden is now a contiguous circular region around the elevator —
-# every cell within STARTER_GARDEN_RADIUS (in grid units) is planted, every
-# cell outside is left empty for the player to plant into. Voronoi cluster
-# assignment still applies inside the ring for natural patch shapes. Radius
-# is tuned so the ring's area minus the elevator footprint ≈ 30% of the
-# floor (matches the original auto-fill density).
-const STARTER_GARDEN_RADIUS := 9.5
+# Starter garden is a contiguous circular region around the elevator — every
+# cell within STARTER_GARDEN_RADIUS (in grid units) is planted, every cell
+# outside is left empty for the player to plant into. Voronoi cluster
+# assignment still applies inside the ring for natural patch shapes. Halved
+# from the v1 radius (was 9.5 → ~265 cells planted) so the player has more
+# empty land to expand into; area scales with R², so √(9.5² / 2) ≈ 6.72.
+const STARTER_GARDEN_RADIUS := 6.7
 const STARTER_STAGE_MIN := 2               # mature mix so the floor reads alive
 const STARTER_STAGE_MAX := 5
 
@@ -214,16 +214,14 @@ const SEED_TYPE_ORDER: Array = [
 
 # Per-type dispenser stocking. Common types refill fast and stock high so the
 # player essentially always has them; rare types (eggplant) refill slowly and
-# stock low, making them feel earned. Halved from the v1 values — the original
-# numbers read as a wall of seeds at game start; this trims the initial supply
-# while keeping the relative scarcity gradient intact.
+# stock low, making them feel earned.
 const SEED_MAX_STOCK := {
-	"tomato": 20,
-	"pumpkin": 15,
-	"pepper": 12,
-	"cucumber": 10,
-	"blueberries": 8,
-	"eggplant": 3,
+	"tomato": 40,
+	"pumpkin": 30,
+	"pepper": 25,
+	"cucumber": 20,
+	"blueberries": 15,
+	"eggplant": 5,
 }
 
 const SEED_REFILL_SECONDS := {
