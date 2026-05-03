@@ -41,10 +41,12 @@ var _interact_anchor: Vector3
 
 
 func _ready() -> void:
-	# Seed initial stock per Constants.DISPENSER_STARTS_FULL.
+	# Seed initial stock per Constants.DISPENSER_STARTS_FULL. Mirror to
+	# GameState so HUD surfaces can read stock without a node reference.
 	for key in _c.SEED_TYPE_ORDER:
 		var max_stock: int = int(_c.SEED_MAX_STOCK.get(key, 0))
 		_stock[key] = max_stock if _c.DISPENSER_STARTS_FULL else 0
+		_gs.dispenser_stock[key] = _stock[key]
 		_accum[key] = 0.0
 
 	position = _c.DISPENSER_POSITION
@@ -68,6 +70,7 @@ func _process(delta: float) -> void:
 		var refill_s: float = float(_c.SEED_REFILL_SECONDS.get(key, 999.0))
 		if _accum[key] >= refill_s:
 			_stock[key] = int(_stock[key]) + 1
+			_gs.dispenser_stock[key] = _stock[key]
 			_accum[key] = 0.0
 			_refresh_one_window(key)
 	_update_highlight()
@@ -91,6 +94,7 @@ func try_interact() -> bool:
 	if int(_stock.get(key, 0)) <= 0:
 		return false
 	_stock[key] = int(_stock[key]) - 1
+	_gs.dispenser_stock[key] = _stock[key]
 	_gs.seed_pouch[key] = int(_gs.seed_pouch.get(key, 0)) + 1
 	# Reveals the bottom-of-screen seed selector HUD on first use. Once
 	# flipped this stays true for the rest of the session.
@@ -128,6 +132,7 @@ func try_dispense_type(key: String) -> bool:
 	if int(_stock.get(key, 0)) <= 0:
 		return false
 	_stock[key] = int(_stock[key]) - 1
+	_gs.dispenser_stock[key] = _stock[key]
 	_gs.seed_pouch[key] = int(_gs.seed_pouch.get(key, 0)) + 1
 	_gs.selected_seed_type = key
 	_gs.dispenser_first_used = true
@@ -263,10 +268,31 @@ func _build_windows() -> void:
 		)
 		add_child(num_label)
 
+		# Stock count below the icon — live "current/max" gauge so the
+		# player can see at a glance how many of each seed are still
+		# available before pressing a number.
+		var stock_label := Label3D.new()
+		stock_label.name = "Stock_" + key
+		stock_label.text = "0/0"
+		stock_label.font_size = 46
+		stock_label.outline_size = 6
+		stock_label.modulate = Color(0.96, 0.92, 0.78, 0.92)
+		stock_label.outline_modulate = Color(0.05, 0.04, 0.02, 0.95)
+		stock_label.pixel_size = 0.0017
+		stock_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		stock_label.no_depth_test = true
+		stock_label.position = Vector3(
+			col_x[col],
+			row_y[row] - _WINDOW_SIZE * 0.42,
+			z - 0.030,
+		)
+		add_child(stock_label)
+
 		_windows[key] = {
 			"frame": pane,
 			"icon": icon,
 			"icon_mat": icon_mat,
+			"stock_label": stock_label,
 			"world_offset": Vector3(col_x[col], row_y[row], z - 0.04),
 		}
 
@@ -349,6 +375,15 @@ func _refresh_one_window(key: String) -> void:
 		var fill: float = clamp(float(stock) / float(max_stock), 0.2, 1.0)
 		mat.emission_energy_multiplier = lerp(0.6, 1.6, fill)
 		w.icon.scale = Vector3(1, 1, 1) * lerp(0.85, 1.0, fill)
+	# Stock-count label always reflects current/max; tint shifts toward red
+	# as supply gets low so the player notices an impending dry slot.
+	var stock_label: Label3D = w.stock_label
+	stock_label.text = "%d/%d" % [stock, max_stock]
+	var ratio: float = clamp(float(stock) / float(max_stock), 0.0, 1.0)
+	if ratio < 0.34:
+		stock_label.modulate = Color(1.0, 0.55, 0.45, 0.95)   # dry warning
+	else:
+		stock_label.modulate = Color(0.96, 0.92, 0.78, 0.92)
 
 
 # Brief "+1" feedback — a tiny floater in the dispenser's slot color.

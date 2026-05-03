@@ -66,3 +66,15 @@ var selected_seed_type: String = "tomato"
 # panel stays hidden until this flag flips so the player isn't confused by
 # a row of "× 0" entries before they understand the seed loop.
 var dispenser_first_used: bool = false
+
+# Dispenser stock mirrored from IsoDispenser. The dispenser is authoritative;
+# this exists so the bottom seed HUD (and any future surfaces) can read
+# current/max without a direct node reference.
+var dispenser_stock := {
+	"tomato": 0,
+	"pumpkin": 0,
+	"pepper": 0,
+	"cucumber": 0,
+	"blueberries": 0,
+	"eggplant": 0,
+}

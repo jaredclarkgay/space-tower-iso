@@ -19,7 +19,7 @@ extends Control
 @onready var _gs: Node = get_node("/root/GameState")
 
 const _CELL_W := 122.0
-const _CELL_H := 84.0
+const _CELL_H := 100.0
 const _CELL_GAP := 8.0
 const _SWATCH_SIZE := 22.0
 const _BOTTOM_MARGIN := 24.0
@@ -164,7 +164,7 @@ func _build_cell(parent: Control, seed_key: String, number_key: int, idx: int) -
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top_row.add_child(name_label)
 
-	# Bottom row: pouch count, right-aligned and prominent.
+	# Pouch count — what the player can plant right now.
 	var count_label := Label.new()
 	count_label.text = "× 0"
 	count_label.add_theme_font_size_override("font_size", 26)
@@ -175,10 +175,24 @@ func _build_cell(parent: Control, seed_key: String, number_key: int, idx: int) -
 	count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(count_label)
 
+	# Stock gauge — what the dispenser still has. Shown smaller + dimmer
+	# than pouch so the visual hierarchy reads "what I have now" first,
+	# "what I can refill to" second.
+	var stock_label := Label.new()
+	stock_label.text = "stock 0/0"
+	stock_label.add_theme_font_size_override("font_size", 13)
+	stock_label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 0.85))
+	stock_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	stock_label.add_theme_constant_override("outline_size", 3)
+	stock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	stock_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(stock_label)
+
 	parent.add_child(cell)
 	_cells[seed_key] = {
 		"root": cell,
 		"count_label": count_label,
+		"stock_label": stock_label,
 		"name_label": name_label,
 		"final_x": idx * (_CELL_W + _CELL_GAP),
 	}
@@ -213,6 +227,14 @@ func _refresh() -> void:
 		var info: Dictionary = _cells[key]
 		var count: int = int(_gs.seed_pouch.get(key, 0))
 		info.count_label.text = "× %d" % count
+		var stock: int = int(_gs.dispenser_stock.get(key, 0))
+		var max_stock: int = int(_c.SEED_MAX_STOCK.get(key, 1))
+		info.stock_label.text = "stock %d/%d" % [stock, max_stock]
+		var ratio: float = clamp(float(stock) / float(max_stock), 0.0, 1.0)
+		if ratio < 0.34:
+			info.stock_label.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45, 0.95))
+		else:
+			info.stock_label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 0.85))
 		var cell: PanelContainer = info.root
 		# Selection visual is purely the stylebox (cyan vs amber border).
 		# Modulate is reserved for the reveal animation so we don't fight
