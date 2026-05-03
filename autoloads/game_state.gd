@@ -44,3 +44,19 @@ var dialogue_open := false
 # both to the live robot and to the modal's 3D preview.
 var cody_body_color: Color = Color(0.25, 0.68, 0.80)
 var cody_dome_color: Color = Color(0.46, 0.50, 0.56)
+
+# Player seed pouch — counts per seed type. Filled by interacting with the
+# perimeter dispenser; drained by planting on empty plots. No cap. Keys
+# match Constants.SEED_TYPE_ORDER (lowercase).
+var seed_pouch := {
+	"tomato": 0,
+	"pumpkin": 0,
+	"pepper": 0,
+	"cucumber": 0,
+	"blueberries": 0,
+	"eggplant": 0,
+}
+
+# Currently selected seed type — drives both which slot the dispenser yields
+# on E and which type the player plants on P. Number keys 1..6 set this.
+var selected_seed_type: String = "tomato"

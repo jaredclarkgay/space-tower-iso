@@ -179,6 +179,66 @@ const EXTENSION_LINE_SOLID_LENGTH := 1.0 * EXTENSION_GRID_UNIT    # 3 m
 const EXTENSION_LINE_PEAK_ALPHA := 0.30   # very subtle even at full opacity
 const EXTENSION_PANE_COUNT := 6           # extension lines per side; positions computed at runtime
 
+# --- Crop planting v1 (player-driven planting loop) -------------------------
+# The grid no longer auto-fills end-to-end. A starter garden seeds ~30% of
+# plots via the existing Voronoi pattern; the remaining ~70% are tilled
+# empty plots the player plants into using seeds dispensed by the perimeter
+# dispenser. Total density is conserved relative to the old auto-fill so the
+# floor doesn't read sparse on first arrival.
+const STARTER_GARDEN_DENSITY := 0.3        # fraction of non-elevator plots planted at start
+const STARTER_STAGE_MIN := 2               # mature mix so the floor reads alive
+const STARTER_STAGE_MAX := 5
+
+# Empty plot visuals — sunken brown soil with thin parallel furrow lines.
+const EMPTY_PLOT_SOIL_COLOR := Color(0.22, 0.15, 0.10)   # darker than PLANTER_SOIL
+const EMPTY_PLOT_FURROW_COLOR := Color(0.16, 0.10, 0.07) # darker still
+const EMPTY_PLOT_RECESS := 0.04            # how much lower than a planted plot's top
+const EMPTY_PLOT_FURROW_COUNT := 3
+const EMPTY_PLOT_FURROW_THICKNESS := 0.025
+const EMPTY_PLOT_FURROW_DEPTH := 0.012     # how deep each furrow line cuts visually
+
+# Seed type order — the canonical mapping for number-key selection 1..6 and
+# for any code that iterates seed types in display order.
+const SEED_TYPE_ORDER: Array = [
+	"tomato", "pumpkin", "pepper", "cucumber", "blueberries", "eggplant",
+]
+
+# Per-type dispenser stocking. Common types refill fast and stock high so the
+# player essentially always has them; rare types (eggplant) refill slowly and
+# stock low, making them feel earned.
+const SEED_MAX_STOCK := {
+	"tomato": 40,
+	"pumpkin": 30,
+	"pepper": 25,
+	"cucumber": 20,
+	"blueberries": 15,
+	"eggplant": 5,
+}
+
+const SEED_REFILL_SECONDS := {
+	"tomato": 5.0,
+	"pumpkin": 8.0,
+	"pepper": 12.0,
+	"cucumber": 20.0,
+	"blueberries": 30.0,
+	"eggplant": 60.0,
+}
+
+const DISPENSER_STARTS_FULL := true
+const DISPENSER_INTERACT_RADIUS := 1.6     # m — slightly larger than ROBOT_INTERACT_RADIUS
+# Placed against the south interior wall, directly south of the elevator core,
+# so the player exits the elevator and walks straight to it. Local front face
+# is at -Z, which points toward the room interior (north) at yaw=0.
+const DISPENSER_POSITION := Vector3(0.0, 0.0, 14.0)
+const DISPENSER_FACING_YAW := 0.0
+
+# Plant verb (P) — kneel-press-stand and a sprout emerge tween. Player input
+# is locked during the kneel; the sprout grows from scale-zero to stage-1 size
+# over SPROUT_EMERGE_DURATION immediately after the kneel completes.
+const PLANT_DURATION := 0.5
+const SPROUT_EMERGE_DURATION := 1.0
+const PLANT_KNEEL_SCALE_Y := 0.55          # mirrors HARVEST_KNEEL_SCALE_Y for visual parity
+
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)
 
@@ -205,3 +265,13 @@ func is_elev_block(bi: int) -> bool:
 
 func is_buildable(bi: int) -> bool:
 	return not is_win_block(bi) and not is_elev_block(bi)
+
+
+# Map a lowercase seed key (matches SEED_TYPE_ORDER) to the corresponding
+# PLANT_TYPES dictionary. Returns {} if the seed key is unknown.
+func plant_type_by_seed(seed_key: String) -> Dictionary:
+	var capitalized: String = seed_key.capitalize()
+	for t in PLANT_TYPES:
+		if t.name == capitalized:
+			return t
+	return {}

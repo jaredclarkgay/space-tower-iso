@@ -65,6 +65,10 @@ func _process(delta: float) -> void:
 
 
 func _update_plot(plot: Dictionary, delta: float) -> void:
+	# Empty plots (plant_type == null) wait for the player to plant; they
+	# don't tick growth and have no grow_multiplier to read.
+	if plot.plant_type == null:
+		return
 	plot.time_in_stage += delta
 	var stage: int = plot.stage
 	# Per-type grow rate. Violet plants take 3× longer per stage and 3×
@@ -97,6 +101,38 @@ func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Va
 			best_dist_sq = d_sq
 			best = plot
 	return best
+
+
+func find_nearest_empty_plot_near(world_pos: Vector3, radius: float) -> Variant:
+	# Returns the closest plot with no plant (plant_type == null) within
+	# `radius`, or null. Used by iso_player.gd to drive the P prompt and the
+	# plant action.
+	var best: Variant = null
+	var best_dist_sq: float = radius * radius
+	for plot in _plots:
+		if plot.plant_type != null:
+			continue
+		var d_sq: float = (plot.world_pos - world_pos).length_squared()
+		if d_sq < best_dist_sq:
+			best_dist_sq = d_sq
+			best = plot
+	return best
+
+
+# Public planting API. Parameterised by grid coord + lowercase seed key so a
+# future Builder-Cody can call this exactly like the player. Returns true on
+# success, false if the plot was already occupied or the seed is unknown.
+func plant(plot_coord: Vector2i, seed_key: String) -> bool:
+	var plot: Variant = _plot_grid.get(plot_coord, null)
+	if plot == null:
+		return false
+	if plot.plant_type != null:
+		return false
+	var plant_type: Dictionary = _c.plant_type_by_seed(seed_key)
+	if plant_type.is_empty():
+		return false
+	_convert_empty_to_planted(plot, plant_type)
+	return true
 
 
 func harvest_plot(plot: Dictionary, with_feedback: bool = true) -> void:
@@ -354,16 +390,19 @@ func _build_elevator_shaft() -> void:
 # --- 20×20 plot grid --------------------------------------------------------
 
 func _build_garden_grid() -> void:
-	_compute_plant_assignments()
+	_seed_starter_garden()
 	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
 	for i in range(_c.GARDEN_GRID_SIZE):
 		for j in range(_c.GARDEN_GRID_SIZE):
 			if _is_elevator_cell(i, j):
 				continue
+			if _is_dispenser_cell(i, j):
+				continue
 			var x: float = origin + float(i) * _c.GARDEN_PLOT_SIZE
 			var z: float = origin + float(j) * _c.GARDEN_PLOT_SIZE
-			var plant_type: Dictionary = _plant_assignments[Vector2i(i, j)]
-			var plot := _build_plot(x, z, plant_type)
+			# Empty plots get plant_type = null (operator plants into them).
+			var assigned: Variant = _plant_assignments.get(Vector2i(i, j), null)
+			var plot: Dictionary = _build_plot(x, z, assigned, Vector2i(i, j))
 			_plots.append(plot)
 			_plot_grid[Vector2i(i, j)] = plot
 			# Sparse grow-light fixtures on a 4×4 stride so the field has
@@ -372,15 +411,28 @@ func _build_garden_grid() -> void:
 				_build_plot_grow_light(x, z)
 
 
-# Multiple seeds per plant type, dropped at deterministic random cells. Each
-# plot is then assigned the plant type of its nearest seed — a Voronoi
-# diagram. Per-type seed_count tunes scarcity: Tomato gets 5 seeds (~25%
-# of the field), Eggplant gets 2 (~10%, the rarest). Plots of the same
-# type form connected patches instead of being randomly scattered.
-func _compute_plant_assignments() -> void:
+# Skip plot construction in cells the dispenser body occupies so soil
+# meshes don't poke through the chassis. Body is 0.95w × 0.45d, plot is
+# 0.85 × 0.85 — a cell's center within (0.7, 0.6) of the dispenser center
+# overlaps visually.
+func _is_dispenser_cell(i: int, j: int) -> bool:
+	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
+	var x: float = origin + float(i) * _c.GARDEN_PLOT_SIZE
+	var z: float = origin + float(j) * _c.GARDEN_PLOT_SIZE
+	var dx: float = absf(x - _c.DISPENSER_POSITION.x)
+	var dz: float = absf(z - _c.DISPENSER_POSITION.z)
+	return dx < 0.7 and dz < 0.6
+
+
+# Drop the existing Voronoi pattern over only ~STARTER_GARDEN_DENSITY of the
+# non-elevator cells; the rest stay empty for the player to plant into. A
+# random subset of cells is selected as the starter region, and within that
+# subset the existing per-type Voronoi clustering still applies — so the
+# starter garden reads as natural patches rather than scattered crops.
+func _seed_starter_garden() -> void:
 	var grid_size: int = int(_c.GARDEN_GRID_SIZE)
-	var seeds: Array = []
 	var inset: float = 3.0   # keep seeds away from the very edges
+	var seeds: Array = []
 	for type_data in _c.PLANT_TYPES:
 		var seed_count: int = int(type_data.get("seed_count", 1))
 		for _s in range(seed_count):
@@ -388,19 +440,29 @@ func _compute_plant_assignments() -> void:
 			var sy: float = _rng.randf_range(inset, float(grid_size) - inset)
 			seeds.append({"pos": Vector2(sx, sy), "type": type_data})
 
+	# Build a list of plantable cells, then pick STARTER_GARDEN_DENSITY of
+	# them at random for the starter garden.
+	var plantable: Array = []
 	for i in range(grid_size):
 		for j in range(grid_size):
 			if _is_elevator_cell(i, j):
 				continue
-			var cell_pos := Vector2(float(i), float(j))
-			var best_type: Dictionary = seeds[0].type
-			var best_dist: float = INF
-			for seed_data in seeds:
-				var d: float = cell_pos.distance_squared_to(seed_data.pos)
-				if d < best_dist:
-					best_dist = d
-					best_type = seed_data.type
-			_plant_assignments[Vector2i(i, j)] = best_type
+			if _is_dispenser_cell(i, j):
+				continue
+			plantable.append(Vector2i(i, j))
+	plantable.shuffle()
+	var starter_count: int = int(round(float(plantable.size()) * _c.STARTER_GARDEN_DENSITY))
+	for k in range(starter_count):
+		var coord: Vector2i = plantable[k]
+		var cell_pos := Vector2(float(coord.x), float(coord.y))
+		var best_type: Dictionary = seeds[0].type
+		var best_dist: float = INF
+		for seed_data in seeds:
+			var d: float = cell_pos.distance_squared_to(seed_data.pos)
+			if d < best_dist:
+				best_dist = d
+				best_type = seed_data.type
+		_plant_assignments[coord] = best_type
 
 
 # Public lookup used by iso_robot.gd to snake-scan the grid.
@@ -415,15 +477,80 @@ func _is_elevator_cell(i: int, j: int) -> bool:
 		and absf(float(j) - center) < float(_c.ELEVATOR_RADIUS)
 
 
-# Build a plot with growth-stage state. Spawns a permanent soil box, one
-# foliage sphere (scaled per stage), and per-type fruit accents (visible
-# only at stage 5). Plant type is pre-assigned by _compute_plant_assignments
-# so plants of the same kind cluster into Voronoi patches.
-func _build_plot(x: float, z: float, plant_type: Dictionary) -> Dictionary:
+# Build a plot. If `plant_type` is null, this becomes an empty (tilled) plot
+# with sunken soil + furrow lines, ready for the player to plant into via
+# the public plant() API. Otherwise it's a starter-garden plot at a random
+# mature stage so the floor reads alive on first arrival.
+func _build_plot(x: float, z: float, plant_type: Variant, coord: Vector2i) -> Dictionary:
+	var plot := {
+		"world_pos": Vector3(x, 0, z),
+		"coord": coord,
+		"stage": -1,
+		"time_in_stage": 0.0,
+		"plant_type": null,
+		"soil": null,
+		"plant": null,
+		"fruits": [] as Array,
+		"furrows": [] as Array,
+	}
+	if plant_type == null:
+		_attach_empty_plot_visuals(plot)
+		return plot
+	plot.plant_type = plant_type
+	_attach_planted_plot_visuals(plot)
+	# Random mature-mix stage so the starter garden doesn't read as freshly
+	# seeded. Operator-tunable via STARTER_STAGE_MIN/MAX.
+	plot.stage = _rng.randi_range(_c.STARTER_STAGE_MIN, _c.STARTER_STAGE_MAX)
+	plot.time_in_stage = _rng.randf() * _c.GROWTH_STAGE_DURATION
+	_refresh_plot_visuals(plot)
+	return plot
+
+
+# Empty plot visuals: a recessed darker soil pad with a few thin parallel
+# furrow lines on top, reading as freshly tilled but unplanted soil.
+func _attach_empty_plot_visuals(plot: Dictionary) -> void:
+	var x: float = plot.world_pos.x
+	var z: float = plot.world_pos.z
+	# Sunken soil — same footprint, lower top edge so it reads recessed below
+	# the surrounding planted plots.
+	var soil := MeshInstance3D.new()
+	soil.name = "EmptySoil"
+	var soil_mesh := BoxMesh.new()
+	soil_mesh.size = Vector3(0.85, 0.18, 0.85)
+	soil.mesh = soil_mesh
+	soil.material_override = _make_material(_c.EMPTY_PLOT_SOIL_COLOR)
+	soil.position = Vector3(x, 0.09 - _c.EMPTY_PLOT_RECESS, z)
+	add_child(soil)
+	plot.soil = soil
+
+	# Thin parallel furrow lines along Z. Slightly raised proud of the soil
+	# top so they still read at iso angle, in a deeper brown.
+	var furrows: Array = []
+	var count: int = int(_c.EMPTY_PLOT_FURROW_COUNT)
+	var furrow_top_y: float = 0.18 - _c.EMPTY_PLOT_RECESS + _c.EMPTY_PLOT_FURROW_DEPTH * 0.5
+	for k in range(count):
+		var t: float = (float(k) + 0.5) / float(count)
+		var dx: float = -0.32 + t * 0.64   # spread across plot width
+		var furrow := MeshInstance3D.new()
+		furrow.name = "Furrow"
+		var fm := BoxMesh.new()
+		fm.size = Vector3(_c.EMPTY_PLOT_FURROW_THICKNESS, _c.EMPTY_PLOT_FURROW_DEPTH, 0.72)
+		furrow.mesh = fm
+		furrow.material_override = _make_material(_c.EMPTY_PLOT_FURROW_COLOR)
+		furrow.position = Vector3(x + dx, furrow_top_y, z)
+		add_child(furrow)
+		furrows.append(furrow)
+	plot.furrows = furrows
+
+
+# Planted-plot visuals — the original soil + plant + fruits triple. Always
+# called for both starter-garden cells and post-plant() conversions.
+func _attach_planted_plot_visuals(plot: Dictionary) -> void:
+	var x: float = plot.world_pos.x
+	var z: float = plot.world_pos.z
+	var plant_type: Dictionary = plot.plant_type
 	var plant_color: Color = plant_type.foliage_color
 
-	# Soil — its material is shared (we mutate albedo when stage = 0 to read
-	# as freshly turned dirt). Each plot gets its own StandardMaterial3D.
 	var soil := MeshInstance3D.new()
 	soil.name = "Soil"
 	var soil_mesh := BoxMesh.new()
@@ -432,9 +559,8 @@ func _build_plot(x: float, z: float, plant_type: Dictionary) -> Dictionary:
 	soil.material_override = _make_material(_c.PLANTER_SOIL)
 	soil.position = Vector3(x, 0.09, z)
 	add_child(soil)
+	plot.soil = soil
 
-	# Plant — single SphereMesh with radius 1.0; we scale and reposition it
-	# per growth stage in _refresh_plot_visuals().
 	var plant := MeshInstance3D.new()
 	plant.name = "Plant"
 	var plant_mesh := SphereMesh.new()
@@ -443,27 +569,70 @@ func _build_plot(x: float, z: float, plant_type: Dictionary) -> Dictionary:
 	plant.mesh = plant_mesh
 	plant.material_override = _make_material(plant_color)
 	add_child(plant)
+	plot.plant = plant
 
-	# Per-type fruit visuals — shape + count + position vary by plant type.
-	# All start hidden; _refresh_plot_visuals shows them at stage 5.
-	var fruits: Array = _build_fruits_for_type(plant_type, x, z)
+	plot.fruits = _build_fruits_for_type(plant_type, x, z)
 
-	# Initial state — randomise across stages 1..5 with random elapsed time
-	# inside the stage so the field reads as already alive when the player
-	# spawns. Some plots will be immediately harvestable.
-	var initial_stage: int = _rng.randi_range(1, _c.GROWTH_STAGE_COUNT)
-	var initial_t: float = _rng.randf() * _c.GROWTH_STAGE_DURATION
-	var plot := {
-		"world_pos": Vector3(x, 0, z),
-		"stage": initial_stage,
-		"time_in_stage": initial_t,
-		"plant_type": plant_type,
-		"soil": soil,
-		"plant": plant,
-		"fruits": fruits,
-	}
+
+# Convert an empty plot to a stage-1 sprout of `plant_type`. Called by the
+# public plant() API after pouch/dispenser checks have passed.
+func _convert_empty_to_planted(plot: Dictionary, plant_type: Dictionary) -> void:
+	# Tear down empty visuals first so we don't leave the recessed soil under
+	# the new planted soil.
+	if plot.soil != null:
+		plot.soil.queue_free()
+		plot.soil = null
+	for f in plot.furrows:
+		f.queue_free()
+	plot.furrows = []
+
+	plot.plant_type = plant_type
+	_attach_planted_plot_visuals(plot)
+	plot.stage = 1
+	plot.time_in_stage = 0.0
 	_refresh_plot_visuals(plot)
-	return plot
+
+	# Sprout-emerge tween: scale the foliage from zero up to its stage-1 size
+	# so the moment of planting reads as a beat rather than a property flip.
+	if plot.plant != null:
+		var target_radius: float = _stage_to_plant_radius(1)
+		var target_scale: Vector3 = Vector3(target_radius, target_radius, target_radius)
+		plot.plant.scale = Vector3(target_radius, 0.01, target_radius)
+		var tween := create_tween()
+		tween.tween_property(
+			plot.plant, ^"scale", target_scale, _c.SPROUT_EMERGE_DURATION
+		).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# Tiny dirt-poof: spawn a few small brown sphere bursts around the soil
+	# that fade out as they rise. Cheap moment without extra dependencies.
+	_spawn_plant_dirt_poof(plot.world_pos)
+
+
+func _spawn_plant_dirt_poof(world_pos: Vector3) -> void:
+	var poof_color := Color(0.45, 0.32, 0.20)
+	for k in range(5):
+		var puff := MeshInstance3D.new()
+		puff.name = "DirtPoof"
+		var sm := SphereMesh.new()
+		sm.radius = 0.05
+		sm.height = 0.10
+		puff.mesh = sm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(poof_color.r, poof_color.g, poof_color.b, 0.85)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		puff.material_override = mat
+		var angle: float = (float(k) / 5.0) * TAU + _rng.randf() * 0.4
+		var radius: float = 0.18 + _rng.randf() * 0.08
+		puff.position = world_pos + Vector3(
+			cos(angle) * radius, 0.20, sin(angle) * radius
+		)
+		add_child(puff)
+		var lift: float = 0.25 + _rng.randf() * 0.15
+		var tween := create_tween().set_parallel(true)
+		tween.tween_property(puff, ^"position:y", puff.position.y + lift, 0.55)
+		tween.tween_property(mat, ^"albedo_color:a", 0.0, 0.55)
+		tween.chain().tween_callback(puff.queue_free)
 
 
 # Update plant scale, plant position (so its base stays on the soil), fruit

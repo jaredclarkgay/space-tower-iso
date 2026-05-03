@@ -24,9 +24,11 @@ extends CharacterBody3D
 @export var camera_pivot_path: NodePath
 @export var iso_floor_path: NodePath
 @export var iso_robot_path: NodePath
+@export var iso_dispenser_path: NodePath
 var _camera_pivot: Node3D
 var _iso_floor: Node3D
 var _iso_robot: Node3D
+var _iso_dispenser: Node3D
 # Visual root — rotates Y with movement direction. Separate from the
 # CharacterBody3D so the collision capsule doesn't spin with the body.
 var _visual: Node3D
@@ -56,6 +58,15 @@ var _is_harvesting := false
 var _harvest_progress := 0.0          # 0..1
 var _harvest_target: Variant = null   # plot Dictionary returned by iso_floor
 var _nearest_plot: Variant = null     # cached this frame for E-prompt visibility
+
+# Plant state. One-shot kneel of PLANT_DURATION starts on P press; movement
+# input cancels mid-action. On completion the targeted empty plot becomes a
+# stage-1 sprout via iso_floor.plant() and a seed is decremented from the
+# player's pouch.
+var _is_planting := false
+var _plant_progress := 0.0
+var _plant_target: Variant = null
+var _nearest_empty_plot: Variant = null
 
 # Prompt above the head when a harvestable plot is in range. Two stacked
 # Label3Ds: a tiny "E" key label, and a slightly larger "Harvest <PlantName>"
@@ -94,6 +105,8 @@ func _ready() -> void:
 		_iso_floor = get_node(iso_floor_path)
 	if iso_robot_path:
 		_iso_robot = get_node(iso_robot_path)
+	if iso_dispenser_path:
+		_iso_dispenser = get_node(iso_dispenser_path)
 
 
 func _physics_process(delta: float) -> void:
@@ -132,16 +145,30 @@ func _physics_process(delta: float) -> void:
 		-input.x * sin(yaw) + input.y * cos(yaw),
 	)
 
-	# Interactions: robot (instant press E) takes priority over plot harvest
-	# (held E). Robot interactability is computed once per frame; if true,
-	# the harvest-plot lookup is skipped so the prompt and the press both
-	# route to the robot.
+	# Number-key seed selection — works outside any locked action so the
+	# player can pre-select a seed before walking up to the dispenser.
+	for n in range(_c.SEED_TYPE_ORDER.size()):
+		if Input.is_action_just_pressed(&"seed_select_%d" % (n + 1)):
+			_gs.selected_seed_type = _c.SEED_TYPE_ORDER[n]
+
+	# Interaction priority: dispenser > robot > plot harvest. Whichever wins
+	# is the action E will trigger this frame. Plant (P) is independent and
+	# routes to the nearest empty plot regardless of E-target.
+	var dispenser_interactable: bool = (
+		_iso_dispenser != null
+		and _iso_dispenser.is_interactable_at(global_position, _c.DISPENSER_INTERACT_RADIUS)
+	)
 	var robot_interactable: bool = (
-		_iso_robot != null
+		not dispenser_interactable
+		and _iso_robot != null
 		and _iso_robot.is_interactable_at(global_position, _c.ROBOT_INTERACT_RADIUS)
 	)
+	var dispenser_label: String = ""
 	var robot_label: String = ""
-	if robot_interactable:
+	if dispenser_interactable:
+		dispenser_label = _iso_dispenser.get_interaction_label()
+		_nearest_plot = null
+	elif robot_interactable:
 		robot_label = _iso_robot.get_interaction_label()
 		_nearest_plot = null
 	elif _iso_floor:
@@ -150,6 +177,16 @@ func _physics_process(delta: float) -> void:
 		)
 	else:
 		_nearest_plot = null
+
+	# Always look up the nearest empty plot — the P prompt is allowed to
+	# share screen space with the E prompt only when no E action is offered,
+	# so the lookup itself is cheap and the prompt logic decides what to show.
+	if _iso_floor:
+		_nearest_empty_plot = _iso_floor.find_nearest_empty_plot_near(
+			global_position, _c.HARVEST_RADIUS
+		)
+	else:
+		_nearest_empty_plot = null
 
 	if _is_harvesting:
 		var move_canceled: bool = input.length_squared() > 0.001
@@ -169,10 +206,25 @@ func _physics_process(delta: float) -> void:
 				_is_harvesting = false
 				_harvest_progress = 0.0
 				_harvest_target = null
+	elif _is_planting:
+		var plant_canceled: bool = input.length_squared() > 0.001
+		if plant_canceled or not is_on_floor():
+			_is_planting = false
+			_plant_progress = 0.0
+			_plant_target = null
+		else:
+			_plant_progress += delta / _c.PLANT_DURATION
+			if _plant_progress >= 1.0:
+				_complete_plant_action()
+				_is_planting = false
+				_plant_progress = 0.0
+				_plant_target = null
 	elif Input.is_action_just_pressed(&"interact") \
 			and is_on_floor() \
 			and input.length_squared() < 0.001:
-		if robot_interactable:
+		if dispenser_interactable:
+			_iso_dispenser.try_interact()
+		elif robot_interactable:
 			_iso_robot.try_interact()
 		elif _nearest_plot != null:
 			_is_harvesting = true
@@ -182,8 +234,22 @@ func _physics_process(delta: float) -> void:
 			var to_plot: Vector3 = _harvest_target.world_pos - global_position
 			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
 				_facing_yaw = atan2(to_plot.x, to_plot.z)
+	elif Input.is_action_just_pressed(&"plant") \
+			and is_on_floor() \
+			and input.length_squared() < 0.001:
+		# Only start the plant action if there's an empty plot in range AND
+		# the player has at least one of the selected seed in their pouch.
+		var seed_key: String = _gs.selected_seed_type
+		var has_seed: bool = int(_gs.seed_pouch.get(seed_key, 0)) > 0
+		if _nearest_empty_plot != null and has_seed:
+			_is_planting = true
+			_plant_target = _nearest_empty_plot
+			_plant_progress = 0.0
+			var to_plot: Vector3 = _plant_target.world_pos - global_position
+			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
+				_facing_yaw = atan2(to_plot.x, to_plot.z)
 
-	if _is_harvesting:
+	if _is_harvesting or _is_planting:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	else:
@@ -204,7 +270,7 @@ func _physics_process(delta: float) -> void:
 	if _land_squash_t > 0.0:
 		_land_squash_t = max(0.0, _land_squash_t - delta)
 
-	if on_floor and not _is_harvesting:
+	if on_floor and not _is_harvesting and not _is_planting:
 		if Input.is_action_pressed(&"jump"):
 			_charge_time = min(_charge_time + delta, _c.PLAYER_JUMP_CHARGE_DURATION)
 		if Input.is_action_just_released(&"jump"):
@@ -225,8 +291,9 @@ func _physics_process(delta: float) -> void:
 			# Settle on the slab rather than letting move_and_slide accumulate
 			# downward velocity while resting.
 			velocity.y = -1.0
-	elif on_floor and _is_harvesting:
-		# Rooted on the slab while harvesting — keep settled, no charge.
+	elif on_floor and (_is_harvesting or _is_planting):
+		# Rooted on the slab during a harvest or plant action — keep settled,
+		# no charge accumulation.
 		_charge_time = 0.0
 		velocity.y = -1.0
 	else:
@@ -265,6 +332,8 @@ func _physics_process(delta: float) -> void:
 	var target_scale_y := 1.0
 	if _is_harvesting:
 		target_scale_y = _c.HARVEST_KNEEL_SCALE_Y
+	elif _is_planting:
+		target_scale_y = _c.PLANT_KNEEL_SCALE_Y
 	elif charge_progress > 0.0:
 		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_CROUCH_SCALE, charge_progress)
 	elif land_progress > 0.0:
@@ -273,24 +342,51 @@ func _physics_process(delta: float) -> void:
 
 	# Charge gauge visibility + fill update.
 	_update_charge_bar(charge_progress)
-	# Harvest gauge fill while harvesting; hidden otherwise.
-	_update_harvest_bar(_harvest_progress if _is_harvesting else 0.0)
-	# E prompt visible when robot or plot is in range, we're on the ground,
-	# not currently harvesting, and not charging a jump.
+	# Harvest gauge fills during harvest; reuses the same green bar visual
+	# during plant so the player gets identical "I'm doing something" feedback.
+	var bar_progress := 0.0
+	if _is_harvesting:
+		bar_progress = _harvest_progress
+	elif _is_planting:
+		bar_progress = _plant_progress
+	_update_harvest_bar(bar_progress)
+	# Prompt: shows the action key + verb for whichever interaction is
+	# offered this frame. Priority: dispenser > robot > harvest plot > empty
+	# plot (the P verb). Hidden during any locked action or while charging.
 	if _prompt_root:
-		var has_interaction: bool = robot_interactable or _nearest_plot != null
+		var seed_key: String = _gs.selected_seed_type
+		var has_seed: bool = int(_gs.seed_pouch.get(seed_key, 0)) > 0
+		var prompt_action_key := ""
+		var prompt_subtext := ""
+		if dispenser_interactable:
+			prompt_action_key = "E"
+			prompt_subtext = dispenser_label
+		elif robot_interactable:
+			prompt_action_key = "E"
+			prompt_subtext = robot_label
+		elif _nearest_plot != null:
+			prompt_action_key = "E"
+			prompt_subtext = "Harvest %s" % _nearest_plot.plant_type.name
+		elif _nearest_empty_plot != null:
+			prompt_action_key = "P"
+			if has_seed:
+				var pouch_count: int = int(_gs.seed_pouch.get(seed_key, 0))
+				prompt_subtext = "Plant %s  (× %d)" % [seed_key.capitalize(), pouch_count]
+			else:
+				prompt_subtext = "No %s seeds" % seed_key.capitalize()
 		var should_show: bool = (
-			has_interaction
+			prompt_action_key != ""
 			and is_on_floor()
 			and not _is_harvesting
+			and not _is_planting
 			and charge_progress <= 0.001
 		)
 		_prompt_root.visible = should_show
-		if should_show and _harvest_label:
-			if robot_interactable:
-				_harvest_label.text = robot_label
-			else:
-				_harvest_label.text = "Harvest %s" % _nearest_plot.plant_type.name
+		if should_show:
+			if _e_prompt:
+				_e_prompt.text = prompt_action_key
+			if _harvest_label:
+				_harvest_label.text = prompt_subtext
 
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position
@@ -523,6 +619,24 @@ func _facing_from_input(input: Vector2) -> int:
 	if abs(input.x) > abs(input.y):
 		return 1 if input.x > 0 else 3
 	return 2 if input.y > 0 else 0
+
+
+# Called when _plant_progress crosses 1.0. The pouch may have been drained
+# between the press and the completion (e.g. the dispenser ran dry and someone
+# poked the GameState directly), so re-check before paying the seed.
+func _complete_plant_action() -> void:
+	if _plant_target == null or _iso_floor == null:
+		return
+	var seed_key: String = _gs.selected_seed_type
+	var pouch: int = int(_gs.seed_pouch.get(seed_key, 0))
+	if pouch <= 0:
+		return
+	if _plant_target.plant_type != null:
+		# Race condition fail-safe: someone else planted this plot mid-action.
+		return
+	var coord: Vector2i = _plant_target.coord
+	if _iso_floor.plant(coord, seed_key):
+		_gs.seed_pouch[seed_key] = pouch - 1
 
 
 func _make_material(color: Color) -> StandardMaterial3D:
