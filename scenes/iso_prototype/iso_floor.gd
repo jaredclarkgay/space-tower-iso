@@ -176,7 +176,7 @@ func _spawn_harvest_feedback(plot: Dictionary) -> void:
 	label.outline_size = 6
 	label.modulate = color
 	label.outline_modulate = Color(0, 0, 0, 0.85)
-	label.pixel_size = pixel_size
+	label.pixel_size = _adapt_pixel_size(pixel_size)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.position = plot.world_pos + Vector3(0, 0.7, 0)
@@ -186,6 +186,17 @@ func _spawn_harvest_feedback(plot: Dictionary) -> void:
 	tween.tween_property(label, ^"position:y", start_y + 1.4, 1.0)
 	tween.tween_property(label, ^"modulate:a", 0.0, 1.0)
 	tween.finished.connect(label.queue_free)
+
+
+# Scale a base Label3D pixel_size by the current camera ortho_size so 3D
+# floaters stay roughly screen-constant from iso default down to OTS close-up.
+# Clamped on the low end so the text can't go microscopic at extreme zoom.
+func _adapt_pixel_size(base_pixel_size: float) -> float:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return base_pixel_size
+	var ortho: float = float(gs.camera.get("ortho_size", _c.CAMERA_ORTHO_SIZE_DEFAULT))
+	return base_pixel_size * clamp(ortho / _c.CAMERA_ORTHO_SIZE_DEFAULT, 0.22, 1.0)
 
 
 # --- Slab -------------------------------------------------------------------
@@ -608,6 +619,28 @@ func _convert_empty_to_planted(plot: Dictionary, plant_type: Dictionary) -> void
 	# Tiny dirt-poof: spawn a few small brown sphere bursts around the soil
 	# that fade out as they rise. Cheap moment without extra dependencies.
 	_spawn_plant_dirt_poof(plot.world_pos)
+	# "+ Planted" floater so the action has a visible result beat — without
+	# it the kneel ends and the only feedback is a quietly emerging sprout.
+	_spawn_plant_feedback(plot, plant_type)
+
+
+func _spawn_plant_feedback(plot: Dictionary, plant_type: Dictionary) -> void:
+	var label := Label3D.new()
+	label.text = "Planted %s" % plant_type.name
+	label.font_size = 40
+	label.outline_size = 6
+	label.modulate = Color(0.65, 0.95, 0.55, 1.0)
+	label.outline_modulate = Color(0, 0, 0, 0.85)
+	label.pixel_size = _adapt_pixel_size(0.011)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = plot.world_pos + Vector3(0, 0.55, 0)
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 1.1, 1.1)
+	tween.tween_property(label, ^"modulate:a", 0.0, 1.1)
+	tween.finished.connect(label.queue_free)
 
 
 func _spawn_plant_dirt_poof(world_pos: Vector3) -> void:
@@ -666,7 +699,9 @@ func _stage_to_plant_radius(stage: int) -> float:
 	# Stages 1..5 → progressively larger foliage. Stage 5 capped at 0.20 so
 	# the fruit accents (positioned above and outside the sphere) actually
 	# read at iso distance instead of being engulfed by green leaves.
-	var radii := [0.04, 0.08, 0.12, 0.16, 0.20]
+	# Stage 1 raised from 0.04 → 0.10 so a freshly-planted sprout is
+	# actually visible after the kneel; previous value was a green pinhead.
+	var radii := [0.10, 0.13, 0.155, 0.18, 0.20]
 	return radii[stage - 1]
 
 

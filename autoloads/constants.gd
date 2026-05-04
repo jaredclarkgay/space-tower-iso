@@ -94,9 +94,10 @@ const PLAYER_GRAVITY := 32.0            # m/s² downward — heavier feel, less 
 const PLAYER_JUMP_VELOCITY := 10.0      # m/s upward impulse on tap (~1.56 m peak)
 const PLAYER_JUMP_VELOCITY_MAX := 20.0  # m/s upward impulse at full charge (4× height)
 const PLAYER_JUMP_CHARGE_DURATION := 1.0  # seconds of held Space to reach max
-const PLAYER_LAND_SQUASH_DURATION := 0.16 # seconds of squash on landing
+const PLAYER_LAND_SQUASH_DURATION := 0.32 # seconds of squash on landing — longer
+                                           # so the bounce reads as a real beat
 const PLAYER_VISUAL_CROUCH_SCALE := 0.62  # visual.scale.y at full charge
-const PLAYER_VISUAL_LAND_SCALE := 0.82    # visual.scale.y at landing peak
+const PLAYER_VISUAL_LAND_SCALE := 0.65    # visual.scale.y at landing peak — deeper
 
 # --- Plant growth + harvest lifecycle ---
 # 5 visible growth stages (sprout → ready). Total growth time across the

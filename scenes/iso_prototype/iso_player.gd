@@ -398,6 +398,13 @@ func _physics_process(delta: float) -> void:
 				_e_prompt.text = prompt_action_key
 			if _harvest_label:
 				_harvest_label.text = prompt_subtext
+			# Keep the 3D prompt at roughly constant screen size as the
+			# camera zooms — labels were sized for default ortho 40, so
+			# in close camera modes (OTS at 5, PROFILE at 8, or any
+			# user-zoom) they'd otherwise dominate the frame.
+			var ortho_size: float = float(_gs.camera.get("ortho_size", _c.CAMERA_ORTHO_SIZE_DEFAULT))
+			var prompt_scale: float = clamp(ortho_size / _c.CAMERA_ORTHO_SIZE_DEFAULT, 0.18, 1.0)
+			_prompt_root.scale = Vector3.ONE * prompt_scale
 
 	# Mirror to GameState as the single source of truth.
 	_gs.player.iso_pos = global_position
@@ -629,6 +636,14 @@ func get_facing_yaw() -> float:
 	# iso_camera.gd to keep PROFILE / OTS framings aligned with the body's
 	# direction. Value is 0 when the player faces +Z (south).
 	return _facing_yaw
+
+
+func is_holding_pose() -> bool:
+	# True while the player is rooted in a deliberate beat (mid-harvest,
+	# mid-plant, or charging a jump). The OTS camera reads this to freeze
+	# its yaw-chase so the world doesn't rotate around the player during the
+	# moment they're standing still to do something.
+	return _is_harvesting or _is_planting or _charge_time > 0.0
 
 
 func _facing_from_input(input: Vector2) -> int:

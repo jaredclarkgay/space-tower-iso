@@ -353,6 +353,12 @@ func _update_follow_mode(delta: float) -> void:
 		# Yaw stays fixed for profile — set at mode-entry, doesn't track turns.
 	elif _mode == _c.CAMERA_MODE_OTS:
 		_pivot.global_position = _player_anchor(_c.CAMERA_OTS_HEIGHT_OFFSET)
+		# Freeze the yaw chase when the player is in a held pose (mid-plant,
+		# mid-harvest, charging a jump). The camera keeps tracking position
+		# but stops rotating, so the moment doesn't get spun around.
+		if _iso_player and _iso_player.has_method("is_holding_pose") \
+				and _iso_player.is_holding_pose():
+			return
 		var target_yaw: float = _player_yaw_or(_pivot.rotation.y) + PI
 		var diff: float = wrapf(target_yaw - _pivot.rotation.y + PI, 0.0, TAU) - PI
 		var step: float = clamp(_c.CAMERA_OTS_YAW_LERP_RATE * delta, 0.0, abs(diff))
