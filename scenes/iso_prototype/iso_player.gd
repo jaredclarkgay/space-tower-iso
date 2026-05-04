@@ -55,17 +55,18 @@ const NECK_OFFSET_Y := 0.39       # neck base in torso_pivot frame
 # the body's local frame, after the Y facing rotation). Tuned so the body
 # reads as actively kneeling / winding up / tucking, not just compressed.
 const POSE_IDLE := {"legs_x": 0.0, "torso_x": 0.0, "arms_x": 0.0, "head_x": 0.0}
-# Kneel — torso bent forward, arms reaching down to scatter the seed, head
-# tilted to look at where they're planting. Arms reach further than torso
-# bend so the hands clearly arrive at soil level.
-const POSE_KNEEL := {"legs_x": 0.0, "torso_x": 0.62, "arms_x": -1.55, "head_x": 0.50}
+# Kneel — gentle forward bend, arms reach down with a natural angle (not
+# fully horizontal), head tilts to look at where the seed lands without
+# burying the chin in the chest. Tuned for "kneeling planter" rather than
+# "doubled over picking up a coin".
+const POSE_KNEEL := {"legs_x": 0.0, "torso_x": 0.42, "arms_x": -1.05, "head_x": 0.32}
 # Charge — anticipation pose: forward lean, arms swept back behind body
 # (the wind-up before the spring), head locked forward on the takeoff arc.
-# Magnitudes tuned to read at full charge from any angle.
 const POSE_CHARGE := {"legs_x": 0.10, "torso_x": 0.40, "arms_x": 1.65, "head_x": 0.22}
-# Tuck — full curl mid-flip: legs pulled up, arms in front of face, head
-# tucked down. Combined with the 360° flip rotation it reads as gymnast.
-const POSE_TUCK := {"legs_x": -1.55, "torso_x": 0.35, "arms_x": -2.05, "head_x": 0.60}
+# Tuck — controlled mid-flip pose: knees pulled up but not buried in chest,
+# arms held in front but not crammed into the face, head tilted but still
+# in line with the body. Reads as a gymnastic tuck instead of a panic ball.
+const POSE_TUCK := {"legs_x": -1.10, "torso_x": 0.22, "arms_x": -1.45, "head_x": 0.32}
 # Landing — sharp forward absorption: deep torso bend, arms swing forward
 # for balance, head dips. Bigger than v1 so the impact beat is unmissable.
 const POSE_LAND := {"legs_x": 0.0, "torso_x": 0.55, "arms_x": -0.90, "head_x": 0.40}
@@ -73,6 +74,10 @@ const POSE_LAND := {"legs_x": 0.0, "torso_x": 0.55, "arms_x": -0.90, "head_x": 0
 # 14.0 so charge/land beats actually catch up to their target before the
 # state passes (charge ramps over 1.0 s; land squash over 0.32 s).
 const POSE_BLEND_RATE := 18.0
+# Once the operator has held jump this long, the player commits to a charged
+# spring and horizontal movement freezes. Below this threshold a quick tap
+# stays free so run-and-jump still works.
+const CHARGE_MOVE_LOCK_THRESHOLD := 0.12
 
 var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
 const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
@@ -309,7 +314,13 @@ func _physics_process(delta: float) -> void:
 			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
 				_facing_yaw = atan2(to_plot.x, to_plot.z)
 
-	if _is_harvesting or _is_planting:
+	# Committed-charge movement lock: once the player has held jump past the
+	# CHARGE_LOCK_THRESHOLD they're winding up for a real spring — freezing
+	# horizontal velocity then keeps the body from sliding around in a
+	# crouched anticipation pose. Brief grace period preserves run-and-tap
+	# jumps (release before the threshold = no lock).
+	var committed_charge: bool = _charge_time > CHARGE_MOVE_LOCK_THRESHOLD
+	if _is_harvesting or _is_planting or committed_charge:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	else:
