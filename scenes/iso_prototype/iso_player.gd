@@ -37,7 +37,42 @@ var _visual: Node3D
 # All body parts are children of this so the flip pivots around the waist
 # rather than around the feet.
 var _flip_pivot: Node3D
+# Articulated body pivots — each rotates X around a logical joint so we can
+# compose plant-kneel / charge-windup / tuck / landing poses out of real
+# joint angles instead of just a uniform scale.y squash.
+var _legs_pivot: Node3D    # at the hip (top of thigh) — pulls knees up for tuck
+var _torso_pivot: Node3D   # at the waist (rotation pivot for forward bend)
+var _arms_pivot: Node3D    # at the shoulders (top of arm capsule)
+var _head_pivot: Node3D    # at the base of the neck
+
 const VISUAL_PIVOT_Y := 0.85    # waist height — the flip's rotation centre
+const HIP_OFFSET_Y := -0.23     # hip top in flip_pivot frame (top of leg capsule)
+const SHOULDER_OFFSET_Y := 0.375  # shoulder top in torso_pivot frame
+const NECK_OFFSET_Y := 0.39       # neck base in torso_pivot frame
+
+# Pose targets — each entry is rotation.x for {legs, torso, arms, head} in
+# radians. Positive values bend the joint "forward" (head/arms toward +Z in
+# the body's local frame, after the Y facing rotation). Tuned so the body
+# reads as actively kneeling / winding up / tucking, not just compressed.
+const POSE_IDLE := {"legs_x": 0.0, "torso_x": 0.0, "arms_x": 0.0, "head_x": 0.0}
+# Kneel — torso bent forward, arms reaching down to scatter the seed, head
+# tilted to look at where they're planting. Arms reach further than torso
+# bend so the hands clearly arrive at soil level.
+const POSE_KNEEL := {"legs_x": 0.0, "torso_x": 0.62, "arms_x": -1.55, "head_x": 0.50}
+# Charge — anticipation pose: forward lean, arms swept back behind body
+# (the wind-up before the spring), head locked forward on the takeoff arc.
+# Magnitudes tuned to read at full charge from any angle.
+const POSE_CHARGE := {"legs_x": 0.10, "torso_x": 0.40, "arms_x": 1.65, "head_x": 0.22}
+# Tuck — full curl mid-flip: legs pulled up, arms in front of face, head
+# tucked down. Combined with the 360° flip rotation it reads as gymnast.
+const POSE_TUCK := {"legs_x": -1.55, "torso_x": 0.35, "arms_x": -2.05, "head_x": 0.60}
+# Landing — sharp forward absorption: deep torso bend, arms swing forward
+# for balance, head dips. Bigger than v1 so the impact beat is unmissable.
+const POSE_LAND := {"legs_x": 0.0, "torso_x": 0.55, "arms_x": -0.90, "head_x": 0.40}
+# rad/s — how fast joints lerp toward target. Higher than the previous
+# 14.0 so charge/land beats actually catch up to their target before the
+# state passes (charge ramps over 1.0 s; land squash over 0.32 s).
+const POSE_BLEND_RATE := 18.0
 
 var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
 const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
@@ -94,6 +129,24 @@ func _ready() -> void:
 	_flip_pivot.name = "FlipPivot"
 	_flip_pivot.position.y = VISUAL_PIVOT_Y
 	_visual.add_child(_flip_pivot)
+	# Articulated joint pivots. Build hierarchy first so _build_visual can
+	# parent body parts directly into the right pivot.
+	_legs_pivot = Node3D.new()
+	_legs_pivot.name = "LegsPivot"
+	_legs_pivot.position.y = HIP_OFFSET_Y
+	_flip_pivot.add_child(_legs_pivot)
+	_torso_pivot = Node3D.new()
+	_torso_pivot.name = "TorsoPivot"
+	_torso_pivot.position.y = 0.0   # waist origin
+	_flip_pivot.add_child(_torso_pivot)
+	_arms_pivot = Node3D.new()
+	_arms_pivot.name = "ArmsPivot"
+	_arms_pivot.position.y = SHOULDER_OFFSET_Y
+	_torso_pivot.add_child(_arms_pivot)
+	_head_pivot = Node3D.new()
+	_head_pivot.name = "HeadPivot"
+	_head_pivot.position.y = NECK_OFFSET_Y
+	_torso_pivot.add_child(_head_pivot)
 	_build_visual()
 	_build_collision()
 	_build_charge_bar()
@@ -329,22 +382,32 @@ func _physics_process(delta: float) -> void:
 	if _visual:
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, _facing_yaw, FACING_TURN_SPEED * delta)
 
-	# Visual squat/squash:
-	#   - while harvesting: kneel (deepest crouch). Takes priority.
-	#   - while charging: scale.y from 1.0 → CROUCH_SCALE proportional to charge
-	#   - on landing: brief squash to LAND_SCALE, recovers in LAND_SQUASH_DURATION
-	#   - otherwise: scale.y = 1.0 (neutral standing pose)
+	# Pose blending — drive real joint angles toward whichever named pose
+	# matches the current state. The articulated rig (legs / torso / arms /
+	# head) gives kneel-with-reach, charge-with-arm-swing-back, tuck-with-
+	# knees-up, and landing-with-forward-bend their own shape language so
+	# they don't all read as "vertical squash". scale.y stays as a
+	# secondary effect for charge crouch + land squash.
 	var charge_progress: float = _charge_time / _c.PLAYER_JUMP_CHARGE_DURATION
 	var land_progress: float = _land_squash_t / _c.PLAYER_LAND_SQUASH_DURATION
+	var target_pose: Dictionary = POSE_IDLE
 	var target_scale_y := 1.0
-	if _is_harvesting:
-		target_scale_y = _c.HARVEST_KNEEL_SCALE_Y
-	elif _is_planting:
-		target_scale_y = _c.PLANT_KNEEL_SCALE_Y
-	elif charge_progress > 0.0:
-		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_CROUCH_SCALE, charge_progress)
+	if _is_harvesting or _is_planting:
+		target_pose = POSE_KNEEL
+		target_scale_y = _c.HARVEST_KNEEL_SCALE_Y if _is_harvesting else _c.PLANT_KNEEL_SCALE_Y
+	elif _is_flipping and not is_on_floor():
+		target_pose = POSE_TUCK
 	elif land_progress > 0.0:
+		target_pose = _blend_pose_dicts(POSE_LAND, POSE_IDLE, 1.0 - land_progress)
 		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_LAND_SCALE, land_progress)
+	elif charge_progress > 0.0:
+		target_pose = _blend_pose_dicts(POSE_IDLE, POSE_CHARGE, charge_progress)
+		target_scale_y = lerp(1.0, _c.PLAYER_VISUAL_CROUCH_SCALE, charge_progress)
+
+	_blend_joint(_legs_pivot, "legs_x", target_pose, delta)
+	_blend_joint(_torso_pivot, "torso_x", target_pose, delta)
+	_blend_joint(_arms_pivot, "arms_x", target_pose, delta)
+	_blend_joint(_head_pivot, "head_x", target_pose, delta)
 	_visual.scale.y = lerp(_visual.scale.y, target_scale_y, 18.0 * delta)
 
 	# Charge gauge visibility + fill update.
@@ -421,16 +484,22 @@ func _physics_process(delta: float) -> void:
 # --- Visual: legs + torso + arms + head + hardhat -----------------------
 
 func _build_visual() -> void:
-	# All body parts parent to _flip_pivot (which is at y=VISUAL_PIVOT_Y in
-	# _visual), so positions here are expressed *relative to the waist* —
-	# subtract VISUAL_PIVOT_Y from each Y so world heights stay unchanged.
-	var v: Node3D = _flip_pivot
-	var jumpsuit := Color(0.85, 0.55, 0.25)   # hardhat-orange
+	# Body parts are parented into joint pivots so poses can rotate real
+	# joints. Positions are expressed in each pivot's local frame:
+	#   _legs_pivot at hip (HIP_OFFSET_Y from waist origin)
+	#   _torso_pivot at waist (origin)
+	#   _arms_pivot at shoulder (SHOULDER_OFFSET_Y above waist, inside torso)
+	#   _head_pivot at neck base (NECK_OFFSET_Y above waist, inside torso)
+	#
+	# At idle (all rotations 0) the rendered body matches the previous
+	# rigid layout exactly — the refactor only adds rotation centres.
+	var jumpsuit := Color(0.85, 0.55, 0.25)
 	var skin := Color(0.95, 0.78, 0.65)
 	var hat_color := Color(1.0, 0.85, 0.2)
 	var leather := Color(0.32, 0.22, 0.14)
 
-	# Legs (two capsules, slightly apart on X).
+	# --- Legs + boots (children of _legs_pivot at hip y=HIP_OFFSET_Y) ---
+	# Original leg world-y = 0.32, hip-relative = 0.32 - VISUAL_PIVOT_Y - HIP_OFFSET_Y = -0.30.
 	for sign_x in [-1, 1]:
 		var leg := MeshInstance3D.new()
 		leg.name = "Leg"
@@ -439,39 +508,43 @@ func _build_visual() -> void:
 		leg_mesh.height = 0.6
 		leg.mesh = leg_mesh
 		leg.material_override = _make_material(jumpsuit)
-		leg.position = Vector3(0.13 * sign_x, 0.32 - VISUAL_PIVOT_Y, 0)
-		v.add_child(leg)
-		# Boot — small dark box at the foot.
+		leg.position = Vector3(0.13 * sign_x, -0.30, 0)
+		_legs_pivot.add_child(leg)
 		var boot := MeshInstance3D.new()
 		boot.name = "Boot"
 		var boot_mesh := BoxMesh.new()
 		boot_mesh.size = Vector3(0.18, 0.08, 0.28)
 		boot.mesh = boot_mesh
 		boot.material_override = _make_material(leather)
-		boot.position = Vector3(0.13 * sign_x, 0.05 - VISUAL_PIVOT_Y, 0.04)
-		v.add_child(boot)
+		# Original boot world-y = 0.05, hip-relative = -0.57.
+		boot.position = Vector3(0.13 * sign_x, -0.57, 0.04)
+		_legs_pivot.add_child(boot)
 
-	# Torso.
-	var torso := MeshInstance3D.new()
-	torso.name = "Torso"
-	var torso_mesh := BoxMesh.new()
-	torso_mesh.size = Vector3(0.5, 0.55, 0.3)
-	torso.mesh = torso_mesh
-	torso.material_override = _make_material(jumpsuit)
-	torso.position = Vector3(0, 0.95 - VISUAL_PIVOT_Y, 0)
-	v.add_child(torso)
-
-	# Tool belt — thin dark band around the waist.
+	# --- Belt (direct child of _flip_pivot, stays put when torso bends) ---
+	# Original belt world-y = 0.7, flip_pivot-relative = -0.15.
 	var belt := MeshInstance3D.new()
 	belt.name = "Belt"
 	var belt_mesh := BoxMesh.new()
 	belt_mesh.size = Vector3(0.54, 0.08, 0.34)
 	belt.mesh = belt_mesh
 	belt.material_override = _make_material(leather)
-	belt.position = Vector3(0, 0.7 - VISUAL_PIVOT_Y, 0)
-	v.add_child(belt)
+	belt.position = Vector3(0, -0.15, 0)
+	_flip_pivot.add_child(belt)
 
-	# Arms (two capsules at the shoulders).
+	# --- Torso (child of _torso_pivot at waist origin) ---
+	# Original torso world-y = 0.95, torso_pivot-relative = 0.10.
+	var torso := MeshInstance3D.new()
+	torso.name = "Torso"
+	var torso_mesh := BoxMesh.new()
+	torso_mesh.size = Vector3(0.5, 0.55, 0.3)
+	torso.mesh = torso_mesh
+	torso.material_override = _make_material(jumpsuit)
+	torso.position = Vector3(0, 0.10, 0)
+	_torso_pivot.add_child(torso)
+
+	# --- Arms + hands (children of _arms_pivot at shoulder) ---
+	# Arm capsule center is half a length below the shoulder pivot so the
+	# arm rotates from the shoulder, not from its mid-line.
 	for sign_x in [-1, 1]:
 		var arm := MeshInstance3D.new()
 		arm.name = "Arm"
@@ -480,29 +553,29 @@ func _build_visual() -> void:
 		arm_mesh.height = 0.55
 		arm.mesh = arm_mesh
 		arm.material_override = _make_material(jumpsuit)
-		arm.position = Vector3(0.32 * sign_x, 0.95 - VISUAL_PIVOT_Y, 0)
-		v.add_child(arm)
-		# Hand — tiny skin-colored cube.
+		arm.position = Vector3(0.32 * sign_x, -0.275, 0)
+		_arms_pivot.add_child(arm)
 		var hand := MeshInstance3D.new()
 		hand.name = "Hand"
 		var hand_mesh := BoxMesh.new()
 		hand_mesh.size = Vector3(0.12, 0.12, 0.14)
 		hand.mesh = hand_mesh
 		hand.material_override = _make_material(skin)
-		hand.position = Vector3(0.32 * sign_x, 0.62 - VISUAL_PIVOT_Y, 0)
-		v.add_child(hand)
+		# Original hand world-y = 0.62, arms_pivot-relative = -0.605.
+		hand.position = Vector3(0.32 * sign_x, -0.605, 0)
+		_arms_pivot.add_child(hand)
 
-	# Head.
+	# --- Head + eyes + hat (children of _head_pivot at neck base) ---
+	# Original head world-y = 1.40, head_pivot-relative = 0.16.
 	var head := MeshInstance3D.new()
 	head.name = "Head"
 	var head_mesh := BoxMesh.new()
 	head_mesh.size = Vector3(0.3, 0.32, 0.3)
 	head.mesh = head_mesh
 	head.material_override = _make_material(skin)
-	head.position = Vector3(0, 1.4 - VISUAL_PIVOT_Y, 0)
-	v.add_child(head)
+	head.position = Vector3(0, 0.16, 0)
+	_head_pivot.add_child(head)
 
-	# Eyes — two tiny dark boxes on the front of the head.
 	for sign_x in [-1, 1]:
 		var eye := MeshInstance3D.new()
 		eye.name = "Eye"
@@ -510,10 +583,9 @@ func _build_visual() -> void:
 		eye_mesh.size = Vector3(0.04, 0.04, 0.02)
 		eye.mesh = eye_mesh
 		eye.material_override = _make_material(Color(0.1, 0.1, 0.12))
-		eye.position = Vector3(0.07 * sign_x, 1.42 - VISUAL_PIVOT_Y, 0.16)
-		v.add_child(eye)
+		eye.position = Vector3(0.07 * sign_x, 0.18, 0.16)
+		_head_pivot.add_child(eye)
 
-	# Hardhat brim — flat cylinder slightly wider than the head.
 	var brim := MeshInstance3D.new()
 	brim.name = "HardhatBrim"
 	var brim_mesh := CylinderMesh.new()
@@ -522,10 +594,9 @@ func _build_visual() -> void:
 	brim_mesh.height = 0.04
 	brim.mesh = brim_mesh
 	brim.material_override = _make_material(hat_color)
-	brim.position = Vector3(0, 1.59 - VISUAL_PIVOT_Y, 0.04)
-	v.add_child(brim)
+	brim.position = Vector3(0, 0.35, 0.04)
+	_head_pivot.add_child(brim)
 
-	# Hardhat dome — slightly squashed sphere on top.
 	var hat := MeshInstance3D.new()
 	hat.name = "HardhatDome"
 	var hat_mesh := SphereMesh.new()
@@ -533,18 +604,17 @@ func _build_visual() -> void:
 	hat_mesh.height = 0.28
 	hat.mesh = hat_mesh
 	hat.material_override = _make_material(hat_color)
-	hat.position = Vector3(0, 1.66 - VISUAL_PIVOT_Y, 0)
-	v.add_child(hat)
+	hat.position = Vector3(0, 0.42, 0)
+	_head_pivot.add_child(hat)
 
-	# Facing-direction nub on the brim front so iso direction stays readable.
 	var nub := MeshInstance3D.new()
 	nub.name = "FacingNub"
 	var nub_mesh := BoxMesh.new()
 	nub_mesh.size = Vector3(0.08, 0.06, 0.06)
 	nub.mesh = nub_mesh
 	nub.material_override = _make_material(Color(0.2, 0.2, 0.22))
-	nub.position = Vector3(0, 1.59 - VISUAL_PIVOT_Y, 0.28)
-	v.add_child(nub)
+	nub.position = Vector3(0, 0.35, 0.28)
+	_head_pivot.add_child(nub)
 
 
 func _build_collision() -> void:
@@ -636,6 +706,29 @@ func get_facing_yaw() -> float:
 	# iso_camera.gd to keep PROFILE / OTS framings aligned with the body's
 	# direction. Value is 0 when the player faces +Z (south).
 	return _facing_yaw
+
+
+# Linear blend between two pose dicts at parameter t (0 → a, 1 → b). Used
+# to ramp into / out of charge + landing poses smoothly, rather than slamming
+# from idle to a named pose target.
+func _blend_pose_dicts(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
+	var k: float = clamp(t, 0.0, 1.0)
+	return {
+		"legs_x": lerp(float(a.legs_x), float(b.legs_x), k),
+		"torso_x": lerp(float(a.torso_x), float(b.torso_x), k),
+		"arms_x": lerp(float(a.arms_x), float(b.arms_x), k),
+		"head_x": lerp(float(a.head_x), float(b.head_x), k),
+	}
+
+
+# Step a joint pivot's rotation.x toward the target's matching key by the
+# pose blend rate. Pivot may not exist yet on the very first frame after
+# tree entry — silently skip in that case.
+func _blend_joint(pivot: Node3D, key: String, target_pose: Dictionary, delta: float) -> void:
+	if pivot == null:
+		return
+	var goal: float = float(target_pose.get(key, 0.0))
+	pivot.rotation.x = lerp(pivot.rotation.x, goal, POSE_BLEND_RATE * delta)
 
 
 func is_holding_pose() -> bool:

@@ -16,3 +16,7 @@ export.cfg
 # still go in prototype_screenshots/.
 /Screenshot*.png
 /Screenshot*.png.import
+
+# Local dev rig for capturing animation frames via --write-movie. Re-create
+# from `tools/anim_capture.gd` if needed; not part of the shipping game.
+/tools/
