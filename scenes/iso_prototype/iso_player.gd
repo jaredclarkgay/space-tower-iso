@@ -44,6 +44,21 @@ var _legs_pivot: Node3D    # at the hip (top of thigh) — pulls knees up for tu
 var _torso_pivot: Node3D   # at the waist (rotation pivot for forward bend)
 var _arms_pivot: Node3D    # at the shoulders (top of arm capsule)
 var _head_pivot: Node3D    # at the base of the neck
+# Per-limb pivots — children of the corresponding parent pivot. These
+# rotate X for the walk / run cycle (alternating L/R) and compose
+# multiplicatively with the parent pose, so a kneel can have arms
+# reaching down AND a walk can have arms swinging at the shoulders.
+var _leg_l_pivot: Node3D
+var _leg_r_pivot: Node3D
+var _arm_l_pivot: Node3D
+var _arm_r_pivot: Node3D
+
+# Locomotion cycle state. Phase advances while the player is moving on
+# the ground; amplitude lerps up/down so legs/arms ease into and out of
+# the cycle on movement start/stop instead of snapping.
+var _locomotion_phase: float = 0.0
+var _locomotion_amp: float = 0.0
+var _locomotion_bob: float = 0.0    # smoothed body-bob magnitude
 
 const VISUAL_PIVOT_Y := 0.85    # waist height — the flip's rotation centre
 const HIP_OFFSET_Y := -0.23     # hip top in flip_pivot frame (top of leg capsule)
@@ -80,6 +95,18 @@ const POSE_BLEND_RATE := 18.0
 # spring and horizontal movement freezes. Below this threshold a quick tap
 # stays free so run-and-jump still works.
 const CHARGE_MOVE_LOCK_THRESHOLD := 0.12
+
+# --- Walk + run cycle ---
+# Walk: brisk-pace gentle stride. Run: longer stride at higher cadence.
+# Phase advances at WALK/RUN_CYCLE_RATE rad/s; one full sine period
+# (2π rad) = two foot strikes. Amplitude is the leg/arm rotation magnitude.
+const WALK_CYCLE_RATE := 9.0
+const WALK_LIMB_AMPLITUDE := 0.32
+const WALK_BOB_AMPLITUDE := 0.020
+const RUN_CYCLE_RATE := 14.0
+const RUN_LIMB_AMPLITUDE := 0.62
+const RUN_BOB_AMPLITUDE := 0.055
+const LOCOMOTION_BLEND_RATE := 12.0   # how fast amp lerps in/out
 
 var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
 const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
@@ -154,6 +181,25 @@ func _ready() -> void:
 	_head_pivot.name = "HeadPivot"
 	_head_pivot.position.y = NECK_OFFSET_Y
 	_torso_pivot.add_child(_head_pivot)
+	# Per-limb pivots — each at the corresponding shoulder / hip in its
+	# parent's frame. Limbs hang down from their own pivot so the walk /
+	# run cycle rotates them naturally from the joint.
+	_leg_l_pivot = Node3D.new()
+	_leg_l_pivot.name = "LegLPivot"
+	_leg_l_pivot.position = Vector3(-0.13, 0.0, 0.0)
+	_legs_pivot.add_child(_leg_l_pivot)
+	_leg_r_pivot = Node3D.new()
+	_leg_r_pivot.name = "LegRPivot"
+	_leg_r_pivot.position = Vector3(0.13, 0.0, 0.0)
+	_legs_pivot.add_child(_leg_r_pivot)
+	_arm_l_pivot = Node3D.new()
+	_arm_l_pivot.name = "ArmLPivot"
+	_arm_l_pivot.position = Vector3(-0.32, 0.0, 0.0)
+	_arms_pivot.add_child(_arm_l_pivot)
+	_arm_r_pivot = Node3D.new()
+	_arm_r_pivot.name = "ArmRPivot"
+	_arm_r_pivot.position = Vector3(0.32, 0.0, 0.0)
+	_arms_pivot.add_child(_arm_r_pivot)
 	_build_visual()
 	_build_collision()
 	_build_charge_bar()
@@ -423,6 +469,55 @@ func _physics_process(delta: float) -> void:
 	_blend_joint(_head_pivot, "head_x", target_pose, delta)
 	_visual.scale.y = lerp(_visual.scale.y, target_scale_y, 18.0 * delta)
 
+	# --- Walk / run cycle ---
+	# Drives the per-limb pivots in alternating motion plus a small body
+	# bob. Phase only advances while moving on the ground; amplitude eases
+	# in/out so the body settles naturally on stop. Disabled during locked
+	# poses (harvest / plant / charge / airborne) so a kneel-with-arm-swing
+	# can't happen.
+	var horizontal_speed: float = Vector2(velocity.x, velocity.z).length()
+	var locomotion_active: bool = (
+		on_floor
+		and horizontal_speed > 0.5
+		and not _is_harvesting
+		and not _is_planting
+		and _charge_time <= CHARGE_MOVE_LOCK_THRESHOLD
+		and land_progress <= 0.001
+	)
+	var target_amp: float = 0.0
+	var target_bob: float = 0.0
+	var cycle_rate: float = 0.0
+	if locomotion_active:
+		var sprinting: bool = Input.is_action_pressed(&"sprint")
+		if sprinting:
+			target_amp = RUN_LIMB_AMPLITUDE
+			target_bob = RUN_BOB_AMPLITUDE
+			cycle_rate = RUN_CYCLE_RATE
+		else:
+			target_amp = WALK_LIMB_AMPLITUDE
+			target_bob = WALK_BOB_AMPLITUDE
+			cycle_rate = WALK_CYCLE_RATE
+	_locomotion_amp = lerp(_locomotion_amp, target_amp, LOCOMOTION_BLEND_RATE * delta)
+	_locomotion_bob = lerp(_locomotion_bob, target_bob, LOCOMOTION_BLEND_RATE * delta)
+	if locomotion_active:
+		_locomotion_phase = fmod(_locomotion_phase + cycle_rate * delta, TAU)
+	# Limb swing — left/right opposite, arms counter-phase to legs.
+	var swing: float = sin(_locomotion_phase) * _locomotion_amp
+	if _leg_l_pivot:
+		_leg_l_pivot.rotation.x = swing
+	if _leg_r_pivot:
+		_leg_r_pivot.rotation.x = -swing
+	if _arm_l_pivot:
+		_arm_l_pivot.rotation.x = -swing
+	if _arm_r_pivot:
+		_arm_r_pivot.rotation.x = swing
+	# Body bob — body SINKS twice per stride (once per foot strike) and
+	# rises through neutral when a single leg passes under the hip.
+	# abs(sin) is 1 at the spread points (legs apart) and 0 at neutrals.
+	if _flip_pivot:
+		var bob: float = abs(sin(_locomotion_phase)) * _locomotion_bob
+		_flip_pivot.position.y = VISUAL_PIVOT_Y - bob
+
 	# Charge gauge visibility + fill update.
 	_update_charge_bar(charge_progress)
 	# Harvest gauge fills during harvest; reuses the same green bar visual
@@ -511,9 +606,13 @@ func _build_visual() -> void:
 	var hat_color := Color(1.0, 0.85, 0.2)
 	var leather := Color(0.32, 0.22, 0.14)
 
-	# --- Legs + boots (children of _legs_pivot at hip y=HIP_OFFSET_Y) ---
-	# Original leg world-y = 0.32, hip-relative = 0.32 - VISUAL_PIVOT_Y - HIP_OFFSET_Y = -0.30.
-	for sign_x in [-1, 1]:
+	# --- Legs + boots (each in its own per-side pivot at the hip) ---
+	# Per-limb pivots already carry the X offset; the leg + boot meshes
+	# sit at local x=0 inside their pivot so rotation around the hip is
+	# clean. Y positions match the original (pre-refactor) world heights.
+	for entry in [[-1, _leg_l_pivot], [1, _leg_r_pivot]]:
+		var sign_x: int = entry[0]
+		var pivot: Node3D = entry[1]
 		var leg := MeshInstance3D.new()
 		leg.name = "Leg"
 		var leg_mesh := CapsuleMesh.new()
@@ -521,17 +620,16 @@ func _build_visual() -> void:
 		leg_mesh.height = 0.6
 		leg.mesh = leg_mesh
 		leg.material_override = _make_material(jumpsuit)
-		leg.position = Vector3(0.13 * sign_x, -0.30, 0)
-		_legs_pivot.add_child(leg)
+		leg.position = Vector3(0.0, -0.30, 0.0)
+		pivot.add_child(leg)
 		var boot := MeshInstance3D.new()
 		boot.name = "Boot"
 		var boot_mesh := BoxMesh.new()
 		boot_mesh.size = Vector3(0.18, 0.08, 0.28)
 		boot.mesh = boot_mesh
 		boot.material_override = _make_material(leather)
-		# Original boot world-y = 0.05, hip-relative = -0.57.
-		boot.position = Vector3(0.13 * sign_x, -0.57, 0.04)
-		_legs_pivot.add_child(boot)
+		boot.position = Vector3(0.0, -0.57, 0.04)
+		pivot.add_child(boot)
 
 	# --- Belt (direct child of _flip_pivot, stays put when torso bends) ---
 	# Original belt world-y = 0.7, flip_pivot-relative = -0.15.
@@ -555,10 +653,12 @@ func _build_visual() -> void:
 	torso.position = Vector3(0, 0.10, 0)
 	_torso_pivot.add_child(torso)
 
-	# --- Arms + hands (children of _arms_pivot at shoulder) ---
-	# Arm capsule center is half a length below the shoulder pivot so the
-	# arm rotates from the shoulder, not from its mid-line.
-	for sign_x in [-1, 1]:
+	# --- Arms + hands (each in its own per-side pivot at the shoulder) ---
+	# Same pattern as legs: pivot carries the X offset, mesh sits at
+	# local x=0 so a per-arm cycle pivots from the shoulder cleanly.
+	for entry in [[-1, _arm_l_pivot], [1, _arm_r_pivot]]:
+		var sign_x: int = entry[0]
+		var pivot: Node3D = entry[1]
 		var arm := MeshInstance3D.new()
 		arm.name = "Arm"
 		var arm_mesh := CapsuleMesh.new()
@@ -566,17 +666,16 @@ func _build_visual() -> void:
 		arm_mesh.height = 0.55
 		arm.mesh = arm_mesh
 		arm.material_override = _make_material(jumpsuit)
-		arm.position = Vector3(0.32 * sign_x, -0.275, 0)
-		_arms_pivot.add_child(arm)
+		arm.position = Vector3(0.0, -0.275, 0.0)
+		pivot.add_child(arm)
 		var hand := MeshInstance3D.new()
 		hand.name = "Hand"
 		var hand_mesh := BoxMesh.new()
 		hand_mesh.size = Vector3(0.12, 0.12, 0.14)
 		hand.mesh = hand_mesh
 		hand.material_override = _make_material(skin)
-		# Original hand world-y = 0.62, arms_pivot-relative = -0.605.
-		hand.position = Vector3(0.32 * sign_x, -0.605, 0)
-		_arms_pivot.add_child(hand)
+		hand.position = Vector3(0.0, -0.605, 0.0)
+		pivot.add_child(hand)
 
 	# --- Head + eyes + hat (children of _head_pivot at neck base) ---
 	# Original head world-y = 1.40, head_pivot-relative = 0.16.
