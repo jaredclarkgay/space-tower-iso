@@ -54,10 +54,11 @@ var _arm_l_pivot: Node3D
 var _arm_r_pivot: Node3D
 
 # Locomotion cycle state. Phase advances while the player is moving on
-# the ground; amplitude lerps up/down so legs/arms ease into and out of
-# the cycle on movement start/stop instead of snapping.
+# the ground; amplitude / lift / bob lerp up/down so legs ease into and
+# out of the cycle on movement start/stop instead of snapping.
 var _locomotion_phase: float = 0.0
 var _locomotion_amp: float = 0.0
+var _locomotion_lift: float = 0.0   # smoothed foot-lift height
 var _locomotion_bob: float = 0.0    # smoothed body-bob magnitude
 
 const VISUAL_PIVOT_Y := 0.85    # waist height — the flip's rotation centre
@@ -97,15 +98,21 @@ const POSE_BLEND_RATE := 18.0
 const CHARGE_MOVE_LOCK_THRESHOLD := 0.12
 
 # --- Walk + run cycle ---
-# Walk: brisk-pace gentle stride. Run: longer stride at higher cadence.
-# Phase advances at WALK/RUN_CYCLE_RATE rad/s; one full sine period
-# (2π rad) = two foot strikes. Amplitude is the leg/arm rotation magnitude.
-const WALK_CYCLE_RATE := 9.0
-const WALK_LIMB_AMPLITUDE := 0.32
+# Cycle rate is DERIVED from current horizontal speed and stride amplitude
+# rather than fixed, so feet appear to plant in the world instead of
+# sliding. The plant phase of each leg is half the cycle (one sine period
+# = two foot strikes); during plant the foot is held fixed in world space
+# and the body translates over it. cycle_rate = π · speed / (2 · amp_z)
+# is the rate at which the body covers exactly one foot-width per plant
+# phase, so feet stay glued to the ground.
+const LEG_LENGTH := 0.57              # hip pivot → boot, used by the IK math
+const WALK_LIMB_AMPLITUDE := 0.55
 const WALK_BOB_AMPLITUDE := 0.020
-const RUN_CYCLE_RATE := 14.0
-const RUN_LIMB_AMPLITUDE := 0.62
+const WALK_FOOT_LIFT := 0.06          # how high the foot rises mid-swing
+const RUN_LIMB_AMPLITUDE := 0.95
 const RUN_BOB_AMPLITUDE := 0.055
+const RUN_FOOT_LIFT := 0.12
+const ARM_SWING_RATIO := 0.65         # arm amplitude as fraction of leg
 const LOCOMOTION_BLEND_RATE := 12.0   # how fast amp lerps in/out
 
 var _facing_yaw := 0.0     # smoothed yaw the visual is interpolating toward
@@ -469,12 +476,12 @@ func _physics_process(delta: float) -> void:
 	_blend_joint(_head_pivot, "head_x", target_pose, delta)
 	_visual.scale.y = lerp(_visual.scale.y, target_scale_y, 18.0 * delta)
 
-	# --- Walk / run cycle ---
-	# Drives the per-limb pivots in alternating motion plus a small body
-	# bob. Phase only advances while moving on the ground; amplitude eases
-	# in/out so the body settles naturally on stop. Disabled during locked
-	# poses (harvest / plant / charge / airborne) so a kneel-with-arm-swing
-	# can't happen.
+	# --- Walk / run cycle (speed-synced, foot-planted) ---
+	# Each leg's cycle is split: half "plant" (foot fixed in world, body
+	# moves over it), half "swing" (foot arcs forward through air). The
+	# cycle_rate is computed from current horizontal speed and stride
+	# amplitude so during the plant half the foot's body-relative motion
+	# exactly cancels the body's forward velocity — no sliding.
 	var horizontal_speed: float = Vector2(velocity.x, velocity.z).length()
 	var locomotion_active: bool = (
 		on_floor
@@ -485,35 +492,40 @@ func _physics_process(delta: float) -> void:
 		and land_progress <= 0.001
 	)
 	var target_amp: float = 0.0
+	var target_lift: float = 0.0
 	var target_bob: float = 0.0
-	var cycle_rate: float = 0.0
 	if locomotion_active:
 		var sprinting: bool = Input.is_action_pressed(&"sprint")
 		if sprinting:
 			target_amp = RUN_LIMB_AMPLITUDE
+			target_lift = RUN_FOOT_LIFT
 			target_bob = RUN_BOB_AMPLITUDE
-			cycle_rate = RUN_CYCLE_RATE
 		else:
 			target_amp = WALK_LIMB_AMPLITUDE
+			target_lift = WALK_FOOT_LIFT
 			target_bob = WALK_BOB_AMPLITUDE
-			cycle_rate = WALK_CYCLE_RATE
 	_locomotion_amp = lerp(_locomotion_amp, target_amp, LOCOMOTION_BLEND_RATE * delta)
+	_locomotion_lift = lerp(_locomotion_lift, target_lift, LOCOMOTION_BLEND_RATE * delta)
 	_locomotion_bob = lerp(_locomotion_bob, target_bob, LOCOMOTION_BLEND_RATE * delta)
-	if locomotion_active:
+	# amp_z is the foot's max forward / backward Z displacement from hip.
+	# cycle_rate set so plant phase covers exactly amp_z * 2 of body travel.
+	var amp_z: float = LEG_LENGTH * sin(_locomotion_amp)
+	if locomotion_active and amp_z > 0.001:
+		var cycle_rate: float = horizontal_speed * PI / (2.0 * amp_z)
 		_locomotion_phase = fmod(_locomotion_phase + cycle_rate * delta, TAU)
-	# Limb swing — left/right opposite, arms counter-phase to legs.
-	var swing: float = sin(_locomotion_phase) * _locomotion_amp
-	if _leg_l_pivot:
-		_leg_l_pivot.rotation.x = swing
-	if _leg_r_pivot:
-		_leg_r_pivot.rotation.x = -swing
+	# Per-leg foot trajectory. Left and right are π out of phase. By the
+	# convention used here phase 0..π is SWING (foot in air) and π..2π is
+	# PLANT (foot fixed relative to world).
+	_apply_leg_foot(_leg_l_pivot, _locomotion_phase, amp_z, _locomotion_lift)
+	_apply_leg_foot(_leg_r_pivot, fmod(_locomotion_phase + PI, TAU), amp_z, _locomotion_lift)
+	# Arms — sin-based, counter-phase to legs, smaller amplitude.
+	var arm_swing: float = sin(_locomotion_phase) * _locomotion_amp * ARM_SWING_RATIO
 	if _arm_l_pivot:
-		_arm_l_pivot.rotation.x = -swing
+		_arm_l_pivot.rotation.x = -arm_swing
 	if _arm_r_pivot:
-		_arm_r_pivot.rotation.x = swing
+		_arm_r_pivot.rotation.x = arm_swing
 	# Body bob — body SINKS twice per stride (once per foot strike) and
 	# rises through neutral when a single leg passes under the hip.
-	# abs(sin) is 1 at the spread points (legs apart) and 0 at neutrals.
 	if _flip_pivot:
 		var bob: float = abs(sin(_locomotion_phase)) * _locomotion_bob
 		_flip_pivot.position.y = VISUAL_PIVOT_Y - bob
@@ -841,6 +853,35 @@ func _blend_joint(pivot: Node3D, key: String, target_pose: Dictionary, delta: fl
 		return
 	var goal: float = float(target_pose.get(key, 0.0))
 	pivot.rotation.x = lerp(pivot.rotation.x, goal, POSE_BLEND_RATE * delta)
+
+
+# Drive a single leg's pivot from a per-leg phase value.
+#  phase 0..π   — SWING: foot moves from -amp_z (back) to +amp_z (front)
+#                 through the air, with a sine arc lift to clear the ground.
+#  phase π..2π  — PLANT: foot held at decreasing body-relative Z so it
+#                 cancels the body's forward velocity (foot fixed in world).
+# rotation.x is solved from foot_z via inverse-sin since each leg is a
+# single rigid capsule pivoting from the hip.
+func _apply_leg_foot(pivot: Node3D, leg_phase: float, amp_z: float, lift_amp: float) -> void:
+	if pivot == null:
+		return
+	var foot_z: float
+	var foot_lift: float
+	if leg_phase < PI:
+		# Swing — foot lifts at mid-air, plants at strike.
+		var t: float = leg_phase / PI
+		foot_z = lerp(-amp_z, amp_z, t)
+		foot_lift = sin(t * PI) * lift_amp
+	else:
+		# Plant — foot relative-to-body marches backward at body speed.
+		var t: float = (leg_phase - PI) / PI
+		foot_z = lerp(amp_z, -amp_z, t)
+		foot_lift = 0.0
+	# Foot-z relative to body is -leg_length·sin(rotation.x) (rotation
+	# math from _build_visual). Solve for rotation.x:
+	var ratio: float = clamp(-foot_z / LEG_LENGTH, -1.0, 1.0)
+	pivot.rotation.x = asin(ratio)
+	pivot.position.y = foot_lift
 
 
 func is_holding_pose() -> bool:
