@@ -60,9 +60,11 @@ const POSE_IDLE := {"legs_x": 0.0, "torso_x": 0.0, "arms_x": 0.0, "head_x": 0.0}
 # burying the chin in the chest. Tuned for "kneeling planter" rather than
 # "doubled over picking up a coin".
 const POSE_KNEEL := {"legs_x": 0.0, "torso_x": 0.42, "arms_x": -1.05, "head_x": 0.32}
-# Charge — anticipation pose: forward lean, arms swept back behind body
-# (the wind-up before the spring), head locked forward on the takeoff arc.
-const POSE_CHARGE := {"legs_x": 0.10, "torso_x": 0.40, "arms_x": 1.65, "head_x": 0.22}
+# Charge — front-flip anticipation: slight forward lean, arms swung UP and
+# FORWARD (like a diver loading the leap), head tilted slightly forward to
+# track the launch arc. The previous arms-back pose read as a back-flip
+# wind-up, which clashed with the body's actual forward rotation.
+const POSE_CHARGE := {"legs_x": 0.0, "torso_x": 0.28, "arms_x": -2.20, "head_x": 0.18}
 # Tuck — controlled mid-flip pose: knees pulled up but not buried in chest,
 # arms held in front but not crammed into the face, head tilted but still
 # in line with the body. Reads as a gymnastic tuck instead of a panic ball.
