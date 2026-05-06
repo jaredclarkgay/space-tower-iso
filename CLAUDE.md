@@ -47,6 +47,22 @@ Persistent self-knowledge lives in `agent/`:
 
 When in doubt, **append rather than guess**. Surfacing an unresolved decision in `request_queue.json` beats picking blindly.
 
+### Consulting `agent/rules/` before non-trivial work
+
+Each rule is ~50–100 lines and captures a pattern that took real effort to discover. Reading the matching rule first is a 30-second tax that prevents repeating a failure that's already in the log.
+
+| If you're working on... | Read first |
+|---|---|
+| Walk/run/locomotion in `iso_player.gd` | `rules/godot_locomotion_cycle.md` |
+| Animation poses (kneel / charge / tuck / land) | `rules/animation_pose_alignment.md` |
+| Adding a new `.gd` file referenced by a `.tscn` | `rules/godot_script_uid.md` |
+| Fading 3D meshes (alpha tween, etc.) | `rules/godot_3d_fade.md` |
+| HUD Buttons that might conflict with `ui_accept` (Space/Enter) | `rules/godot_button_focus.md` |
+| `.tscn` fixes "not taking effect" in the editor | `rules/godot_editor_cache.md` |
+| `class_name` with the `--headless --import` harness | `rules/gdscript_class_name_caveats.md` |
+
+For specialized work, dispatch to the `godot-iso-builder` subagent (defined in `.claude/agents/`) — it pre-loads project conventions and the rule index.
+
 ### Auto-capture on session end
 
 `agent/capture_session.sh` is wired up as a `SessionEnd:clear` and
