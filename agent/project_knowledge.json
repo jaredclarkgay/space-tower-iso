@@ -1,13 +1,13 @@
 {
-  "version": "2.0",
+  "version": "2.1",
   "doc_version_synced": "v3",
-  "last_updated": "2026-04-30",
+  "last_updated": "2026-05-05",
   "scope": "iso_vertical_slice (operator-evolved beyond original brief)",
   "pivot_rationale": "Test collapsing Space Tower's two visual modes (3D exterior + 2D side-on sim) into a single isometric view as the baseline. Slice lives in a separate repo from the existing game so the experiment can be archived if it doesn't feel right, with no impact on shipping work.",
   "current_state": {
     "phase": "iterative_polish",
     "originally_planned_scope": "one Garden floor + character + camera + STOP",
-    "actual_evolved_scope": "30×30 plot grid with ROYGBV value gradient, perimeter walls with translucent windows + window spotlights, animated extension grid (blueprint frame), 4×4 elevator shaft, player with hardhat-orange jumpsuit + jump/charge/sprint/harvest, Cody GX-5 helper robot with arrival ceremony + Slippy-style chat with backstory dialogue tree + tricks + Schematics modal with 3D preview and skill-tree placeholder.",
+    "actual_evolved_scope": "30×30 plot grid with ROYGBV value gradient + radial starter ring, player-driven seed planting (south-wall dispenser, 6-cell HUD seed selector with stock gauges, P plant verb, kneel-with-reach pose), three camera modes the operator can toggle (ISO / PROFILE side-on / OTS over-shoulder, each with save/restore of iso pose), articulated player body with joint pivots and named poses (idle / kneel / charge / tuck / land) and a speed-synced foot-planted walk+run cycle, Cody GX-5 helper robot with camera-aware arrival ceremony + dialogue tree + Schematics modal.",
     "operator_decision": "Brief's 'STOP at scope creep' guidance overridden by operator. The slice is the prototype game now."
   },
   "engine": {
@@ -23,7 +23,8 @@
     "visual_consistency": "Same Cody chassis (cody_3d_view.gd shared component) renders in chat dialogue, schematic preview, and in-world. Customization in the schematic mirrors live to the world robot via apply_customization().",
     "operator_aesthetic": "garden-of-eden / utopian / tower-building / construction-worker — warm earth tones (terracotta, amber, moss) + gold accents + cream text. Not generic dark-grey-with-blue UI.",
     "narrative_depth": "Cody isn't a tool. He has loneliness, an origin (the foundry), predecessors (Cody GX-1..4 stored in a vault), admiration for human free will. Tricks reveal personality.",
-    "tunable_game_feel": "All key knobs in autoloads/constants.gd: PLAYER_MOVE_SPEED, PLAYER_SPRINT_MULTIPLIER, HARVEST_DURATION, ROBOT_HARVEST_DURATION, ROBOT_CAPACITY, ROBOT_UNLOCK_THRESHOLD, GROWTH_STAGE_DURATION, POST_HARVEST_DURATION, plant grow_multiplier per type, CAMERA_*."
+    "tunable_game_feel": "All key knobs in autoloads/constants.gd: PLAYER_MOVE_SPEED, PLAYER_SPRINT_MULTIPLIER, HARVEST_DURATION, ROBOT_HARVEST_DURATION, ROBOT_CAPACITY, ROBOT_UNLOCK_THRESHOLD, GROWTH_STAGE_DURATION, POST_HARVEST_DURATION, plant grow_multiplier per type, CAMERA_*, SEED_MAX_STOCK / SEED_REFILL_SECONDS per type, STARTER_GARDEN_RADIUS, WALK_/RUN_LIMB_AMPLITUDE / FOOT_LIFT / BOB_AMPLITUDE.",
+    "details_make_it_special": "Operator surfaced this explicitly mid-session: 'the details are what will make this game feel special'. Worth implementing a third-pass-deep refinement when something feels off (e.g. real foot-planting IK, articulated body poses, charge wind-up direction matching flip rotation). Don't band-aid an animation feel issue — investigate the principle being violated and fix it properly. The capture rig at tools/anim_capture.tscn (gitignored) makes frame-by-frame analysis tractable from chat."
   },
   "operator_long_term_vision": [
     "Cody evolves: Roomba MK1 (current) → Speed Boost → Capacity → Builder Mode → Steel Frame → Combat Module → Companion Bond. Schematics modal already shows this skill tree as visual placeholder.",
@@ -74,9 +75,25 @@
     "PLANT_GROW_MULTIPLIERS": "Red 1.0, Orange 1.0, Yellow 1.2, Green 1.1, Blue 1.3, Violet 1.5 (60 s full cycle)",
     "PLANT_SCARCITY_VIA_VORONOI_SEED_COUNT": "Red 5, Orange 4, Yellow 3, Green 3, Blue 3, Violet 2 → ~10% violet",
     "CAMERA_TILT_DEG": -30,
-    "CAMERA_YAW_DEG_INITIAL": 45,
+    "CAMERA_YAW_DEG_INITIAL": "-135 (NW corner looking SE so south-wall dispenser is visible at spawn)",
     "CAMERA_DIALOGUE_FOCUS_SIZE": 7.0,
-    "CAMERA_DIALOGUE_ORBIT_RATE": "0.15 rad/s"
+    "CAMERA_DIALOGUE_ORBIT_RATE": "0.15 rad/s",
+    "CAMERA_PROFILE": "tilt -8°, distance 9, ortho size 8, pivot tracks player XZ at chest height, yaw locked at mode-entry to perpendicular-of-facing",
+    "CAMERA_OTS": "tilt -25°, distance 7, ortho size 5, pivot tracks player XZ, yaw lerps toward facing+π at 6 rad/s; freezes mid-pose via iso_player.is_holding_pose()",
+    "STARTER_GARDEN_RADIUS": 6.7,
+    "SEED_MAX_STOCK": "tomato 40, pumpkin 30, pepper 25, cucumber 20, blueberries 15, eggplant 5",
+    "SEED_REFILL_SECONDS": "tomato 5, pumpkin 8, pepper 12, cucumber 20, blueberries 30, eggplant 60",
+    "PLANT_DURATION": 0.5,
+    "SPROUT_EMERGE_DURATION": 1.0,
+    "WALK_LIMB_AMPLITUDE": 0.55,
+    "RUN_LIMB_AMPLITUDE": 0.95,
+    "LEG_LENGTH": 0.57,
+    "POSE_KNEEL_FINAL": "torso 0.42, arms -1.05, head 0.32 (after softening from initial 0.62/-1.55/0.50)",
+    "POSE_CHARGE_FINAL": "torso 0.28, arms -2.20 (UP-FORWARD), head 0.18 — matches forward-flip direction",
+    "POSE_TUCK_FINAL": "legs -1.10, torso 0.22, arms -1.45, head 0.32 — controlled gymnast curl",
+    "POSE_LAND_FINAL": "torso 0.55, arms -0.90, head 0.40 — deep impact absorption",
+    "PLAYER_LAND_SQUASH_DURATION": 0.32,
+    "PLAYER_VISUAL_LAND_SCALE": 0.65
   },
   "the_reckoning_one_paragraph": "Floor 8 is the conflict floor. When Floor 8 reaches buildout stage 5 and all floors are stage ≥ 1, The Reckoning triggers: a 90-second mini-game where 12 builder AI vs. 18 suit AI in squads fight for block territory on floors 6-8. Player claims blocks by standing. Post-reckoning, 30 civilian NPCs flood in. Out of scope here, but Phase-N consideration as Cody picks up Combat Module.",
   "adjacent_repos": {

@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
-  "last_updated": "2026-04-30",
+  "version": "1.2",
+  "last_updated": "2026-05-05",
   "domains": {
     "godot_isometric": {
       "confidence": "high",
@@ -85,6 +85,31 @@
       "failure_patterns": [
         "Diagnosing a 'modal opens at start' bug as a code logic issue when the actual cause was the editor cache (F-009) — three commits of code-level fixes were needed to convince me the runtime wasn't the problem.",
         "Suggesting plan mode or asking for confirmation on aesthetic iterations slows the loop. The operator is in an iterative groove; ship something, observe their reaction, adjust."
+      ],
+      "needs_from_human": []
+    },
+    "procedural_character_animation": {
+      "confidence": "high",
+      "evidence": [
+        "Refactored a rigid scale-y-only player visual into an articulated rig with joint pivots (legs, torso, arms, head + per-side limb pivots). Defined named poses (idle, kneel, charge, tuck, land) as joint-rotation dicts and per-frame _blend_joint lerps each pivot toward its target. Charge + land pose blend with their progress (0..1) for smooth ramp-in.",
+        "Walk + run cycle solved with speed-derived cycle rate + piecewise foot trajectory. cycle_rate = π · speed / (2 · LEG_LENGTH · sin(amplitude)) makes plant half-cycle cover exactly the body's stride distance, so the foot stays fixed in world during plant. Inverse-sin solves leg rotation from desired foot Z. Foot lift via per-leg pivot Y offset during swing.",
+        "Operator caught two animation-principle gaps: (1) charge wind-up direction must match upcoming flip rotation; arms-back was a backflip cue but our flip is forward — fixed with arms-up-forward (diver load). (2) Foot-slide on procedural locomotion — fixed with speed-synced piecewise trajectory.",
+        "Capture rig at tools/anim_capture.tscn (gitignored) drives Input.action_press from a script, writes a PNG sequence via --write-movie at fixed-fps for offline frame-by-frame analysis. Made it possible to iterate animation feel from chat."
+      ],
+      "rules_learned": [
+        "Articulated body — introduce intermediate Node3D pivots at logical joints (hip, waist, shoulder, neck) then express body parts in each pivot's local frame. Pivot rotations compose multiplicatively so a kneel-with-walking-arms is impossible (cycle gates off mid-pose); a tuck with legs forward AND parent flip rotation is just two rotations multiplied.",
+        "Pose definitions as dicts of joint angles (POSE_KNEEL = {'torso_x': 0.42, 'arms_x': -1.05, ...}) make tuning a single-line edit per joint and adding a new pose ~5 lines.",
+        "For foot-planting on a procedural cycle: piecewise trajectory beats single-waveform. SWING phase = foot arcs through air (sin curve + Y-offset lift), PLANT phase = foot z-relative marches linearly to cancel body velocity. Single rigid leg is 1-DOF; rotation = asin(-foot_z / leg_length).",
+        "Cycle rate must derive from current speed — fixed rates always slide. The math: rate = π · speed / (foot_z_range_per_swing).",
+        "Arm cycle as fraction of leg amplitude (~0.65) keeps arms swinging without exaggeration. Counter-phase to legs (right arm forward when right leg is back).",
+        "Body bob on the parent flip_pivot Y axis — abs(sin(phase)) · bob_amp, SUBTRACTED from baseline so body sinks at foot strike (legs spread = hip lower in real biomechanics).",
+        "Animation pose body language must match upcoming physics direction. Front flip = arms reach UP-FORWARD on charge (diver load); back flip = arms swing back. Mismatched anticipation feels wrong even before the player can articulate why.",
+        "Capture animation frames offline via --write-movie + scene that drives Input.action_press programmatically. Set GameState.camera_mode = 'profile' or 'ots' for the angle that best shows the body. Iterating animation feel from frame-by-frame analysis is way faster than running the editor each round."
+      ],
+      "failure_patterns": [
+        "Single-rigid-mesh body trying to express multiple poses via uniform scale.y. Every state ends up reading as a vertical squash (F-008 baseline before refactor). Fix: introduce joint pivots and pose blending.",
+        "Procedural locomotion with sin-only trajectory + fixed cycle rate. Feet always move; never plant. Body slides through space. Even a perfect cycle/speed match has slip at the rotational extents (cos = 0 there). Fix: piecewise plant/swing.",
+        "Animation visual cues that imply the wrong physics direction (F-012). Visual anticipation must match what comes next."
       ],
       "needs_from_human": []
     },

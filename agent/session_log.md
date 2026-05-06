@@ -238,3 +238,149 @@ The brief's hard STOP gates were overridden once the operator started iterating 
 
 ### Next
 - No active stop gate. Operator's call. Likely directions: actual skill-tree unlock logic (food cost + applied effects), Cody's personal-experience counter to vary dialogue lines, camera-follow on the player, save/load, the second floor.
+
+---
+
+## Session 3 (2026-04-30 → 2026-05-05) — Player-driven planting, camera modes, articulated body
+
+Three big arcs in this session: a complete crop planting loop, three camera modes
+the operator can toggle between, and a full procedural body-animation system on
+the player. The slice has now become a small living game with most of the
+"feel a moment" beats wired up.
+
+### What landed
+
+**Crop planting v1**:
+- Replaced auto-Voronoi fill with a player-driven loop. Starter garden seeds a
+  contiguous radial ring around the elevator (`STARTER_GARDEN_RADIUS = 6.7`); the
+  rest of the floor is empty tilled plots ready for the player to plant into.
+- New south-wall **seed dispenser** (`scenes/iso_prototype/iso_dispenser.gd`)
+  with six windows, per-type stock + independent refill timers. Number keys 1–6
+  dispense the corresponding type directly when the player is in range; outside
+  the dispenser the same keys just select the seed type. E still works as a
+  fallback for the currently-selected seed.
+- Per-window number labels + stock count gauges in 3D, plus a `SEEDS` overhead
+  beacon that fades in on player approach.
+- New **seed pouch** + `selected_seed_type` in GameState. Pouch starts empty;
+  HUD hidden until the player's first successful dispense (avoids confusing
+  "× 0" rows pre-tutorial).
+- Bottom-of-screen seed selector HUD (`seed_hud.gd`) with sequential staggered
+  reveal — header + six cells slide up from below with TRANS_BACK overshoot.
+  Each cell shows number-key, fruit-color swatch, name, pouch count, and a
+  current/max stock gauge that tints red when low.
+- New `P` plant verb: kneel for 0.5 s, then `iso_floor.plant(coord, seed_key)`
+  converts the empty plot to a stage-1 sprout via a sprout-emerge tween +
+  dirt-poof + "Planted X" floater.
+- Public iso_floor API: `find_nearest_empty_plot_near()`, `plant(coord, key)`
+  parameterised by Vector2i + lowercase seed key — same surface a future
+  Builder-Cody can call.
+
+**Camera modes** (`camera_modes_hud.gd` + iso_camera mode-switch):
+- Three-button toggle in HUD top-right (under Resources): ISO / PROFILE /
+  OVER-SHOULDER.
+- **ISO** = current free-pan iso (default).
+- **PROFILE** = side-on follow-cam, pivot tracks player XZ, yaw locked at
+  mode-entry to perpendicular-of-current-facing so the player walks through
+  the frame without rotating it.
+- **OTS** = over-the-shoulder chase, pivot tracks player, yaw lerps toward
+  facing+π at 6 rad/s so camera stays behind the body.
+- Saves iso pose on leave-iso, restores on return. Pan/Q-R-rotate disabled
+  in non-iso modes (zoom always works). Dialogue close-up still wins.
+- Default `CAMERA_YAW_DEG_INITIAL` flipped 45° → −135° so the south-wall
+  dispenser is in front of the camera on first spawn instead of behind it.
+- Cody park position now snaps to a cardinal face of the elevator (computed
+  from yaw, snapped to dominant axis) rather than the diagonal corner —
+  the diagonal had him intersecting the elevator's StaticBody3D shaft.
+
+**Articulated body + procedural animation** (the big one):
+- Refactored player visual hierarchy into real joint pivots: `_legs_pivot`
+  at hip, `_torso_pivot` at waist, `_arms_pivot` at shoulder, `_head_pivot`
+  at neck. Plus per-side limb pivots `_leg_l/r_pivot`, `_arm_l/r_pivot` so
+  left and right can alternate.
+- Defined named poses (idle / kneel / charge / tuck / land), each a dict
+  of joint rotations. Per-frame `_blend_joint` lerps each pivot toward
+  the target pose at 18 rad/s. Charge + land linearly blend with progress
+  for smooth ramp-in.
+- `is_holding_pose()` exposed for OTS to freeze its yaw chase during
+  rooted moments (mid-plant, mid-harvest, charging) so the camera doesn't
+  spin around the player at the exact moment they're standing still.
+- Charge pose tuned to match flip direction — operator caught that arms-
+  back read as backflip wind-up, fixed to arms-up-forward (diver load).
+- New walk + run cycle: speed-derived cycle rate
+  `cycle_rate = π · speed / (2 · amp_z)` plus piecewise foot trajectory
+  (half cycle plant with foot fixed in world, half cycle swing through
+  air with sin-based lift). Result: feet plant on the ground, body
+  translates over them — no more skating. Arms swing counter-phase to
+  legs at 65% amplitude. Body bobs (sinks) at each foot strike.
+- Movement locks once `_charge_time > CHARGE_MOVE_LOCK_THRESHOLD = 0.12`
+  so the player no longer slides around in a charged-jump pose. Quick
+  taps stay free for run-and-jump.
+
+### Notable failures + fixes
+
+- **F-011** Script `.uid` files must exist for `ExtResource` references in
+  `.tscn` to resolve cleanly — newly-added `iso_dispenser.gd` had no `.uid`,
+  and the scene silently fell back to a script-less Node3D (dispenser
+  invisible + non-interactable). Fix: `--headless --path . --import` to
+  generate the `.uid`, then pin its value in the `.tscn`.
+- **F-012** Animation pose body-language must match upcoming physics:
+  arms-back charge pose reads as backflip wind-up, but our flip is forward,
+  so the takeoff felt surprising. Operator caught it instantly. Fix: arms
+  up-and-forward (diver load) for the front-flip wind-up.
+- **F-013** Procedural locomotion with fixed cycle rate + sin trajectory
+  makes feet skate — they're always moving so they slide along the body
+  vector. Fix: speed-derived cycle rate + piecewise plant/swing trajectory
+  with inverse-sin solving leg rotation from desired foot Z.
+- **F-014** Diagonal Cody park position (`(sin(yaw), cos(yaw)) · offset`)
+  with offset = 2.7 puts him at distance 2.7 from elevator centre, but
+  the elevator core extends to ±2 on each axis — diagonally his chassis
+  intersects the StaticBody3D shaft. Snap to dominant cardinal axis +
+  bump offset to 1.0 m clearance.
+
+### Operator iteration patterns (observed this session)
+
+- "It's just kind of an awkward look" / "isn't really making sense" / "doesn't
+  feel quite right" — taste-driven feedback, not a spec. Read the current
+  pose against the surrounding physics + body-language conventions; usually
+  there's an animation principle being violated.
+- Will surface real animation-principle gaps. Notable: foot-doesn't-plant
+  observation, charge-pose-vs-flip-direction. These are insightful and
+  almost always worth implementing.
+- Prefers the procedural / programmatic approach so the operator can tune
+  via constants. Don't reach for animation files / AnimationPlayer; do it
+  in code.
+
+### Architecture seams worth noting
+
+- **GameState `camera_mode` string** decouples HUD from camera node directly.
+  HUD writes the mode; iso_camera reads it once per frame and tweens. Easy
+  to add new modes (TOP_DOWN, CINEMATIC) without touching the HUD wire-up.
+- **Pose dicts as data** (POSE_KNEEL, POSE_CHARGE, etc.) make tuning a
+  matter of editing constants, no logic changes. New poses cost ~5 lines.
+- **Per-limb pivots compose with parent pose pivots**. A kneel still has
+  arms reaching down even while the locomotion cycle is gated off. The
+  composition is multiplicative rotation; the gait pivots add on top of
+  the pose pivots.
+- **Capture rig at `tools/anim_capture.tscn`** (gitignored, not shipped):
+  drives Input.action_press from a script, writes PNG sequence via
+  `--write-movie`, supports cmdline args for capture kind + camera mode.
+  Made animation analysis tractable from chat. Pattern is reusable for
+  any future animation iteration.
+
+### Confidence shifts
+
+- New domain: `procedural_character_animation` — high confidence after the
+  body refactor + speed-synced gait work.
+- `godot_isometric` reaffirmed at high; camera mode toggle math worked
+  on first try once the yaw/distance/tilt formula was clear.
+- New rules:
+  - `rules/godot_locomotion_cycle.md` (speed-synced piecewise gait pattern)
+  - `rules/godot_script_uid.md` (uid files matter; run --import)
+  - `rules/animation_pose_alignment.md` (body language must match physics)
+
+### Next
+
+- No active stop gate. Operator's call. Open threads: animation polish
+  (e.g. tuck flip rotation rate scaling with charge, forward arc on jump),
+  Cody experience counter for varied dialogue, save/load, second floor,
+  skill tree unlock logic.
