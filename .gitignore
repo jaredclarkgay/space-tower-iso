@@ -9,8 +9,12 @@
 # Export artifacts (not committed; generated via export presets)
 export.cfg
 
-# Local Claude scratch (per-machine)
-.claude/
+# Claude Code config — share project-level settings, agents, and slash
+# commands across machines; keep transient session scratch local.
+.claude/*
+!.claude/settings.json
+!.claude/agents/
+!.claude/commands/
 
 # Stray screenshots dropped at the repo root. Phase 5 intentional captures
 # still go in prototype_screenshots/.

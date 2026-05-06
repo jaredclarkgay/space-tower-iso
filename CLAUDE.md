@@ -47,6 +47,19 @@ Persistent self-knowledge lives in `agent/`:
 
 When in doubt, **append rather than guess**. Surfacing an unresolved decision in `request_queue.json` beats picking blindly.
 
+### Auto-capture on session end
+
+`agent/capture_session.sh` is wired up as a `SessionEnd:clear` and
+`PreCompact:auto` hook in `.claude/settings.json`. When the operator runs
+`/clear` (or context auto-compacts), the script backgrounds a Claude
+headless run that distills new takeaways into `agent/` and commits
+them as `chore(agent): capture session takeaways` (no push — operator
+reviews + pushes). The hook returns in milliseconds so `/clear` isn't
+blocked behind the capture.
+
+The script no-ops if there have been no commits since the last `agent/`
+update, so empty-session clears don't spam.
+
 ## Decisions log
 
 - **Camera rotate keys: Q (left) / R (right).** Brief proposed Q/E, but `interact` already binds E. Q+R keeps both verbs available without a modifier.
