@@ -384,3 +384,73 @@ the player. The slice has now become a small living game with most of the
   (e.g. tuck flip rotation rate scaling with charge, forward arc on jump),
   Cody experience counter for varied dialogue, save/load, second floor,
   skill tree unlock logic.
+
+---
+
+## Session 4 (2026-05-05 → 2026-05-06) — Agent loop hardening + second-floor design
+
+Brief session — no gameplay code commits since the Session 3 capture. Two
+agent-infrastructure commits landed (auto-capture hook + rule lookup index
++ specialized subagent), and an in-flight design conversation about adding
+a second floor surfaced as the next likely direction.
+
+### Agent loop infrastructure
+
+- **Auto-capture hook** (`agent/capture_session.sh`, wired in
+  `.claude/settings.json` as `SessionEnd:clear` and `PreCompact:auto`):
+  when the operator runs `/clear` or context auto-compacts, the script
+  backgrounds a Claude headless run that distills new takeaways into
+  `agent/` and creates a single `chore(agent): capture session takeaways`
+  commit. The hook itself returns in milliseconds so `/clear` isn't
+  blocked. The script self-suppresses if no commits have landed since the
+  last touch of `agent/`, so empty-session clears no longer spam. Default
+  is no-push; operator reviews and pushes manually.
+- **Rule lookup index** added to CLAUDE.md mapping work-area → rule file
+  (locomotion → `godot_locomotion_cycle.md`, .tscn-fixes-not-taking-effect
+  → `godot_editor_cache.md`, fading 3D meshes → `godot_3d_fade.md`, etc.).
+  Reading the matching rule before non-trivial work is a 30-second tax
+  that prevents repeating a failure already in the log.
+- **godot-iso-builder subagent** (`.claude/agents/godot-iso-builder.md`)
+  pre-loads project conventions and the rule index for specialized Godot
+  work — callable when a task is clearly Godot-iso-specific.
+
+### Design conversation in flight
+
+Operator open to a second floor as a method for building stubs into the
+next piece of narrative via how the floor lands. Two directions surfaced
+in chat:
+
+- **Floor 2 (descend) — planters / food production.** Elevator drop is
+  the narrative beat: Garden's sunlit utopia gives way to the working
+  level beneath. Lands into Cody's existing backstory threads (foundry he
+  misses, predecessors in a vault — could literally render an older
+  Cody-model frozen mid-task). Mechanically extends the harvest loop —
+  planters at stage 4 produce food, points at the Floor 1 diner pipeline.
+  Stubs the predecessors-vault and food-chain → diner.
+- **Floor 4 (ascend) — last Act 1 floor before the RGB threshold.**
+  Landing teases the Floor 5 RGB door humming above; first hint that
+  something different lives further up. Less canonical material to
+  anchor the arrival moment, more invention required.
+
+Recommendation surfaced: Floor 2, since there's more existing thread to
+pull on (vault, foundry, melancholy) and the harvest mechanic gives the
+new floor an immediate purpose. Floor 4 is the bolder pick if the
+operator wants conflict-seeding instead of memory-seeding. Decision
+pending — tracked as Q-001 in `request_queue.json`.
+
+### What this session also affirmed
+
+- The capture loop is cheap enough to run unattended. The script's
+  "skip if nothing new since last `agent/` commit" guard worked: there
+  was nothing new to capture from gameplay code, and the only material
+  worth keeping was meta (the loop itself + the design conversation).
+  This is the loop catching its own steady state.
+
+### Next
+
+- Operator decision on the second floor (Q-001). If Floor 2 lands:
+  descent arrival ceremony, planter mechanic that produces food, vault
+  stub showing GX-1..4 predecessors. If Floor 4 lands: ascent ceremony,
+  hum of the Floor 5 RGB door audible from below, no other floor
+  mechanics required (the landing IS the beat).
+- Other open threads unchanged from Session 3.

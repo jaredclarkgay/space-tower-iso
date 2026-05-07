@@ -1,5 +1,14 @@
 {
-  "queue": [],
+  "queue": [
+    {
+      "id": "Q-001",
+      "type": "design_intent",
+      "date": "2026-05-06",
+      "summary": "Second floor direction: descend to Floor 2 (planters → foundry/vault narrative stub) or ascend to Floor 4 (Floor 5 RGB threshold stub)?",
+      "context": "Operator open to a second floor as a vehicle for seeding the next narrative beat via how the elevator lands. Floor 2 has more existing material to anchor (Cody's foundry, predecessors-in-vault, melancholy) and extends the harvest loop mechanically (planter stage 4 → food → Floor 1 diner pipeline). Floor 4 seeds bigger conflict (RGB threshold, Reckoning) but has less canonical material to draw on. Surfaced 2026-05-06 in chat after the agent flagged that a one-floor slice can't actually answer whether iso handles multi-floor stacking — the original question the slice was created to answer.",
+      "blocking": false
+    }
+  ],
   "request_types": [
     "aesthetic_calibration",
     "design_intent",
