@@ -57,6 +57,7 @@ text = "WASD / Arrows   Move
 Shift           Hold to sprint
 Space           Jump
 E               Pull master breaker
+\\               Swap to Garden (debug)
 
 Floor 1 / Utility — M1 scaffold"
 

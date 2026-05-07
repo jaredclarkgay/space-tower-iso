@@ -102,7 +102,8 @@ Wheel · = / -   Zoom
 Middle / Left-drag   Pan
 1–6             Select seed type (at dispenser: take that seed)
 E               Interact (talk · hold to harvest)
-P               Plant selected seed on tilled plot"
+P               Plant selected seed on tilled plot
+\\               Swap to Floor 1 (debug)"
 
 [node name="ResourcesPanel" type="PanelContainer" parent="HUD"]
 anchors_preset = 1

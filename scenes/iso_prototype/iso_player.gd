@@ -238,6 +238,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Debug stop-gap until M6 wires the elevator: backslash swaps the
+	# current scene between Garden (iso_prototype) and Floor 1 (utility).
+	# GameState autoload preserves cross-scene state.
+	if Input.is_action_just_pressed(&"debug_floor_switch"):
+		_debug_swap_floor()
+		return
+
 	# When the Cody dialogue or the Schematics modal is open, lock the
 	# player in place — number-key shortcuts in the dialogue would
 	# otherwise move the body, and movement would also drift the camera
@@ -1135,3 +1142,17 @@ func _update_harvest_bar(progress: float) -> void:
 		return
 	_harvest_bar_root.visible = true
 	_harvest_bar_fill_pivot.scale.x = clamp(progress, 0.0, 1.0)
+
+
+# Debug-only floor swap. Toggles between the Garden (iso_prototype) and
+# Floor 1 based on the currently-loaded scene's path. Replaces in M6 with
+# a real elevator interaction.
+func _debug_swap_floor() -> void:
+	var current_path: String = ""
+	var cs := get_tree().current_scene
+	if cs:
+		current_path = cs.scene_file_path
+	var target := "res://scenes/floor_1/floor_1.tscn"
+	if not current_path.ends_with("iso_prototype.tscn"):
+		target = "res://scenes/iso_prototype/iso_prototype.tscn"
+	get_tree().change_scene_to_file(target)
