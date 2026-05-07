@@ -301,6 +301,34 @@ const VACUUM_TUBE_HAS_FLOOR_ABOVE := false  # Floor 2 (Garden) has no Floor 3 ye
 # specific buyer markup, time-of-day, etc.
 const TUBE_SELL_VALUE_MULTIPLIER := 1.0
 
+# --- Floor 1 (utility / infrastructure floor under the Garden) -----------
+# Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
+# Layout follows the B1 brief (b1-utility-floor-godot-brief.md): 16×16 m
+# room with a central spine + 5 utility sources + 1 cargo source (the 6th
+# lane, bidirectional — sells produce down, distributes deliveries up to
+# Garden's corner tubes). Tap-E throughout, matching the iso slice's
+# existing interaction grammar instead of the brief's 1.6/1.2/0.9s holds.
+const FLOOR_1_SIZE := 16.0
+const FLOOR_1_WALL_HEIGHT := 3.5
+const FLOOR_1_WALL_THICKNESS := 0.3
+
+# Ortho camera frames the whole floor at once for now — no follow yet, so
+# the operator can read the room layout in one glance during M1 testing.
+# Tilt + yaw match the Garden so the visual grammar carries between floors.
+const FLOOR_1_CAMERA_TILT_DEG := -30.0
+const FLOOR_1_CAMERA_YAW_DEG := -135.0
+const FLOOR_1_CAMERA_DISTANCE := 18.0
+const FLOOR_1_CAMERA_ORTHO_SIZE := 14.0
+
+# Master breaker — south wall. Brief had it at (9.7, 14) on a (0..16) grid;
+# our floor is centred on the origin, so subtract 8 from each axis.
+const MASTER_BREAKER_POSITION := Vector3(1.7, 0.0, 6.0)
+const MASTER_BREAKER_INTERACT_RADIUS := 1.7
+const MASTER_BREAKER_PULL_DURATION := 0.5    # tap-E animation length
+const ROOM_LIGHT_FADE_DURATION := 0.7
+const FLOOR_1_DARK_AMBIENT_MULT := 0.18      # ambient + directional drop when off
+const FLOOR_1_LIT_AMBIENT_MULT := 1.0
+
 # --- Garden visual signature (drives iso_floor.gd in Phase 3) ---
 # Sources: docs/space-tower-project-knowledge-v3.md,
 # docs/player-journey-map-v3-final.html (step 07 "The Garden of Eden")

@@ -1,0 +1,77 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://c6ydytqd24b7r" path="res://scenes/floor_1/floor_1.gd" id="1_floor1"]
+[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
+
+[sub_resource type="Environment" id="Environment_floor1"]
+background_mode = 1
+background_color = Color(0.04, 0.04, 0.06, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.55, 0.62, 1)
+ambient_light_energy = 0.6
+
+[node name="Floor1" type="Node3D"]
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="FloorController" type="Node3D" parent="World"]
+script = ExtResource("1_floor1")
+player_path = NodePath("../IsoPlayer")
+directional_light_path = NodePath("../../EnvLight")
+world_environment_path = NodePath("../../WorldEnvironment")
+
+[node name="IsoPlayer" type="CharacterBody3D" parent="World"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+script = ExtResource("2_player")
+camera_pivot_path = NodePath("../../CameraPivot")
+
+[node name="EnvLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
+light_color = Color(1, 0.92, 0.78, 1)
+light_energy = 0.7
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_floor1")
+
+[node name="CameraPivot" type="Node3D" parent="."]
+position = Vector3(0, 1, 0)
+rotation_degrees = Vector3(0, -135, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+position = Vector3(0, 9, 15.5885)
+rotation_degrees = Vector3(-30, 0, 0)
+projection = 1
+size = 14.0
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="ControlsLabel" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 380.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.92)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
+text = "WASD / Arrows   Move
+Shift           Hold to sprint
+Space           Jump
+E               Pull master breaker
+
+Floor 1 / Utility — M1 scaffold"
+
+[node name="TitleLabel" type="Label" parent="HUD"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -260.0
+offset_top = -40.0
+offset_right = -16.0
+offset_bottom = -8.0
+theme_override_colors/font_color = Color(0.78, 0.78, 0.78, 0.85)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "Floor 1 / Utility"
+horizontal_alignment = 2

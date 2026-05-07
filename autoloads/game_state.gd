@@ -92,3 +92,27 @@ var dispenser_stock := {
 	"blueberries": 0,
 	"eggplant": 0,
 }
+
+# Floor 1 (utility) state. master_on flips when the player pulls the master
+# breaker; per-system `connected` and `pipe_active` track each system's
+# state. Survives floor switches so a return trip restores the lit room
+# and primed/active sources without re-playing the intro.
+var floor_1 := {
+	"master_on": false,
+	"connected": {
+		"water": false,
+		"power": false,
+		"atmosphere": false,
+		"data": false,
+		"waste": false,
+		"cargo": false,
+	},
+	"pipe_active": {
+		"water": false,
+		"power": false,
+		"atmosphere": false,
+		"data": false,
+		"waste": false,
+		"cargo": false,
+	},
+}
