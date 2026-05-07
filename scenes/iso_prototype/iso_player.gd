@@ -25,10 +25,12 @@ extends CharacterBody3D
 @export var iso_floor_path: NodePath
 @export var iso_robot_path: NodePath
 @export var iso_dispenser_path: NodePath
+@export var iso_tubes_path: NodePath
 var _camera_pivot: Node3D
 var _iso_floor: Node3D
 var _iso_robot: Node3D
 var _iso_dispenser: Node3D
+var _iso_tubes: Node3D
 # Visual root — rotates Y with movement direction. Separate from the
 # CharacterBody3D so the collision capsule doesn't spin with the body.
 var _visual: Node3D
@@ -161,6 +163,17 @@ var _bar_root: Node3D
 var _bar_fill_pivot: Node3D
 var _bar_fill_mesh: MeshInstance3D
 
+# Backpack mesh — sits behind the torso, scales with backpack fill. Visual
+# only; the cap/source-of-truth lives in GameState.backpack_count.
+var _backpack: MeshInstance3D
+var _backpack_strap_l: MeshInstance3D
+var _backpack_strap_r: MeshInstance3D
+const BACKPACK_EMPTY_SCALE := Vector3(0.55, 0.45, 0.30)
+const BACKPACK_FULL_SCALE := Vector3(1.05, 1.10, 0.85)
+# Cooldown gating the BACKPACK FULL floater so it doesn't stack on
+# rapid-fire E presses.
+var _backpack_full_floater_cooldown := 0.0
+
 
 func _ready() -> void:
 	_visual = Node3D.new()
@@ -220,6 +233,8 @@ func _ready() -> void:
 		_iso_robot = get_node(iso_robot_path)
 	if iso_dispenser_path:
 		_iso_dispenser = get_node(iso_dispenser_path)
+	if iso_tubes_path:
+		_iso_tubes = get_node(iso_tubes_path)
 
 
 func _physics_process(delta: float) -> void:
@@ -283,13 +298,27 @@ func _physics_process(delta: float) -> void:
 		and _iso_robot != null
 		and _iso_robot.is_interactable_at(global_position, _c.ROBOT_INTERACT_RADIUS)
 	)
+	# Tube interaction is only "live" when there's something to sell — the
+	# tube's own get_interaction_label returns "" with an empty backpack so
+	# the prompt falls through to plot harvest naturally.
+	var tube_interactable: bool = (
+		not dispenser_interactable
+		and not robot_interactable
+		and _iso_tubes != null
+		and _iso_tubes.is_interactable_at(global_position, _c.VACUUM_TUBE_INTERACT_RADIUS)
+		and _gs.backpack_count > 0
+	)
 	var dispenser_label: String = ""
 	var robot_label: String = ""
+	var tube_label: String = ""
 	if dispenser_interactable:
 		dispenser_label = _iso_dispenser.get_interaction_label()
 		_nearest_plot = null
 	elif robot_interactable:
 		robot_label = _iso_robot.get_interaction_label()
+		_nearest_plot = null
+	elif tube_interactable:
+		tube_label = _iso_tubes.get_interaction_label()
 		_nearest_plot = null
 	elif _iso_floor:
 		_nearest_plot = _iso_floor.find_nearest_harvestable_plot_near(
@@ -322,6 +351,7 @@ func _physics_process(delta: float) -> void:
 					var value: int = int(_harvest_target.plant_type.get("value", 1))
 					_iso_floor.harvest_plot(_harvest_target)
 					_gs.food_count += value
+					_gs.backpack_count = mini(_gs.backpack_count + 1, _c.BACKPACK_CAPACITY)
 					_gs.plants_harvested += 1
 				_is_harvesting = false
 				_harvest_progress = 0.0
@@ -346,14 +376,23 @@ func _physics_process(delta: float) -> void:
 			_iso_dispenser.try_interact()
 		elif robot_interactable:
 			_iso_robot.try_interact()
+		elif tube_interactable:
+			_iso_tubes.try_interact()
 		elif _nearest_plot != null:
-			_is_harvesting = true
-			_harvest_target = _nearest_plot
-			_harvest_progress = 0.0
-			# Snap the body to face the plot we're about to harvest.
-			var to_plot: Vector3 = _harvest_target.world_pos - global_position
+			# Snap the body to face the plot the player tried to grab —
+			# whether or not we end up actually harvesting it.
+			var to_plot: Vector3 = _nearest_plot.world_pos - global_position
 			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
 				_facing_yaw = atan2(to_plot.x, to_plot.z)
+			# Backpack-full guard: don't start the harvest at all if there's
+			# no room. Player has to offload at a tube first. The floater is
+			# the one bit of feedback so the press doesn't feel ignored.
+			if _gs.backpack_count >= _c.BACKPACK_CAPACITY:
+				_spawn_backpack_full_floater()
+			else:
+				_is_harvesting = true
+				_harvest_target = _nearest_plot
+				_harvest_progress = 0.0
 	elif Input.is_action_just_pressed(&"plant") \
 			and is_on_floor() \
 			and input.length_squared() < 0.001:
@@ -554,6 +593,9 @@ func _physics_process(delta: float) -> void:
 		elif robot_interactable:
 			prompt_action_key = "E"
 			prompt_subtext = robot_label
+		elif tube_interactable:
+			prompt_action_key = "E"
+			prompt_subtext = tube_label
 		elif _nearest_plot != null:
 			prompt_action_key = "E"
 			prompt_subtext = "Harvest %s" % _nearest_plot.plant_type.name
@@ -599,6 +641,8 @@ func _physics_process(delta: float) -> void:
 	if global_position.y < _c.PLAYER_FALL_RESPAWN_Y:
 		global_position = Vector3(0, 1.0, 0)
 		velocity = Vector3.ZERO
+
+	_update_backpack_visual(delta)
 
 
 # --- Visual: legs + torso + arms + head + hardhat -----------------------
@@ -664,6 +708,36 @@ func _build_visual() -> void:
 	torso.material_override = _make_material(jumpsuit)
 	torso.position = Vector3(0, 0.10, 0)
 	_torso_pivot.add_child(torso)
+
+	# --- Backpack (sits on the back of the torso, scales with fill) ---
+	# Authored at unit size; runtime scale interpolates between
+	# BACKPACK_EMPTY_SCALE and BACKPACK_FULL_SCALE based on backpack fill ratio.
+	# Position is in torso_pivot-local frame: behind the torso (-Z), centred.
+	var canvas := Color(0.42, 0.30, 0.20)
+	var canvas_dark := Color(0.28, 0.20, 0.13)
+	_backpack = MeshInstance3D.new()
+	_backpack.name = "Backpack"
+	var bp_mesh := BoxMesh.new()
+	bp_mesh.size = Vector3(1.0, 1.0, 1.0)
+	_backpack.mesh = bp_mesh
+	_backpack.material_override = _make_material(canvas)
+	_backpack.position = Vector3(0, 0.10, -0.25)
+	_backpack.scale = BACKPACK_EMPTY_SCALE
+	_torso_pivot.add_child(_backpack)
+	# Two thin shoulder straps so the pack reads as a backpack, not a block.
+	for sx in [-1, 1]:
+		var strap := MeshInstance3D.new()
+		strap.name = "BackpackStrap"
+		var strap_mesh := BoxMesh.new()
+		strap_mesh.size = Vector3(0.05, 0.45, 0.06)
+		strap.mesh = strap_mesh
+		strap.material_override = _make_material(canvas_dark)
+		strap.position = Vector3(0.13 * sx, 0.18, -0.16)
+		_torso_pivot.add_child(strap)
+		if sx == -1:
+			_backpack_strap_l = strap
+		else:
+			_backpack_strap_r = strap
 
 	# --- Arms + hands (each in its own per-side pivot at the shoulder) ---
 	# Same pattern as legs: pivot carries the X offset, mesh sits at
@@ -923,6 +997,46 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	m.albedo_color = color
 	m.roughness = 0.7
 	return m
+
+
+# Lerps the backpack mesh between empty and full sizes based on the current
+# fill ratio. Called every physics frame; the lerp toward target gives a
+# subtle swell as the pack loads up rather than a snap.
+func _update_backpack_visual(delta: float) -> void:
+	if _backpack == null:
+		return
+	var ratio: float = clampf(float(_gs.backpack_count) / float(_c.BACKPACK_CAPACITY), 0.0, 1.0)
+	var target: Vector3 = BACKPACK_EMPTY_SCALE.lerp(BACKPACK_FULL_SCALE, ratio)
+	# Critically-damped-ish smoothing — fast enough you can see it react,
+	# slow enough that a single pickup doesn't feel like a snap.
+	var k: float = 1.0 - exp(-12.0 * delta)
+	_backpack.scale = _backpack.scale.lerp(target, k)
+	if _backpack_full_floater_cooldown > 0.0:
+		_backpack_full_floater_cooldown = max(0.0, _backpack_full_floater_cooldown - delta)
+
+
+# Red "BACKPACK FULL" floater above the head when E is pressed on a plot
+# but the pack is already at capacity. Cooldown gates rapid re-spawns.
+func _spawn_backpack_full_floater() -> void:
+	if _backpack_full_floater_cooldown > 0.0:
+		return
+	_backpack_full_floater_cooldown = 1.2
+	var label := Label3D.new()
+	label.text = "BACKPACK FULL"
+	label.font_size = 56
+	label.outline_size = 10
+	label.modulate = Color(1.0, 0.40, 0.35, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+	label.pixel_size = 0.012
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0.0, 2.4, 0.0)
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 0.9, 1.1)
+	tween.tween_property(label, ^"modulate:a", 0.0, 1.1)
+	tween.finished.connect(label.queue_free)
 
 
 # Tiny "E" key + "Harvest <PlantName>" subtext above the head, shown when a

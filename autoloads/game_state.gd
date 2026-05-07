@@ -22,9 +22,18 @@ var camera := {
 	"angle_step": 0,
 }
 
-# Cumulative harvest VALUE (Red=1 ... Violet=15). Mirrored to the
-# top-right HUD label.
+# Sell value of the produce currently on the player's back. Increments on
+# harvest by the plant's `value` (Red=1 … Violet=15); zeroed when the player
+# offloads at a vacuum tube. NOT a lifetime total — it's the carried value.
 var food_count := 0
+# Plant count currently in the backpack (1 per veggie, regardless of value).
+# Capped at Constants.BACKPACK_CAPACITY by the harvest call sites, so this
+# is what the HUD and the player's backpack visual both read.
+var backpack_count := 0
+# Lifetime cash earned by selling produce down the tubes. Accumulated when
+# the player drops a backpack into a tube; never decremented by gameplay
+# yet (no purchases wired up).
+var cash := 0
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the

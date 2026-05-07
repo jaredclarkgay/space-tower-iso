@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://c63jddsadj8we"]
+[gd_scene load_steps=16 format=3 uid="uid://c63jddsadj8we"]
 
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/iso_prototype/iso_floor.gd" id="1_floor"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
@@ -10,6 +10,8 @@
 [ext_resource type="Script" uid="uid://b4b340og50t0n" path="res://scenes/iso_prototype/iso_dispenser.gd" id="8_disp"]
 [ext_resource type="Script" uid="uid://7ynjuwavqx76" path="res://scenes/iso_prototype/seed_hud.gd" id="9_seed"]
 [ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="10_cam"]
+[ext_resource type="Script" uid="uid://bn15o1k3j28xk" path="res://scenes/iso_prototype/cash_hud.gd" id="11_cash"]
+[ext_resource type="Script" uid="uid://dl4i8260hpu4r" path="res://scenes/iso_prototype/iso_tubes.gd" id="12_tubes"]
 
 [sub_resource type="Environment" id="Environment_iso"]
 background_mode = 1
@@ -50,6 +52,7 @@ camera_pivot_path = NodePath("../../CameraPivot")
 iso_floor_path = NodePath("../IsoFloor")
 iso_robot_path = NodePath("../IsoRobot")
 iso_dispenser_path = NodePath("../IsoDispenser")
+iso_tubes_path = NodePath("../IsoTubes")
 
 [node name="IsoRobot" type="Node3D" parent="World"]
 visible = false
@@ -59,6 +62,9 @@ hud_path = NodePath("../../HUD")
 
 [node name="IsoDispenser" type="Node3D" parent="World"]
 script = ExtResource("8_disp")
+
+[node name="IsoTubes" type="Node3D" parent="World"]
+script = ExtResource("12_tubes")
 
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
@@ -141,35 +147,40 @@ theme_override_colors/font_color = Color(0.93, 0.9, 0.78, 0.95)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.45)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 30
-text = "◆   Food"
+text = "◆   Backpack"
 
 [node name="FoodCount" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/FoodRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.96, 0.78, 0.32, 1)
 theme_override_colors/font_outline_color = Color(0.1, 0.05, 0, 1)
 theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 42
-text = "0"
+theme_override_font_sizes/font_size = 36
+text = "0 / 20"
 horizontal_alignment = 2
 script = ExtResource("4_food")
 
-[node name="EnergyRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
+[node name="CashRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="EnergyLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/EnergyRow"]
+[node name="CashLabel" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/CashRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.55, 0.52, 0.42, 0.55)
-theme_override_font_sizes/font_size = 20
-text = "◇   Energy"
+theme_override_colors/font_color = Color(0.93, 0.9, 0.78, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.45)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 26
+text = "◆   Cash"
 
-[node name="EnergyValue" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/EnergyRow"]
+[node name="CashValue" type="Label" parent="HUD/ResourcesPanel/Margin/VBox/CashRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.52, 0.42, 0.55)
-theme_override_font_sizes/font_size = 20
-text = "—"
+theme_override_colors/font_color = Color(0.78, 0.96, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.10, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 32
+text = "$0"
 horizontal_alignment = 2
+script = ExtResource("11_cash")
 
 [node name="PopulationRow" type="HBoxContainer" parent="HUD/ResourcesPanel/Margin/VBox"]
 layout_mode = 2

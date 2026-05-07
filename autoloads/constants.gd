@@ -277,6 +277,30 @@ const PLANT_KNEEL_SCALE_Y := 0.55          # mirrors HARVEST_KNEEL_SCALE_Y for v
 # --- Slice scope ---
 const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)
 
+# --- Player backpack ---
+# Cap on how many veggies (plant count, not value) the player can carry. The
+# backpack mesh on the player's torso scales with fill, and harvest is blocked
+# when at cap — forcing the player to offload via a vacuum tube before they
+# can keep picking. Cody's hopper-collect is also gated on this.
+const BACKPACK_CAPACITY := 20
+
+# --- Vacuum tubes (cross-floor item conduit) ---
+# One tube in each of the four floor corners, inset from the wall. Each tube
+# has a DOWN port (always active — items go down through Floor 1 and out
+# into the world for cash) and an UP port (only active if a floor exists
+# above the current one; on Floor 2 the up port is sealed). The tubes are
+# the standard cross-floor mechanic; every floor will have them.
+const VACUUM_TUBE_INSET := 1.8           # m from the inside of the wall, into the floor
+const VACUUM_TUBE_RADIUS := 0.55         # m — translucent vertical cylinder
+const VACUUM_TUBE_HEIGHT := 3.0          # m — full story height, visible top to bottom
+const VACUUM_TUBE_INTERACT_RADIUS := 1.6 # m — slightly larger than DISPENSER for forgiveness
+const VACUUM_TUBE_HAS_FLOOR_ABOVE := false  # Floor 2 (Garden) has no Floor 3 yet — operator
+                                            # is building Floor 1 elsewhere; up tubes seal.
+# Sell economics. v1: cash awarded equals the carried sell value (sum of
+# plant values from PLANT_TYPES). Future tiers can multiply by a floor-
+# specific buyer markup, time-of-day, etc.
+const TUBE_SELL_VALUE_MULTIPLIER := 1.0
+
 # --- Garden visual signature (drives iso_floor.gd in Phase 3) ---
 # Sources: docs/space-tower-project-knowledge-v3.md,
 # docs/player-journey-map-v3-final.html (step 07 "The Garden of Eden")

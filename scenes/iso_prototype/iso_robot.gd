@@ -157,22 +157,48 @@ func _do_activate() -> void:
 	_fade_out_spotlight()
 
 
-# Direct collect — called from inside the dialogue's Collect choice.
-func _do_collect() -> void:
+# Direct collect — called from inside the dialogue's Collect choice. The
+# player's backpack is the bottleneck: take only as many veggies as fit,
+# leave the rest in Cody's hopper for a follow-up trip after the player
+# offloads at a tube. Returns the number actually transferred so the +N
+# floater reads correctly.
+func _do_collect() -> int:
 	if _state != State.FULL_AWAITING_PICKUP:
-		return
-	_gs.food_count += _capacity_value
-	_capacity = 0
-	_capacity_value = 0
-	_state = State.MOVING_TO_TARGET
+		return 0
+	var room: int = _c.BACKPACK_CAPACITY - _gs.backpack_count
+	if room <= 0:
+		return 0
+	var taken: int = mini(_capacity, room)
+	# Value transferred is proportional to count taken (treats the hopper as
+	# a uniform-value bag — close enough at this granularity, and avoids
+	# tracking which specific plants are in there).
+	var value_per_unit: float = 0.0 if _capacity == 0 else float(_capacity_value) / float(_capacity)
+	var value_taken: int = int(round(value_per_unit * float(taken)))
+	_gs.food_count += value_taken
+	_gs.backpack_count += taken
+	_capacity -= taken
+	_capacity_value -= value_taken
+	if _capacity <= 0:
+		_capacity = 0
+		_capacity_value = 0
+		_state = State.MOVING_TO_TARGET
+	# else: hopper has leftovers — Cody stays in FULL_AWAITING_PICKUP for
+	# the next trip after the player sells at a tube.
+	return taken
 
 
 # Collect with a green "+N" floater above Cody. Used by the quick-press path.
+# If the player's backpack can't fit anything, surface a "FULL" floater on
+# Cody instead so the press doesn't read as ignored.
 func _do_collect_with_feedback() -> void:
 	if _state != State.FULL_AWAITING_PICKUP:
 		return
-	_spawn_collect_feedback(_capacity_value)
-	_do_collect()
+	if _gs.backpack_count >= _c.BACKPACK_CAPACITY:
+		_spawn_full_collect_floater()
+		return
+	var taken: int = _do_collect()
+	if taken > 0:
+		_spawn_collect_feedback(taken)
 
 
 func _spawn_collect_feedback(amount: int) -> void:
@@ -191,6 +217,28 @@ func _spawn_collect_feedback(amount: int) -> void:
 	var tween := create_tween().set_parallel(true)
 	tween.tween_property(label, ^"position:y", start_y + 1.6, 1.2)
 	tween.tween_property(label, ^"modulate:a", 0.0, 1.2)
+	tween.finished.connect(label.queue_free)
+
+
+# Red "BACKPACK FULL" floater above Cody when the player tries to collect
+# but has no room. Same shape as the +N floater so the failure reads as a
+# parallel feedback rather than dead air.
+func _spawn_full_collect_floater() -> void:
+	var label := Label3D.new()
+	label.text = "BACKPACK FULL"
+	label.font_size = 56
+	label.outline_size = 10
+	label.modulate = Color(1.0, 0.40, 0.35, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+	label.pixel_size = 0.012
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0.0, 1.4, 0.0)
+	add_child(label)
+	var start_y: float = label.position.y
+	var tween := create_tween().set_parallel(true)
+	tween.tween_property(label, ^"position:y", start_y + 0.9, 1.1)
+	tween.tween_property(label, ^"modulate:a", 0.0, 1.1)
 	tween.finished.connect(label.queue_free)
 
 
@@ -771,13 +819,15 @@ func _build_dialogue_panel() -> void:
 		return
 	var p := PanelContainer.new()
 	p.name = "CodyDialogue"
+	# Anchored to the bottom-left half of the screen so it doesn't span
+	# the full frame and crowd the right-side HUD.
 	p.anchor_left = 0.0
-	p.anchor_right = 1.0
+	p.anchor_right = 0.5
 	p.anchor_top = 1.0
 	p.anchor_bottom = 1.0
 	p.offset_left = 24.0
 	p.offset_top = -300.0
-	p.offset_right = -24.0
+	p.offset_right = -12.0
 	p.offset_bottom = -24.0
 	p.mouse_filter = Control.MOUSE_FILTER_PASS
 
