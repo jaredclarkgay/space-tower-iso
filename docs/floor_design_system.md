@@ -124,13 +124,33 @@ hook that says "the tower cares about *people*, not just spaces."
 
 ## 6. HUD layout
 
-- **Top-left:** controls hint (small Label, monospace)
-- **Top-right:** Resources panel (`HUD/ResourcesPanel`) — Backpack, Cash,
-  any future per-floor counters
-- **Bottom-left:** Cody dialogue panel when open (left-half-anchored)
-- **Bottom-centre:** Seed selector HUD (Garden only — tied to planting)
-- **Bottom-right:** `CameraModesHud` — three-button camera mode strip
-- **Centre:** modal overlays (Schematics, future floor-specific modals)
+Each region has a defined purpose. Floors fill in the slots they need;
+they don't put content in slots reserved for other purposes.
+
+- **Top-left — Floor identity + controls.**
+  - `HeaderLabel`: large amber title, e.g. `FLOOR 1 / UTILITY`. The first
+    thing the player reads when the scene loads.
+  - `ControlsLabel`: dim, smaller, 3–5 short lines max. Group related
+    keys with `·` separators rather than one-key-per-line.
+- **Top-right — Per-floor primary status panel.**
+  - Garden: `ResourcesPanel` (Backpack count, Cash).
+  - Floor 1: `SystemsHud` (offline/connected/online dot per system).
+  - Future floors: pick the one stat that defines the floor's loop.
+  - Style is consistent: `PanelContainer` with `ResourcePanelStyle`
+    (warm-cream borders, dark-olive bg, drop shadow).
+- **Bottom-left — Conversational dialogue.** Cody chat panel when open;
+  empty otherwise.
+- **Bottom-centre — Floor-specific tools.** Garden uses this for
+  `SeedHud`. Floors with no tool stack leave it empty.
+- **Bottom-right — `CameraModesHud`.** Always present, always at the
+  bottom-right corner with consistent margin. Don't put anything else
+  here.
+- **Centre — modal overlays.** Schematics, future floor-specific
+  modals. Hidden by default.
+
+What NOT to do: put a floor name in the bottom-right (collides with
+camera modes), or pile resources into the bottom-centre (the controls
+hint and the SeedHud already share that visual lane).
 
 ---
 

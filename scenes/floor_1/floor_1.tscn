@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" uid="uid://c6ydytqd24b7r" path="res://scenes/floor_1/floor_1.gd" id="1_floor1"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
 [ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/floor_1/floor_1_systems_hud.gd" id="5_sys"]
 
 [sub_resource type="Environment" id="Environment_floor1"]
 background_mode = 1
@@ -55,39 +56,35 @@ iso_player_path = NodePath("../../World/IsoPlayer")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
-[node name="ControlsLabel" type="Label" parent="HUD"]
-offset_left = 20.0
-offset_top = 16.0
+[node name="HeaderLabel" type="Label" parent="HUD"]
+offset_left = 22.0
+offset_top = 14.0
 offset_right = 420.0
-offset_bottom = 240.0
-theme_override_colors/font_color = Color(1, 1, 1, 0.92)
+offset_bottom = 50.0
+theme_override_colors/font_color = Color(0.95, 0.86, 0.55, 0.95)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 6
-text = "WASD / Arrows   Move
-Shift           Hold to sprint
-Space           Jump
-Q / R           Rotate camera 90°
-Wheel · = / -   Zoom
-Middle / Left-drag   Pan
-E               Pull master breaker
-\\               Swap to Garden (debug)"
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 28
+text = "FLOOR 1 / UTILITY"
+
+[node name="ControlsLabel" type="Label" parent="HUD"]
+offset_left = 22.0
+offset_top = 50.0
+offset_right = 420.0
+offset_bottom = 168.0
+theme_override_colors/font_color = Color(0.85, 0.84, 0.78, 0.78)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.7)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 14
+text = "Move WASD · Sprint Shift · Jump Space
+Camera Q/R · Zoom Wheel · Pan Middle-drag
+Action E
+Debug \\ — swap to Garden"
 
 [node name="CameraModesHud" type="Control" parent="HUD"]
 mouse_filter = 1
 script = ExtResource("4_cam")
 
-[node name="TitleLabel" type="Label" parent="HUD"]
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -260.0
-offset_top = -40.0
-offset_right = -16.0
-offset_bottom = -8.0
-theme_override_colors/font_color = Color(0.78, 0.78, 0.78, 0.85)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 18
-text = "Floor 1 / Utility"
-horizontal_alignment = 2
+[node name="SystemsHud" type="Control" parent="HUD"]
+mouse_filter = 1
+script = ExtResource("5_sys")
