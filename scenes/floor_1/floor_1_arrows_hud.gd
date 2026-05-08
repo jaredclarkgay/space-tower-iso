@@ -81,16 +81,16 @@ func _player_in_range(target: Vector3, radius: float) -> bool:
 	return sqrt(dx * dx + dz * dz) <= radius
 
 
-func _draw_arrow(world_pos: Vector3, label: String, scale: float, bob: float) -> void:
+func _draw_arrow(world_pos: Vector3, label: String, arrow_scale: float, bob: float) -> void:
 	# Skip projection if the position is behind the camera.
 	if _camera.is_position_behind(world_pos):
 		return
 	var screen_pos: Vector2 = _camera.unproject_position(world_pos)
 	screen_pos.y += bob
 
-	var head_w: float = 22.0 * scale
-	var head_h: float = 14.0 * scale
-	var stem_h: float = 16.0 * scale
+	var head_w: float = 22.0 * arrow_scale
+	var head_h: float = 14.0 * arrow_scale
+	var stem_h: float = 16.0 * arrow_scale
 	var pill_pad_x: float = 10.0
 	var pill_pad_y: float = 4.0
 
@@ -112,7 +112,7 @@ func _draw_arrow(world_pos: Vector3, label: String, scale: float, bob: float) ->
 	draw_colored_polygon(head_pts, COLOR_ARROW)
 
 	# Stem — thin vertical bar above the head.
-	var stem_w: float = 4.0 * scale
+	var stem_w: float = 4.0 * arrow_scale
 	var stem_rect := Rect2(
 		screen_pos + Vector2(-stem_w * 0.5, -head_h - stem_h),
 		Vector2(stem_w, stem_h + 1.0),
@@ -121,7 +121,7 @@ func _draw_arrow(world_pos: Vector3, label: String, scale: float, bob: float) ->
 
 	# Label pill above the stem.
 	var font := get_theme_default_font()
-	var font_size: int = int(14.0 * scale)
+	var font_size: int = int(14.0 * arrow_scale)
 	var text_size: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 	var pill_w: float = text_size.x + pill_pad_x * 2.0
 	var pill_h: float = text_size.y + pill_pad_y * 2.0

@@ -68,7 +68,6 @@ var _source_state: Dictionary = {}
 var _source_prompt_root: Node3D
 var _source_prompt_e: Label3D
 var _source_prompt_label: Label3D
-var _source_prompt_anchor_id: String = ""
 
 # Continuous-motion mechanical details have a phase accumulator so
 # wheel-spin / fan-spin / LED-blink doesn't snap on activate.
@@ -1023,12 +1022,11 @@ func _advance_source_tweens(delta: float) -> void:
 		_source_state[id] = st
 
 
-func _update_source_visuals(delta: float) -> void:
+func _update_source_visuals(_delta: float) -> void:
 	for id in _source_state.keys():
 		var st: Dictionary = _source_state[id]
 		var sys: Dictionary = st.sys
 		var base_col: Color = sys.base_color
-		var glow_col: Color = sys.glow_color
 		var ct: float = float(st.get("connect_t", 0.0))
 		var at: float = float(st.get("activate_t", 0.0))
 		var ft: float = float(st.get("fill_t", 0.0))

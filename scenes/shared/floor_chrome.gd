@@ -245,15 +245,15 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 		var cx: float = sx * (size * 0.5 - chamfer * 0.5)
 		var cz: float = sz * (size * 0.5 - chamfer * 0.5)
 		# Tangent runs along the chamfer face — clockwise around the elevator.
-		var tan: Vector3
+		var tangent_dir: Vector3
 		match corner:
-			"NW": tan = Vector3(1, 0, -1).normalized()
-			"NE": tan = Vector3(1, 0, 1).normalized()
-			"SE": tan = Vector3(-1, 0, 1).normalized()
-			"SW": tan = Vector3(-1, 0, -1).normalized()
+			"NW": tangent_dir = Vector3(1, 0, -1).normalized()
+			"NE": tangent_dir = Vector3(1, 0, 1).normalized()
+			"SE": tangent_dir = Vector3(-1, 0, 1).normalized()
+			"SW": tangent_dir = Vector3(-1, 0, -1).normalized()
 		corners[corner] = {
 			"centre": Vector3(cx, 0, cz),
-			"tangent": tan,
+			"tangent": tangent_dir,
 			"normal": Vector3(sx, 0, sz).normalized(),
 		}
 

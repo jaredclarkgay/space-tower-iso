@@ -684,7 +684,6 @@ func _build_visual() -> void:
 	# sit at local x=0 inside their pivot so rotation around the hip is
 	# clean. Y positions match the original (pre-refactor) world heights.
 	for entry in [[-1, _leg_l_pivot], [1, _leg_r_pivot]]:
-		var sign_x: int = entry[0]
 		var pivot: Node3D = entry[1]
 		var leg := MeshInstance3D.new()
 		leg.name = "Leg"
@@ -760,7 +759,6 @@ func _build_visual() -> void:
 	# Same pattern as legs: pivot carries the X offset, mesh sits at
 	# local x=0 so a per-arm cycle pivots from the shoulder cleanly.
 	for entry in [[-1, _arm_l_pivot], [1, _arm_r_pivot]]:
-		var sign_x: int = entry[0]
 		var pivot: Node3D = entry[1]
 		var arm := MeshInstance3D.new()
 		arm.name = "Arm"

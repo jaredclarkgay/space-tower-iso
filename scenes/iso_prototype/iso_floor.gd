@@ -554,15 +554,15 @@ func _attach_planted_plot_visuals(plot: Dictionary) -> void:
 	add_child(soil)
 	plot.soil = soil
 
-	var plant := MeshInstance3D.new()
-	plant.name = "Plant"
+	var plant_visual := MeshInstance3D.new()
+	plant_visual.name = "Plant"
 	var plant_mesh := SphereMesh.new()
 	plant_mesh.radius = 1.0
 	plant_mesh.height = 2.0
-	plant.mesh = plant_mesh
-	plant.material_override = _make_material(plant_color)
-	add_child(plant)
-	plot.plant = plant
+	plant_visual.mesh = plant_mesh
+	plant_visual.material_override = _make_material(plant_color)
+	add_child(plant_visual)
+	plot.plant = plant_visual
 
 	plot.fruits = _build_fruits_for_type(plant_type, x, z)
 

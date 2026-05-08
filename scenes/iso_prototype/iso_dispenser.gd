@@ -27,7 +27,6 @@ var _windows: Dictionary = {}
 # Selected-slot highlight — a single emissive frame that re-parents to the
 # selected window each frame.
 var _highlight: MeshInstance3D
-var _highlight_target_world: Vector3 = Vector3.ZERO
 
 # Overhead "SEEDS" beacon — only shown while the player is in range so it
 # doesn't clutter the floor at game start.
@@ -222,6 +221,7 @@ func _build_windows() -> void:
 	for idx in range(_c.SEED_TYPE_ORDER.size()):
 		var key: String = _c.SEED_TYPE_ORDER[idx]
 		var col: int = idx % 2
+		@warning_ignore("integer_division")
 		var row: int = idx / 2
 		var pt: Dictionary = _c.plant_type_by_seed(key)
 		var fruit_color: Color = pt.get("fruit_color", Color.WHITE) if not pt.is_empty() else Color.WHITE
