@@ -360,6 +360,9 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "wheel_valve",
 		"pipe_index": 0,
 		"pipe_width": 0.16,
+		# Floor pipe Manhattan route — list of waypoints. Each adjacent pair
+		# is one axis-aligned segment, lateral first then longitudinal.
+		"route": [Vector2(-9.4, -9.4), Vector2(-2.0, -9.4), Vector2(-2.0, -2.0)],
 	},
 	{
 		"id": "power",
@@ -375,6 +378,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "knife_switches",
 		"pipe_index": 1,
 		"pipe_width": 0.16,
+		"route": [Vector2(7.5, -9.4), Vector2(2.0, -9.4), Vector2(2.0, -2.0)],
 	},
 	{
 		"id": "atmosphere",
@@ -390,6 +394,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "fan_button",
 		"pipe_index": 2,
 		"pipe_width": 0.22,
+		"route": [Vector2(7.5, 7.5), Vector2(2.0, 7.5), Vector2(2.0, 2.0)],
 	},
 	{
 		"id": "data",
@@ -405,6 +410,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "led_grid",
 		"pipe_index": 3,
 		"pipe_width": 0.14,
+		"route": [Vector2(-9.4, 7.5), Vector2(-2.0, 7.5), Vector2(-2.0, 2.0)],
 	},
 	{
 		"id": "waste",
@@ -420,6 +426,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "sluice_lever",
 		"pipe_index": 4,
 		"pipe_width": 0.20,
+		"route": [Vector2(0.0, -5.6), Vector2(0.0, -2.0)],
 	},
 	{
 		"id": "cargo",
@@ -435,8 +442,24 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "dispatcher_panel",
 		"pipe_index": 5,
 		"pipe_width": 0.20,
+		"route": [Vector2(0.0, 5.6), Vector2(0.0, 2.0)],
 	},
 ]
+
+# Source / pipe / activation timing knobs.
+const SOURCE_INTERACT_RADIUS := 1.7
+const SOURCE_CONNECT_DURATION := 0.6     # tap-E lay-pipe animation
+const SOURCE_ACTIVATE_DURATION := 0.7    # tap-E activate animation
+const SPINE_PIPE_FILL_DURATION := 1.4    # bottom-up fill after activate
+const FLOOR_PIPE_BRIGHT_DURATION := 0.5  # cold→bright after activate
+const FLOOR_PIPE_BASE_Y := 0.05          # height above slab
+const FLOOR_PIPE_HEIGHT := 0.18          # vertical thickness of pipe boxes
+# Brightness multipliers per source state on the source body and the
+# floor pipe albedo. Cold dim, primed mid-pulse, active full bright.
+const SOURCE_PRIMED_MULT := 0.78
+const SOURCE_ACTIVE_MULT := 1.10
+const FLOOR_PIPE_COLD_MULT := 0.42
+const FLOOR_PIPE_BRIGHT_MULT := 1.05
 
 # Source body bounding box (brief: 0.7 × 0.7 × 1.0).
 const FLOOR_1_SOURCE_SIZE := Vector3(0.7, 1.0, 0.7)

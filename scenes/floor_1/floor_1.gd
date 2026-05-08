@@ -46,6 +46,33 @@ var _breaker_spot: SpotLight3D
 var _breaker_prompt_root: Node3D
 var _breaker_prompt_e: Label3D
 var _breaker_prompt_label: Label3D
+
+# Per-source state. Keyed by system id ("water", "power", ...). Each entry
+# carries the runtime tweens (0..1 progress) and refs to the meshes that
+# the per-frame updaters drive.
+#   connect_t  — 0..1 progress of the lay-pipe animation
+#   activate_t — 0..1 progress of the activate animation
+#   connected  — has the lay-pipe animation completed
+#   active     — has the activate animation completed
+#   sys        — Constants.FLOOR_1_SYSTEMS entry (cached for quick access)
+#   body_mat   — StandardMaterial3D on the source chassis (for state colour)
+#   spine_cold_mat / spine_fill_mat — two materials on the elevator face
+#   spine_fill — the "fill" mesh whose y-scale lerps 0..1 over PIPE_FILL_TIME
+#   floor_pipe_segments — list of MeshInstance3D for the Manhattan route
+#   floor_pipe_mat — shared material for all segments (drives bright lerp)
+#   detail — Dictionary of per-mech-detail mesh refs (filled by _build_source_detail)
+var _source_state: Dictionary = {}
+
+# Single shared 3D prompt that hops to whichever source is nearest. Built
+# once in _ready; position + text + visibility refresh each frame.
+var _source_prompt_root: Node3D
+var _source_prompt_e: Label3D
+var _source_prompt_label: Label3D
+var _source_prompt_anchor_id: String = ""
+
+# Continuous-motion mechanical details have a phase accumulator so
+# wheel-spin / fan-spin / LED-blink doesn't snap on activate.
+var _detail_phase := 0.0
 # Always-on overhead emergency light at room centre. Low energy; gives the
 # room enough fill to be readable when the master is off.
 var _emergency_omni: OmniLight3D
@@ -58,8 +85,10 @@ func _ready() -> void:
 	FloorChrome.build_walls(self, _c)
 	FloorChrome.build_extension_grid(self, _c)
 	FloorChrome.build_elevator_core(self, _c)
-	_build_spine_pipes()
 	_build_sources()
+	_build_spine_pipes()
+	_build_floor_pipes()
+	_build_source_prompt()
 	_build_emergency_omni()
 	_build_master_breaker()
 	_build_breaker_spot()
@@ -98,45 +127,111 @@ func _process(delta: float) -> void:
 		_master_anim_t = min(1.0, _master_anim_t + delta / _c.MASTER_BREAKER_PULL_DURATION)
 		_apply_breaker_visual_state(false)
 
+	# Sources only become interactable once the master is on.
+	if _master_on:
+		_detail_phase += delta
+		_advance_source_tweens(delta)
+		_update_source_visuals(delta)
+		_check_source_interact()
+		_update_source_prompt()
+	elif _source_prompt_root:
+		_source_prompt_root.visible = false
+
 
 # --- Geometry --------------------------------------------------------------
 
 func _build_spine_pipes() -> void:
 	# Six vertical pipes attached to the south face (+Z) of the elevator
-	# core. Cold (pre-activate) = base_color × COLD_MULT. Pipe order left to
-	# right matches FLOOR_1_SYSTEMS pipe_index. The elevator core has a 4×4
-	# footprint, so the south face spans x ∈ [-2, +2]; six pipes evenly
-	# spaced fit at x = -1.67, -1.0, -0.33, 0.33, 1.0, 1.67.
+	# core. Two cylinders per system: a "cold" pipe always at full height
+	# (dim base color), and a "fill" cylinder that lerps from y-scale 0 to
+	# 1 on activate, drawn slightly proud of the cold pipe with emission.
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
 	var face_z: float = elev_size * 0.5 + _c.FLOOR_1_SPINE_PIPE_RADIUS + 0.02
 	var pipe_count: int = _c.FLOOR_1_SYSTEMS.size()
 	var pipe_step: float = elev_size / float(pipe_count)
+	var pipe_height: float = _c.FLOOR_1_SPINE_PIPE_TOP_Y - _c.FLOOR_1_SPINE_PIPE_BASE_Y
+	var pipe_mid_y: float = (_c.FLOOR_1_SPINE_PIPE_BASE_Y + _c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
 	for sys in _c.FLOOR_1_SYSTEMS:
 		var idx: int = int(sys.pipe_index)
-		var pipe := MeshInstance3D.new()
-		pipe.name = "SpinePipe_" + sys.id
-		var pipe_mesh := CylinderMesh.new()
-		pipe_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
-		pipe_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
-		pipe_mesh.height = _c.FLOOR_1_SPINE_PIPE_TOP_Y - _c.FLOOR_1_SPINE_PIPE_BASE_Y
-		pipe.mesh = pipe_mesh
-		var mat := StandardMaterial3D.new()
-		var base_col: Color = sys.base_color
-		mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
-		mat.roughness = 0.5
-		mat.metallic = 0.4
-		pipe.material_override = mat
 		var cx: float = -elev_size * 0.5 + (float(idx) + 0.5) * pipe_step
-		var cy: float = (_c.FLOOR_1_SPINE_PIPE_BASE_Y + _c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
-		pipe.position = Vector3(cx, cy, face_z)
-		add_child(pipe)
+		var base_col: Color = sys.base_color
+
+		# Cold pipe — always present, dim.
+		var cold := MeshInstance3D.new()
+		cold.name = "SpinePipe_" + sys.id
+		var cold_mesh := CylinderMesh.new()
+		cold_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.height = pipe_height
+		cold.mesh = cold_mesh
+		var cold_mat := StandardMaterial3D.new()
+		cold_mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
+		cold_mat.roughness = 0.5
+		cold_mat.metallic = 0.4
+		cold.material_override = cold_mat
+		cold.position = Vector3(cx, pipe_mid_y, face_z)
+		add_child(cold)
+
+		# Fill pipe — bottom-anchored so y-scale grows upward. Place a
+		# pivot Node3D at the pipe's BASE (y = base_y), then a child mesh
+		# at local y = pipe_height/2 with cylinder height = pipe_height.
+		# Scaling the pivot's y-axis from 0 to 1 grows the fill upward
+		# without translation.
+		var fill_pivot := Node3D.new()
+		fill_pivot.name = "SpineFillPivot_" + sys.id
+		fill_pivot.position = Vector3(cx, _c.FLOOR_1_SPINE_PIPE_BASE_Y, face_z + 0.01)
+		fill_pivot.scale = Vector3(1, 0.001, 1)
+		add_child(fill_pivot)
+		var fill := MeshInstance3D.new()
+		fill.name = "Fill"
+		var fill_mesh := CylinderMesh.new()
+		fill_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.height = pipe_height
+		fill.mesh = fill_mesh
+		var fill_mat := StandardMaterial3D.new()
+		fill_mat.albedo_color = base_col
+		fill_mat.emission_enabled = true
+		fill_mat.emission = sys.glow_color
+		fill_mat.emission_energy_multiplier = 1.6
+		fill.material_override = fill_mat
+		fill.position = Vector3(0, pipe_height * 0.5, 0)
+		fill_pivot.add_child(fill)
+
+		# Wavefront — small emissive band that rides at the top of the fill.
+		# Parented to the fill pivot so it scales with it; position at the
+		# pipe's top edge (local y = pipe_height) so it stays at the
+		# leading edge as the fill grows.
+		var wave := MeshInstance3D.new()
+		wave.name = "Wavefront"
+		var wave_mesh := CylinderMesh.new()
+		wave_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.18
+		wave_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.18
+		wave_mesh.height = 0.06
+		wave.mesh = wave_mesh
+		var wave_mat := StandardMaterial3D.new()
+		wave_mat.albedo_color = sys.glow_color
+		wave_mat.emission_enabled = true
+		wave_mat.emission = sys.glow_color
+		wave_mat.emission_energy_multiplier = 3.6
+		wave.material_override = wave_mat
+		wave.position = Vector3(0, pipe_height - 0.03, 0)
+		fill_pivot.add_child(wave)
+		wave.visible = false  # only visible while fill is in flight
+
+		# Stash refs into source_state for later updates.
+		var st: Dictionary = _source_state.get(sys.id, {})
+		st["spine_cold_mat"] = cold_mat
+		st["spine_fill_pivot"] = fill_pivot
+		st["spine_fill_mat"] = fill_mat
+		st["spine_wave"] = wave
+		_source_state[sys.id] = st
 
 
 func _build_sources() -> void:
-	# One source object per system. Cold visual only — no interaction yet
-	# (M3 wires connect, M4 wires activate). Body sits on the floor with a
-	# distinct mechanical detail on top so the player reads each source's
-	# function at a glance even before approaching it.
+	# One source object per system. Cold visual + collision; per-source
+	# state (chassis mat, mechanical detail refs) cached into
+	# _source_state for the connect / activate flows to mutate.
 	for sys in _c.FLOOR_1_SYSTEMS:
 		var root := Node3D.new()
 		root.name = "Source_" + sys.id
@@ -168,12 +263,25 @@ func _build_sources() -> void:
 		col.position = Vector3(0, size.y * 0.5, 0)
 		body.add_child(col)
 
-		_build_source_detail(root, sys, size)
+		var detail := _build_source_detail(root, sys, size)
+
+		var st: Dictionary = _source_state.get(sys.id, {})
+		st["sys"] = sys
+		st["root"] = root
+		st["body_mat"] = mat
+		st["detail"] = detail
+		st["connect_t"] = 0.0
+		st["activate_t"] = 0.0
+		st["fill_t"] = 0.0
+		st["connected"] = bool(_gs.floor_1.connected.get(sys.id, false))
+		st["active"] = bool(_gs.floor_1.pipe_active.get(sys.id, false))
+		_source_state[sys.id] = st
 
 
-func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
-	# Distinct top/front mechanical detail per source. Cold = inert pose;
-	# active animations land in M4. The geometry only — no animation here.
+func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> Dictionary:
+	# Distinct top/front mechanical detail per source. Returns a dict of
+	# named refs so the activate flow + per-frame anim can drive them.
+	var refs: Dictionary = {}
 	var detail_y: float = size.y + 0.04
 	var base_col: Color = sys.base_color
 	var glow_col: Color = sys.glow_color
@@ -188,7 +296,9 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 			wheel.material_override = _make_material(base_col * 0.7)
 			wheel.position = Vector3(0, detail_y + 0.05, 0)
 			root.add_child(wheel)
+			refs["wheel"] = wheel
 		"knife_switches":
+			var switches: Array = []
 			for k in range(3):
 				var sw := MeshInstance3D.new()
 				sw.name = "KnifeSwitch_%d" % k
@@ -199,6 +309,8 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 				sw.position = Vector3(-0.18 + 0.18 * float(k), detail_y + 0.18, 0)
 				sw.rotation.x = -PI * 0.18  # leaning back = "off"
 				root.add_child(sw)
+				switches.append(sw)
+			refs["switches"] = switches
 		"fan_button":
 			var grille := MeshInstance3D.new()
 			grille.name = "FanGrille"
@@ -210,6 +322,16 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 			grille.material_override = _make_material(base_col * 0.5)
 			grille.position = Vector3(0, detail_y + 0.04, 0)
 			root.add_child(grille)
+			# Fan blade behind the grille (lower y so it sits below the
+			# grille mesh and reads as spinning behind the slats).
+			var fan := MeshInstance3D.new()
+			fan.name = "FanBlade"
+			var fan_mesh := BoxMesh.new()
+			fan_mesh.size = Vector3(0.42, 0.005, 0.06)
+			fan.mesh = fan_mesh
+			fan.material_override = _make_material(Color(0.85, 0.85, 0.85) * 0.4)
+			fan.position = Vector3(0, detail_y + 0.015, 0)
+			root.add_child(fan)
 			var btn := MeshInstance3D.new()
 			btn.name = "FanButton"
 			var btn_mesh := CylinderMesh.new()
@@ -222,14 +344,15 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 			btn.material_override = btn_mat
 			btn.position = Vector3(0.13, detail_y + 0.06, 0)
 			root.add_child(btn)
+			refs["fan"] = fan
+			refs["button"] = btn
+			refs["button_mat"] = btn_mat
 		"led_grid":
-			# 4×4 LED matrix on the front face (-Z direction). Cold = dim.
+			# 4×4 LED matrix on the front face (-Z direction). Each LED
+			# gets its own material so per-frame blinking can drive
+			# emission_energy_multiplier independently.
 			var spacing: float = 0.08
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = base_col * 0.45
-			mat.emission_enabled = true
-			mat.emission = base_col * 0.3
-			mat.emission_energy_multiplier = 0.4
+			var leds: Array = []
 			for r in range(4):
 				for col2 in range(4):
 					var led := MeshInstance3D.new()
@@ -237,13 +360,20 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 					var led_mesh := BoxMesh.new()
 					led_mesh.size = Vector3(0.04, 0.04, 0.02)
 					led.mesh = led_mesh
-					led.material_override = mat
+					var led_mat := StandardMaterial3D.new()
+					led_mat.albedo_color = base_col * 0.45
+					led_mat.emission_enabled = true
+					led_mat.emission = base_col
+					led_mat.emission_energy_multiplier = 0.4
+					led.material_override = led_mat
 					led.position = Vector3(
 						-1.5 * spacing + spacing * float(col2),
 						0.25 + spacing * float(r),
 						-size.z * 0.5 - 0.012,
 					)
 					root.add_child(led)
+					leds.append({"node": led, "mat": led_mat, "phase": randf() * TAU, "rate": 0.7 + randf() * 1.6})
+			refs["leds"] = leds
 		"sluice_lever":
 			var grate := MeshInstance3D.new()
 			grate.name = "Grate"
@@ -253,16 +383,21 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 			grate.material_override = _make_material(base_col * 0.5)
 			grate.position = Vector3(0, detail_y + 0.02, 0)
 			root.add_child(grate)
+			# Lever pivot at base of lever so rotation swings down cleanly.
+			var lever_pivot := Node3D.new()
+			lever_pivot.name = "SluicePivot"
+			lever_pivot.position = Vector3(size.x * 0.5 + 0.08, detail_y, 0)
+			root.add_child(lever_pivot)
 			var lever := MeshInstance3D.new()
 			lever.name = "SluiceLever"
 			var lever_mesh := BoxMesh.new()
 			lever_mesh.size = Vector3(0.06, 0.4, 0.06)
 			lever.mesh = lever_mesh
 			lever.material_override = _make_material(Color(0.78, 0.55, 0.30) * 0.7)
-			lever.position = Vector3(size.x * 0.5 + 0.08, detail_y + 0.20, 0)
-			root.add_child(lever)
+			lever.position = Vector3(0, 0.20, 0)
+			lever_pivot.add_child(lever)
+			refs["lever_pivot"] = lever_pivot
 		"dispatcher_panel":
-			# A small angled control console + a couple of status LEDs.
 			var console := MeshInstance3D.new()
 			console.name = "DispatcherConsole"
 			var console_mesh := BoxMesh.new()
@@ -272,7 +407,7 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 			console.position = Vector3(0, detail_y + 0.10, -size.z * 0.18)
 			console.rotation.x = -PI * 0.18
 			root.add_child(console)
-			# Two small dim lamps.
+			var lamps: Array = []
 			for k in range(2):
 				var lamp := MeshInstance3D.new()
 				lamp.name = "Lamp_%d" % k
@@ -283,11 +418,118 @@ func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
 				var lamp_mat := StandardMaterial3D.new()
 				lamp_mat.albedo_color = glow_col * 0.5
 				lamp_mat.emission_enabled = true
-				lamp_mat.emission = glow_col * 0.4
+				lamp_mat.emission = glow_col
 				lamp_mat.emission_energy_multiplier = 0.5
 				lamp.material_override = lamp_mat
 				lamp.position = Vector3(-0.10 + 0.20 * float(k), detail_y + 0.16, -size.z * 0.18)
 				root.add_child(lamp)
+				lamps.append({"node": lamp, "mat": lamp_mat})
+			refs["lamps"] = lamps
+	return refs
+
+
+func _build_floor_pipes() -> void:
+	# Manhattan-routed pipe from each source to its spot on the elevator
+	# perimeter. One BoxMesh per axis-aligned segment, with corner overlap
+	# (each segment extended by w/2 at both ends so adjacent boxes meet
+	# cleanly without visible joint blocks).
+	# All segments start invisible (visible = false) and a shared material
+	# starts at FLOOR_PIPE_COLD_MULT alpha. Connect tween reveals segments
+	# in order; activate tween brightens the material.
+	for sys in _c.FLOOR_1_SYSTEMS:
+		var route: Array = sys.route
+		if route.size() < 2:
+			continue
+		var w: float = float(sys.pipe_width)
+		var pipe_root := Node3D.new()
+		pipe_root.name = "FloorPipe_" + sys.id
+		add_child(pipe_root)
+
+		var mat := StandardMaterial3D.new()
+		var base_col: Color = sys.base_color
+		mat.albedo_color = base_col * _c.FLOOR_PIPE_COLD_MULT
+		mat.roughness = 0.55
+		mat.metallic = 0.3
+		mat.emission_enabled = true
+		mat.emission = sys.glow_color
+		mat.emission_energy_multiplier = 0.0   # cold
+
+		var segments: Array = []
+		for i in range(route.size() - 1):
+			var a: Vector2 = route[i]
+			var b: Vector2 = route[i + 1]
+			var horizontal: bool = absf(a.y - b.y) < 0.0001
+			var seg_len: float = (b - a).length() + w
+			var mid: Vector2 = (a + b) * 0.5
+			var seg := MeshInstance3D.new()
+			seg.name = "Segment_%d" % i
+			var box := BoxMesh.new()
+			if horizontal:
+				box.size = Vector3(seg_len, _c.FLOOR_PIPE_HEIGHT, w)
+			else:
+				box.size = Vector3(w, _c.FLOOR_PIPE_HEIGHT, seg_len)
+			seg.mesh = box
+			seg.material_override = mat
+			seg.position = Vector3(
+				mid.x,
+				_c.FLOOR_PIPE_BASE_Y + _c.FLOOR_PIPE_HEIGHT * 0.5,
+				mid.y,
+			)
+			seg.visible = false
+			pipe_root.add_child(seg)
+			segments.append(seg)
+
+		var st: Dictionary = _source_state.get(sys.id, {})
+		st["floor_pipe_root"] = pipe_root
+		st["floor_pipe_mat"] = mat
+		st["floor_pipe_segments"] = segments
+		# If state was persisted as already connected/active, snap visuals
+		# to that state right now (no tween).
+		if st.get("connected", false):
+			for seg in segments:
+				seg.visible = true
+			st["connect_t"] = 1.0
+		if st.get("active", false):
+			st["activate_t"] = 1.0
+			st["fill_t"] = 1.0
+			mat.albedo_color = base_col * _c.FLOOR_PIPE_BRIGHT_MULT
+			mat.emission_energy_multiplier = 1.4
+			# Spine fill snap to full.
+			var pivot: Node3D = st.get("spine_fill_pivot")
+			if pivot:
+				pivot.scale = Vector3(1, 1, 1)
+		_source_state[sys.id] = st
+
+
+func _build_source_prompt() -> void:
+	_source_prompt_root = Node3D.new()
+	_source_prompt_root.name = "SourcePromptGroup"
+	_source_prompt_root.visible = false
+	add_child(_source_prompt_root)
+
+	_source_prompt_e = Label3D.new()
+	_source_prompt_e.text = "E"
+	_source_prompt_e.font_size = 96
+	_source_prompt_e.outline_size = 12
+	_source_prompt_e.modulate = Color(1.0, 0.92, 0.55, 1.0)
+	_source_prompt_e.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_source_prompt_e.pixel_size = 0.005
+	_source_prompt_e.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_source_prompt_e.no_depth_test = true
+	_source_prompt_e.position = Vector3(0, 0.32, 0)
+	_source_prompt_root.add_child(_source_prompt_e)
+
+	_source_prompt_label = Label3D.new()
+	_source_prompt_label.text = ""
+	_source_prompt_label.font_size = 56
+	_source_prompt_label.outline_size = 8
+	_source_prompt_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
+	_source_prompt_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_source_prompt_label.pixel_size = 0.005
+	_source_prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_source_prompt_label.no_depth_test = true
+	_source_prompt_label.position = Vector3(0, 0.0, 0)
+	_source_prompt_root.add_child(_source_prompt_label)
 
 
 func _build_emergency_omni() -> void:
@@ -512,3 +754,243 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	m.albedo_color = color
 	m.roughness = 0.8
 	return m
+
+
+# --- Source interaction loop ---------------------------------------------
+
+func _check_source_interact() -> void:
+	if _player == null:
+		return
+	var nearest_id: String = _nearest_source_in_range(_player.global_position)
+	if nearest_id == "":
+		return
+	if not Input.is_action_just_pressed(&"interact"):
+		return
+	var st: Dictionary = _source_state[nearest_id]
+	if not bool(st.get("connected", false)):
+		_do_connect(nearest_id)
+	elif not bool(st.get("active", false)):
+		_do_activate(nearest_id)
+
+
+func _nearest_source_in_range(player_pos: Vector3) -> String:
+	var best := ""
+	var best_d: float = _c.SOURCE_INTERACT_RADIUS
+	for id in _source_state.keys():
+		var st: Dictionary = _source_state[id]
+		var sys: Dictionary = st.sys
+		var pos: Vector3 = sys.position
+		var dx := player_pos.x - pos.x
+		var dz := player_pos.z - pos.z
+		var d: float = sqrt(dx * dx + dz * dz)
+		if d <= best_d:
+			best_d = d
+			best = id
+	return best
+
+
+func _update_source_prompt() -> void:
+	if _source_prompt_root == null:
+		return
+	if _player == null:
+		_source_prompt_root.visible = false
+		return
+	var nearest_id: String = _nearest_source_in_range(_player.global_position)
+	if nearest_id == "":
+		_source_prompt_root.visible = false
+		return
+	var st: Dictionary = _source_state[nearest_id]
+	if bool(st.get("active", false)):
+		# Already online — no further action; hide the prompt.
+		_source_prompt_root.visible = false
+		return
+	if float(st.get("connect_t", 0.0)) > 0.0 and not bool(st.get("connected", false)):
+		# Mid-connect tween — hide so the world animation owns the moment.
+		_source_prompt_root.visible = false
+		return
+	if float(st.get("activate_t", 0.0)) > 0.0 and not bool(st.get("active", false)):
+		_source_prompt_root.visible = false
+		return
+	var sys: Dictionary = st.sys
+	var verb: String = sys.connect_verb if not st.get("connected", false) else sys.activate_verb
+	var label_text: String = "%s — %s" % [String(sys.name), verb.capitalize()]
+	_source_prompt_label.text = label_text
+	_source_prompt_root.position = sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.85, 0)
+	_source_prompt_root.visible = true
+
+
+# --- Connect + activate flows --------------------------------------------
+
+func _do_connect(id: String) -> void:
+	var st: Dictionary = _source_state[id]
+	if bool(st.get("connected", false)) or float(st.get("connect_t", 0.0)) > 0.0:
+		return
+	st["connect_t"] = 0.0001  # any non-zero kicks _advance_source_tweens
+	_source_state[id] = st
+
+
+func _do_activate(id: String) -> void:
+	var st: Dictionary = _source_state[id]
+	if bool(st.get("active", false)) or float(st.get("activate_t", 0.0)) > 0.0:
+		return
+	if not bool(st.get("connected", false)):
+		return
+	st["activate_t"] = 0.0001
+	# Reveal wavefront for the duration of the fill.
+	var wave: Node3D = st.get("spine_wave")
+	if wave:
+		wave.visible = true
+	_source_state[id] = st
+
+
+func _advance_source_tweens(delta: float) -> void:
+	# Drives connect_t (0..1 over CONNECT_DURATION) and activate_t (0..1
+	# over ACTIVATE_DURATION). When activate_t completes, fill_t starts
+	# rising over SPINE_PIPE_FILL_DURATION; when fill_t completes, wave
+	# hides and the system is fully active.
+	for id in _source_state.keys():
+		var st: Dictionary = _source_state[id]
+		var ct: float = float(st.get("connect_t", 0.0))
+		if ct > 0.0 and ct < 1.0:
+			ct = min(1.0, ct + delta / _c.SOURCE_CONNECT_DURATION)
+			st["connect_t"] = ct
+			if ct >= 1.0:
+				st["connected"] = true
+				_gs.floor_1.connected[id] = true
+		var at: float = float(st.get("activate_t", 0.0))
+		if at > 0.0 and at < 1.0:
+			at = min(1.0, at + delta / _c.SOURCE_ACTIVATE_DURATION)
+			st["activate_t"] = at
+		# Fill begins as activate completes — compute proportional progress
+		# combining the activate portion and the spine-fill portion.
+		var ft: float = float(st.get("fill_t", 0.0))
+		if at >= 1.0 and ft < 1.0:
+			ft = min(1.0, ft + delta / _c.SPINE_PIPE_FILL_DURATION)
+			st["fill_t"] = ft
+			if ft >= 1.0:
+				st["active"] = true
+				_gs.floor_1.pipe_active[id] = true
+				var wave: Node3D = st.get("spine_wave")
+				if wave:
+					wave.visible = false
+		_source_state[id] = st
+
+
+func _update_source_visuals(delta: float) -> void:
+	for id in _source_state.keys():
+		var st: Dictionary = _source_state[id]
+		var sys: Dictionary = st.sys
+		var base_col: Color = sys.base_color
+		var glow_col: Color = sys.glow_color
+		var ct: float = float(st.get("connect_t", 0.0))
+		var at: float = float(st.get("activate_t", 0.0))
+		var ft: float = float(st.get("fill_t", 0.0))
+		var connected: bool = bool(st.get("connected", false))
+		var active: bool = bool(st.get("active", false))
+
+		# 1) Source body brightness — three states (cold / primed / active).
+		var body_mat: StandardMaterial3D = st.get("body_mat")
+		if body_mat:
+			var body_mult: float
+			if active:
+				var pulse: float = 0.95 + sin(_detail_phase * 9.0) * 0.07
+				body_mult = _c.SOURCE_ACTIVE_MULT * pulse
+			elif connected:
+				var breath: float = 0.86 + sin(_detail_phase * 5.7) * 0.12
+				body_mult = _c.SOURCE_PRIMED_MULT * breath
+			else:
+				body_mult = _c.FLOOR_1_SOURCE_COLD_MULT
+			body_mat.albedo_color = base_col * body_mult
+
+		# 2) Floor pipe segment reveal — segments appear in route order as
+		# connect_t advances. After connected, lerp brightness with at→1.
+		var segs: Array = st.get("floor_pipe_segments", [])
+		var pipe_mat: StandardMaterial3D = st.get("floor_pipe_mat")
+		if segs.size() > 0:
+			var visible_progress: float = ct if not connected else 1.0
+			var n: int = segs.size()
+			# Each segment occupies 1/n of the connect timeline; reveal once
+			# its share of progress is reached.
+			for i in range(n):
+				var threshold: float = float(i) / float(n)
+				segs[i].visible = visible_progress > threshold
+			if pipe_mat:
+				# Brightness mult lerps from cold to bright over fill_t.
+				var bright_mult: float = lerpf(
+					_c.FLOOR_PIPE_COLD_MULT,
+					_c.FLOOR_PIPE_BRIGHT_MULT,
+					ft if connected else 0.0,
+				)
+				pipe_mat.albedo_color = base_col * bright_mult
+				pipe_mat.emission_energy_multiplier = lerpf(0.0, 1.4, ft)
+
+		# 3) Spine fill — pivot y-scale tracks ft (with a tiny minimum so
+		# the cylinder doesn't fully collapse and z-fight at scale 0).
+		var fill_pivot: Node3D = st.get("spine_fill_pivot")
+		if fill_pivot:
+			fill_pivot.scale = Vector3(1, max(0.001, ft), 1)
+
+		# 4) Mechanical detail anims — only animate continuous motions when
+		# active. One-shot transitions ride the activate_t curve.
+		_update_detail_anim(st, at, active)
+
+
+func _update_detail_anim(st: Dictionary, at: float, active: bool) -> void:
+	var sys: Dictionary = st.sys
+	var detail: Dictionary = st.get("detail", {})
+	match sys.mechanical_detail:
+		"wheel_valve":
+			# Continuous spin while active.
+			var wheel: MeshInstance3D = detail.get("wheel")
+			if wheel and active:
+				wheel.rotation.y = _detail_phase * 0.85
+		"knife_switches":
+			# Switches flip from -PI*0.18 (off) to +PI*0.32 (down/on) over
+			# activate_t, with stagger so they read as a sequence.
+			var switches: Array = detail.get("switches", [])
+			for i in range(switches.size()):
+				var sw: MeshInstance3D = switches[i]
+				if sw == null:
+					continue
+				var local_t: float = clampf(at * 1.6 - float(i) * 0.18, 0.0, 1.0)
+				var start_a := -PI * 0.18
+				var end_a := PI * 0.32
+				sw.rotation.x = lerpf(start_a, end_a, local_t)
+		"fan_button":
+			var btn: MeshInstance3D = detail.get("button")
+			if btn:
+				# Button presses down by ~0.04 over activate_t.
+				btn.position.y = lerpf(btn.position.y, btn.position.y, 0.0)  # noop placeholder so parser stays happy
+				# We only need to set it once — drive from at directly:
+				btn.position.y = (_c.FLOOR_1_SOURCE_SIZE.y + 0.04) + 0.06 - at * 0.04
+			var fan: MeshInstance3D = detail.get("fan")
+			if fan and active:
+				fan.rotation.y = _detail_phase * 11.0
+		"led_grid":
+			var leds: Array = detail.get("leds", [])
+			for entry in leds:
+				var mat: StandardMaterial3D = entry.mat
+				if mat == null:
+					continue
+				if active:
+					var phase: float = entry.phase + _detail_phase * float(entry.rate)
+					var blink: float = (sin(phase) + 1.0) * 0.5
+					mat.emission_energy_multiplier = 0.4 + blink * 2.0
+				else:
+					mat.emission_energy_multiplier = 0.4
+		"sluice_lever":
+			var lever_pivot: Node3D = detail.get("lever_pivot")
+			if lever_pivot:
+				# Lever rotates from upright (0) to fully down (PI/2) over at.
+				lever_pivot.rotation.x = at * (PI * 0.5)
+		"dispatcher_panel":
+			var lamps: Array = detail.get("lamps", [])
+			for entry in lamps:
+				var mat: StandardMaterial3D = entry.mat
+				if mat == null:
+					continue
+				if active:
+					var pulse: float = 0.7 + sin(_detail_phase * 3.2) * 0.3
+					mat.emission_energy_multiplier = 0.5 + at * 1.5 + pulse * 0.6 * at
+				else:
+					mat.emission_energy_multiplier = 0.5 + at * 1.5
