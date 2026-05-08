@@ -1,6 +1,6 @@
 {
-  "version": "1.2",
-  "last_updated": "2026-05-06",
+  "version": "1.3",
+  "last_updated": "2026-05-08",
   "domains": {
     "godot_isometric": {
       "confidence": "high",
@@ -110,6 +110,28 @@
         "Single-rigid-mesh body trying to express multiple poses via uniform scale.y. Every state ends up reading as a vertical squash (F-008 baseline before refactor). Fix: introduce joint pivots and pose blending.",
         "Procedural locomotion with sin-only trajectory + fixed cycle rate. Feet always move; never plant. Body slides through space. Even a perfect cycle/speed match has slip at the rotational extents (cos = 0 there). Fix: piecewise plant/swing.",
         "Animation visual cues that imply the wrong physics direction (F-012). Visual anticipation must match what comes next."
+      ],
+      "needs_from_human": []
+    },
+    "multi_floor_architecture": {
+      "confidence": "high",
+      "evidence": [
+        "Shipped Floor 1 (utility) alongside the existing Garden (Floor 2) in eleven commits across M1-M6. Two-floor system with shared chrome module, universal floor design doc, and rideable elevator that scene-swaps with full ceremony.",
+        "Extracted FloorChrome (scenes/shared/floor_chrome.gd) as a static-method module: build_slab, build_walls, build_extension_grid, build_elevator_core, build_passive_spine_pipes. Loaded via preload (not class_name) per F-010. New floors get the same chrome by calling four functions in _ready.",
+        "ElevatorHandler (scenes/shared/elevator_handler.gd) runs a 3-state machine PROXIMITY/DEPARTING/ARRIVING per floor instance, coordinated across scenes by GameState.in_transit. Receiving scene's _ready places the player at elevator centre, doors closed, glow on, then plays the inverse arrival animation.",
+        "Cross-floor passive state sync via FloorChrome.build_passive_spine_pipes — visual-only copies built fresh on _ready reading GameState.floor_1.pipe_active. No tweens, no per-frame state. An online lane glows on every floor it passes through.",
+        "docs/floor_design_system.md codifies the universal rules (30×30 footprint, FloorChrome builders, central elevator/spine column with chamfered corners, iso_camera setup, player follow-spotlight, top-left/top-right/bottom-right HUD layout, tap-E grammar, state-dict-on-GameState pattern). Includes a checklist for adding a new floor."
+      ],
+      "rules_learned": [
+        "Shared procedural builders go in scenes/shared/<name>.gd as static functions on a RefCounted script, loaded via preload by callers. No autoload, no class_name. Returns a Dictionary when handles back to the caller are needed (e.g. elevator inner_mat for the glow tween).",
+        "Selective collision per face when the design says some faces should be passable. The elevator's chamfer panels carry their own thin BoxShape3Ds; the cardinal-face areas (where doors live) have no collision so the player walks INTO the column when doors slide open. A single box wrapping the whole shape blocks the cardinal faces too (F-016).",
+        "Cross-scene state lives in autoload dicts (GameState.floor_1.master_on, .connected[id], .pipe_active[id]). Scene _ready reads the dict and snaps to the matching state — no re-tween of completed transitions. Backslash debug-swap or elevator-ride both produce the same end state.",
+        "Universal interaction grammar across floors: 3D Label3D 'E / <System> — <Verb>' prompt above interactables, hidden by default, fades in within INTERACT_RADIUS, hides once the action completes. Yellow attention chevrons (`floor_1_arrows_hud.gd`) project 3D positions to 2D HUD via camera.unproject_position to point at the next interactable from across the room.",
+        "When the operator asks for the third 'consistency' fix in a row (camera, then HUD, then footprint), draft a design-system doc instead of fixing one more thing. The doc surfaces the implicit rule, makes the next few changes systemic, and gives future-you a checklist for new floors."
+      ],
+      "failure_patterns": [
+        "Wrapping a multi-faced collidable in a single box collision shape when the design has passable faces. F-016 — the elevator. Fix: per-face collision shapes only on the panels that should block.",
+        "Defining floor sizes as per-floor constants (FLOOR_1_SIZE, FLOOR_3D_SIZE) instead of a single shared constant. Diverges immediately when one floor's camera distance / ortho size doesn't match. Fix: collapse to one constant per design-system rule (footprint, wall height, etc.) and let the design doc enforce."
       ],
       "needs_from_human": []
     },

@@ -185,6 +185,37 @@
       "files_touched": [
         "scenes/iso_prototype/iso_robot.gd"
       ]
+    },
+    {
+      "id": "F-015",
+      "phase": "iteration",
+      "date": "2026-05-08",
+      "category": "gdscript_identifier_shadow",
+      "summary": "GDScript silently shadows built-in functions and Control properties when local variables or method parameters reuse those names. `tan` shadows the trig built-in; `scale` shadows Control.scale; method `plant()` was shadowed by a local `plant` variable inside another method on the same class. Reload triggers a warning per shadow but compiles, so the project runs while accumulating noise.",
+      "trigger": "Operator screenshot of Godot output panel showing 10 GDScript::reload warnings: shadowed `tan`, `scale`, `plant`, plus unused-var noise.",
+      "fix": "Rename locals to domain-specific names: `tan` → `tangent_dir`, `scale` parameter on _draw_arrow → `arrow_scale`, `plant` local → `plant_visual`. Use `@warning_ignore(\"integer_division\")` only when the int division is intentional. No behaviour change.",
+      "rule_added": "rules/gdscript_builtin_shadow.md",
+      "files_touched": [
+        "scenes/shared/floor_chrome.gd",
+        "scenes/floor_1/floor_1_arrows_hud.gd",
+        "scenes/iso_prototype/iso_floor.gd",
+        "scenes/iso_prototype/iso_dispenser.gd",
+        "scenes/iso_prototype/iso_player.gd",
+        "scenes/floor_1/floor_1.gd"
+      ]
+    },
+    {
+      "id": "F-016",
+      "phase": "iteration",
+      "date": "2026-05-07",
+      "category": "godot_collision_shape_too_aggressive",
+      "summary": "The elevator core was wrapped in a single BoxShape3D matching its full footprint. That made the corners solid (good) but also blocked the cardinal faces (bad) — meaning the player physically could not walk INTO the elevator even when the doors animated open. The visual design said 'four passable doors on the cardinal faces, four solid chamfer panels on the corners,' but the collision said 'all faces blocked.'",
+      "trigger": "Operator: 'my character should be able to enter the center of the elevator.' Implementing the rideable behaviour required removing the box collision and re-adding selective collision per chamfer panel only.",
+      "fix": "Replace the single BoxShape3D wrapping the elevator core with four thin BoxShape3D collision shapes — one per chamfer panel, oriented along the chamfer's tangent axis. Cardinal-face areas (where doors live) have no collision, so the player walks through the door opening when the panels slide apart. Doors themselves are visual-only (no collision); the wall is the chamfer panels.",
+      "rule_added": null,
+      "files_touched": [
+        "scenes/shared/floor_chrome.gd"
+      ]
     }
   ]
 }

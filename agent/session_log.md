@@ -454,3 +454,134 @@ pending — tracked as Q-001 in `request_queue.json`.
   hum of the Floor 5 RGB door audible from below, no other floor
   mechanics required (the landing IS the beat).
 - Other open threads unchanged from Session 3.
+
+---
+
+## Session 5 (2026-05-07 → 2026-05-08) — Floor 1 utility floor + multi-floor architecture
+
+Q-001 resolved: operator picked **descend → Floor 1 (utility)** over
+ascend → Floor 4. Floor numbering shifted: Garden = Floor 2 (was Floor 3),
+Floor 1 = the utility/infrastructure floor that feeds it. Drove a brief
+from `b1-utility-floor-godot-brief.md` (operator-local) through M1–M6
+in eleven commits. The slice is no longer a one-floor prototype — it's a
+two-floor system with a shared chrome module, a universal floor design
+doc, and a rideable elevator that scene-swaps with full ceremony.
+
+### What landed
+
+- **Floor 1 (M1–M6)**: utility floor with a master breaker that lights
+  the room when pulled, six color-coded systems (water/power/atmosphere/
+  data/waste/cargo) with per-system mechanical detail (wheel valve, knife
+  switches, fan + grille, 4×4 LED matrix, sluice lever, dispatcher
+  console + lamps), Manhattan-routed floor pipes that lay on connect, a
+  spine-fill cylinder that rises bottom-up on activate, and yellow
+  attention chevrons (`floor_1_arrows_hud.gd`) projecting 3D positions
+  to 2D HUD via `camera.unproject_position` to point at whatever the
+  next interactable should be.
+- **Shared chrome module** (`scenes/shared/floor_chrome.gd`): static-
+  method module that builds slab + walls + extension grid + elevator
+  core. New floors call `FloorChrome.build_slab(self, _c)` etc.
+  Loaded via `preload`, NOT `class_name` (per F-010).
+- **Universal floor design doc** (`docs/floor_design_system.md`):
+  codifies what every floor inherits — 30×30 footprint, FloorChrome
+  builders, central elevator/spine column with chamfered corner pipes,
+  iso_camera setup, player follow-spotlight, top-left header / top-right
+  status / bottom-right modes HUD layout, tap-E grammar, state-dict-on-
+  GameState pattern. Linked from CLAUDE.md.
+- **Rideable elevator** (`scenes/shared/elevator_handler.gd`): octagonal
+  cross-section (4×4 m square with 0.7 m corner chamfers), 8 sliding
+  door panels (2 per cardinal face), six spine pipes distributed 1-2-1-2
+  across the four chamfer corners. Box collision on the core was removed;
+  chamfer panels carry their own thin collision shapes so corners stay
+  solid but cardinal faces are passable — player walks INTO the elevator
+  through any open door (F-016). Three-state machine
+  PROXIMITY/DEPARTING/ARRIVING with `GameState.in_transit` coordinating
+  the receiving scene's fade-in; yellow inner-core glow ramps with the
+  door close, leaks visibly through panel seams.
+- **Cross-floor passive state sync**:
+  `FloorChrome.build_passive_spine_pipes` builds visual-only pipe copies
+  on every floor reading `GameState.floor_1.pipe_active` to choose
+  cold-vs-fill. No tweens, no per-frame state — built fresh on `_ready`
+  reflecting whatever was online when you left. Garden now shows water
+  glowing if you activated it on Floor 1.
+- **Camera + HUD unified across floors**: Floor 1 uses `iso_camera.gd`
+  (Q/R rotate, scroll/=- zoom, drag pan, mode toggle). Camera modes HUD
+  moved bottom-right on every floor; floor name became a top-left amber
+  header; bottom-left + bottom-centre reserved for floor-specific tools.
+- **Backpack + vacuum tubes** (separate but shipped same window):
+  cap = 20, mesh scales 0.55× → 1.05× as it fills, four corner tubes on
+  the Garden empty backpack for cash. Half-width Cody chat panel.
+- **GDScript shadow-warning sweep** (F-015): cleared 10 `tan`/`scale`/
+  `plant` shadow + unused-var warnings.
+
+### Architecture observations
+
+- **One repo, multiple floors.** The brief proposed a separate `space
+  -tower` repo for production; we adopted the iso slice itself as the
+  Godot repo. Each floor lives at `scenes/<floor_name>/` and shares
+  autoloads + conventions. Cheaper than coordinating two repos for
+  what is now clearly the production project.
+- **Tap-E throughout, no holds.** The Floor 1 brief specified
+  1.6/1.2/0.9 s holds for connect/activate/breaker. Adapted to the iso
+  slice's existing tap-and-tween idiom (~0.5 s, no charge bar) so
+  cross-floor interaction grammar stays consistent. Operator confirmed
+  the simpler grammar.
+- **Bundle milestones when they share state.** M3 + M4 (connect +
+  activate) shipped together because the prompt code and source-state
+  machinery were 80% shared. M5 (visuals) + M6 (elevator wiring)
+  shipped together for the same reason. Operator pre-approved bundling:
+  *"if they're simple, let's just blast through them and refine after"*
+  — captured in operator_iteration_loop confidence.
+- **Universal rules emerged organically, then got codified.** Operator
+  asked for camera consistency, then for HUD consistency, then for
+  player-spawn-facing-camera consistency. After the third one I drafted
+  `docs/floor_design_system.md` — surfacing the implicit rules made
+  the next few changes (HUD relocation, footprint match) much faster.
+
+### Rules added
+
+- `rules/godot_shared_module_pattern.md` — preload + static-methods +
+  parent-Node-ref pattern for cross-scene shared builders. The shape
+  that lets `FloorChrome` work on any floor without runtime class
+  registration headaches.
+- `rules/gdscript_builtin_shadow.md` — GDScript silently shadows
+  built-in functions and Control properties. Common offenders: `tan`,
+  `sin`, `cos`, `scale`, `position`, `rotation`. Rename locals to
+  domain-specific names.
+
+### Failures captured
+
+- **F-015**: GDScript identifier shadowing (`tan`, `scale`, `plant`)
+  triggers reload warnings; fix is renaming locals.
+- **F-016**: Rideable elevator was blocked by the core's box collision.
+  Replaced with per-chamfer-panel collision so cardinal faces are
+  passable. The lesson: when the design says "you can walk INTO this
+  geometric thing through specific faces," the collision shape can't be
+  a single box that wraps the whole geometry.
+
+### Confidence shifts
+
+- New domain: `multi_floor_architecture` — high confidence after
+  shipping Floor 1 + shared chrome + cross-floor elevator + universal
+  design doc.
+- `godot_isometric` reaffirmed at high; the camera unification across
+  floors went smoothly because of the existing `iso_camera.gd`
+  abstraction.
+- `operator_iteration_loop` confidence reinforced: bundle when
+  milestones share state; codify universal rules into a doc the moment
+  they emerge as patterns; aesthetic consistency requests are
+  permission to draft systemic constraints, not just one-off fixes.
+
+### Next
+
+- Operator playthrough of the rideable elevator end-to-end (round-trip
+  Garden ↔ Floor 1 with state visibly persisted across both floors).
+- Audio (M5.1) — breaker_pull, pipe_lock, chime per system, hum_loop
+  still placeholders. Synthesizing via AudioStreamGenerator vs baking
+  from a prototype is its own pass.
+- Remaining open threads from prior sessions:
+  Cody experience counter for varied dialogue, save/load, skill tree
+  unlock logic, animation polish (tuck flip rotation rate scaling with
+  charge, forward arc on jump), stairs/ladder alternate vertical travel
+  per Cody's "stairs" dialogue branch.
+- Q-001 closed.

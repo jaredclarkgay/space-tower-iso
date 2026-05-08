@@ -60,6 +60,8 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 | HUD Buttons that might conflict with `ui_accept` (Space/Enter) | `rules/godot_button_focus.md` |
 | `.tscn` fixes "not taking effect" in the editor | `rules/godot_editor_cache.md` |
 | `class_name` with the `--headless --import` harness | `rules/gdscript_class_name_caveats.md` |
+| Building shared geometry across multiple floors / scenes | `rules/godot_shared_module_pattern.md` |
+| GDScript reload warnings about shadowed identifiers (`tan`, `scale`, etc.) | `rules/gdscript_builtin_shadow.md` |
 
 For specialized work, dispatch to the `godot-iso-builder` subagent (defined in `.claude/agents/`) — it pre-loads project conventions and the rule index.
 
