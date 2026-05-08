@@ -93,6 +93,12 @@ var dispenser_stock := {
 	"eggplant": 0,
 }
 
+# True between an elevator E-press and the receiving floor's _ready
+# fade-in. Lets the new scene know whether to run the from-black tween
+# or skip it (fresh F5 into the project shouldn't fade in).
+var in_transit := false
+
+
 # Floor 1 (utility) state. master_on flips when the player pulls the master
 # breaker; per-system `connected` and `pipe_active` track each system's
 # state. Survives floor switches so a return trip restores the lit room

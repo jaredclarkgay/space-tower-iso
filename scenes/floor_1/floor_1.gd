@@ -73,6 +73,21 @@ var _source_prompt_anchor_id: String = ""
 # Continuous-motion mechanical details have a phase accumulator so
 # wheel-spin / fan-spin / LED-blink doesn't snap on activate.
 var _detail_phase := 0.0
+
+# Yellow pulsing floor halo around the breaker — visible while master is
+# off so the player can see the target across the dark room.
+var _master_halo: MeshInstance3D
+var _master_halo_mat: StandardMaterial3D
+
+# Screen-flash + camera-shake state. Both kick on master-pull and decay.
+@export var screen_flash_path: NodePath
+@export var camera_pivot_path: NodePath
+var _screen_flash: ColorRect
+var _camera_pivot: Node3D
+var _flash_t := 0.0
+var _shake_t := 0.0
+var _shake_base_pos: Vector3
+var _shake_base_captured: bool = false
 # Always-on overhead emergency light at room centre. Low energy; gives the
 # room enough fill to be readable when the master is off.
 var _emergency_omni: OmniLight3D
@@ -92,6 +107,7 @@ func _ready() -> void:
 	_build_emergency_omni()
 	_build_master_breaker()
 	_build_breaker_spot()
+	_build_master_halo()
 
 	if player_path:
 		_player = get_node(player_path)
@@ -99,6 +115,10 @@ func _ready() -> void:
 		_directional_light = get_node(directional_light_path)
 	if world_environment_path:
 		_world_environment = get_node(world_environment_path)
+	if screen_flash_path:
+		_screen_flash = get_node(screen_flash_path)
+	if camera_pivot_path:
+		_camera_pivot = get_node(camera_pivot_path)
 
 	# Persist master_on across re-entry — GameState.floor_1 is the source of
 	# truth, declared as a typed dict on the autoload.
@@ -120,6 +140,9 @@ func _process(delta: float) -> void:
 
 	_update_status_light(delta)
 	_update_breaker_prompt()
+	_update_master_halo()
+	_update_screen_flash(delta)
+	_update_camera_shake(delta)
 
 	if not _master_on:
 		_check_master_breaker_interact()
@@ -647,6 +670,57 @@ func _build_master_breaker() -> void:
 	_breaker_prompt_root.add_child(_breaker_prompt_label)
 
 
+func _build_master_halo() -> void:
+	# Flat emissive disc on the floor around the breaker. Radial-fade
+	# alpha is faked with two stacked discs (inner brighter, outer dim
+	# fades out). Pulses while master is off, hides when master comes on.
+	var halo_root := Node3D.new()
+	halo_root.name = "MasterHalo"
+	halo_root.position = _c.MASTER_BREAKER_POSITION + Vector3(0, 0.02, 0)
+	add_child(halo_root)
+
+	# Inner disc — strong centre.
+	_master_halo = MeshInstance3D.new()
+	_master_halo.name = "Inner"
+	var disc_mesh := CylinderMesh.new()
+	disc_mesh.top_radius = 1.6
+	disc_mesh.bottom_radius = 1.6
+	disc_mesh.height = 0.01
+	_master_halo.mesh = disc_mesh
+	_master_halo_mat = StandardMaterial3D.new()
+	_master_halo_mat.albedo_color = Color(0.95, 0.62, 0.20, 0.45)
+	_master_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_master_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_master_halo_mat.emission_enabled = true
+	_master_halo_mat.emission = Color(0.95, 0.62, 0.20)
+	_master_halo_mat.emission_energy_multiplier = 1.4
+	_master_halo.material_override = _master_halo_mat
+	halo_root.add_child(_master_halo)
+
+	# Outer disc — wider, dimmer, softens the edge.
+	var outer := MeshInstance3D.new()
+	outer.name = "Outer"
+	var outer_mesh := CylinderMesh.new()
+	outer_mesh.top_radius = 2.6
+	outer_mesh.bottom_radius = 2.6
+	outer_mesh.height = 0.005
+	outer.mesh = outer_mesh
+	var outer_mat := StandardMaterial3D.new()
+	outer_mat.albedo_color = Color(0.95, 0.62, 0.20, 0.20)
+	outer_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	outer_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	outer_mat.emission_enabled = true
+	outer_mat.emission = Color(0.95, 0.62, 0.20)
+	outer_mat.emission_energy_multiplier = 0.6
+	outer.material_override = outer_mat
+	outer.position.y = -0.005
+	halo_root.add_child(outer)
+
+	# Hide if master already on (re-entry into a lit room).
+	if _master_on:
+		halo_root.visible = false
+
+
 func _build_breaker_spot() -> void:
 	# Soft top-down spotlight pooled on the breaker — gives the player a
 	# clear "this is what to walk toward" cue across the dim room.
@@ -681,6 +755,46 @@ func _update_breaker_prompt() -> void:
 	_breaker_prompt_root.visible = d <= _c.MASTER_BREAKER_INTERACT_RADIUS
 
 
+func _update_master_halo() -> void:
+	if _master_halo_mat == null:
+		return
+	if _master_on:
+		return
+	var t: float = Time.get_ticks_msec() / 1000.0
+	var pulse: float = 0.7 + sin(t * 1.5) * 0.3
+	_master_halo_mat.emission_energy_multiplier = 1.4 * pulse
+
+
+func _update_screen_flash(delta: float) -> void:
+	if _screen_flash == null:
+		return
+	if _flash_t > 0.0:
+		_flash_t = max(0.0, _flash_t - delta * 2.2)   # decay rate from brief
+	var alpha: float = clampf(_flash_t * 0.35, 0.0, 0.35)
+	var c := _screen_flash.color
+	c.a = alpha
+	_screen_flash.color = c
+	_screen_flash.visible = alpha > 0.001
+
+
+func _update_camera_shake(delta: float) -> void:
+	if _camera_pivot == null:
+		return
+	if not _shake_base_captured:
+		_shake_base_pos = _camera_pivot.position
+		_shake_base_captured = true
+	if _shake_t > 0.0:
+		_shake_t = max(0.0, _shake_t - delta * 12.0 / 4.0)   # 4-unit shake decaying at 12/s normalised
+		var amp: float = _shake_t * 0.18   # world-space metres at full strength
+		_camera_pivot.position = _shake_base_pos + Vector3(
+			(randf() - 0.5) * 2.0 * amp,
+			(randf() - 0.5) * 2.0 * amp,
+			(randf() - 0.5) * 2.0 * amp,
+		)
+	else:
+		_camera_pivot.position = _shake_base_pos
+
+
 func _check_master_breaker_interact() -> void:
 	if _player == null:
 		return
@@ -697,6 +811,12 @@ func _pull_master_breaker() -> void:
 	_master_anim_t = 0.0
 	_target_brightness = 1.0
 	_gs.floor_1.master_on = true
+	# Kick off the screen flash + camera shake — they decay each frame
+	# in _process and self-clear when t reaches zero.
+	_flash_t = 1.0
+	_shake_t = 1.0
+	if _master_halo:
+		_master_halo.visible = false
 
 
 func _apply_breaker_visual_state(initial: bool) -> void:
