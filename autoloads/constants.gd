@@ -303,31 +303,147 @@ const TUBE_SELL_VALUE_MULTIPLIER := 1.0
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
-# Layout follows the B1 brief (b1-utility-floor-godot-brief.md): 16×16 m
-# room with a central spine + 5 utility sources + 1 cargo source (the 6th
-# lane, bidirectional — sells produce down, distributes deliveries up to
-# Garden's corner tubes). Tap-E throughout, matching the iso slice's
-# existing interaction grammar instead of the brief's 1.6/1.2/0.9s holds.
-const FLOOR_1_SIZE := 16.0
-const FLOOR_1_WALL_HEIGHT := 3.5
-const FLOOR_1_WALL_THICKNESS := 0.3
-
-# Ortho camera frames the whole floor at once for now — no follow yet, so
-# the operator can read the room layout in one glance during M1 testing.
-# Tilt + yaw match the Garden so the visual grammar carries between floors.
+# Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension
+# grid) so floors read as the same building viewed at different stories.
+# 6 lanes — water, power, atmosphere, data, waste, cargo — feed up the
+# central elevator/spine; the cargo lane is bidirectional (sells produce
+# down, delivers supplies up to Garden corner tubes). Tap-E throughout.
 const FLOOR_1_CAMERA_TILT_DEG := -30.0
 const FLOOR_1_CAMERA_YAW_DEG := -135.0
-const FLOOR_1_CAMERA_DISTANCE := 18.0
-const FLOOR_1_CAMERA_ORTHO_SIZE := 14.0
+const FLOOR_1_CAMERA_DISTANCE := 20.0
+const FLOOR_1_CAMERA_ORTHO_SIZE := 18.0
 
-# Master breaker — south wall. Brief had it at (9.7, 14) on a (0..16) grid;
-# our floor is centred on the origin, so subtract 8 from each axis.
-const MASTER_BREAKER_POSITION := Vector3(1.7, 0.0, 6.0)
+# Master breaker — south wall, inset from the corner. Position scaled from
+# the brief's (9.7, 14) on a 0..16 grid to fit the 30×30 floor centred at
+# the origin: (9.7 × 30/16 − 15, 0, 14 × 30/16 − 15) ≈ (3.2, 0, 11.25).
+const MASTER_BREAKER_POSITION := Vector3(3.2, 0.0, 11.25)
 const MASTER_BREAKER_INTERACT_RADIUS := 1.7
 const MASTER_BREAKER_PULL_DURATION := 0.5    # tap-E animation length
 const ROOM_LIGHT_FADE_DURATION := 0.7
-const FLOOR_1_DARK_AMBIENT_MULT := 0.18      # ambient + directional drop when off
+const FLOOR_1_DARK_AMBIENT_MULT := 0.32      # boosted from 0.18 — operator
+                                              # said the room was unreadable
+                                              # at full-dark; this still feels
+                                              # "before lights on" but the
+                                              # walls + character are visible.
 const FLOOR_1_LIT_AMBIENT_MULT := 1.0
+
+# Emergency lighting that's always on, even before the master breaker is
+# pulled, so the room reads as "low-light maintenance lighting" rather than
+# "void". One overhead OmniLight3D at the room centre, plus soft warm
+# spotlights on the player and the breaker for legibility.
+const FLOOR_1_EMERGENCY_OMNI_ENERGY := 0.55
+const FLOOR_1_EMERGENCY_OMNI_RANGE := 18.0
+const FLOOR_1_PLAYER_SPOT_ENERGY := 1.4
+const FLOOR_1_BREAKER_SPOT_ENERGY := 2.4
+
+# Floor 1 utility systems. Six lanes feed the central elevator/spine —
+# water/power/atmosphere/data/waste are utility upflow, cargo is bidirectional
+# (sells produce out, delivers supplies up to Garden corner tubes).
+# Positions scaled from the brief's 0..16 grid to the 30×30 floor centred at
+# the origin: world_pos = (brief_pos × 30 / 16) − (15, 15). Cargo placed
+# south-of-centre, mirroring waste north-of-centre.
+const FLOOR_1_SYSTEMS := [
+	{
+		"id": "water",
+		"name": "Water",
+		"position": Vector3(-9.4, 0.0, -9.4),
+		"base_color": Color(0.227, 0.561, 0.784),
+		"glow_color": Color(0.494, 0.765, 0.929),
+		"disc_desc": "Glass intake. Cold pump. No pipe to the spine yet.",
+		"connected_desc": "Pipe laid. The wheel valve still needs turning.",
+		"online_desc": "Water pressure equalized. Feeds the spine.",
+		"connect_verb": "lay the pipe",
+		"activate_verb": "open the valve",
+		"mechanical_detail": "wheel_valve",
+		"pipe_index": 0,
+		"pipe_width": 0.16,
+	},
+	{
+		"id": "power",
+		"name": "Power",
+		"position": Vector3(7.5, 0.0, -9.4),
+		"base_color": Color(0.910, 0.565, 0.188),
+		"glow_color": Color(1.000, 0.722, 0.400),
+		"disc_desc": "Copper core. Three knife switches in series. No conduit run.",
+		"connected_desc": "Conduit linked. The knife switches wait to be thrown.",
+		"online_desc": "Mains armed. Copper conducts.",
+		"connect_verb": "run the conduit",
+		"activate_verb": "throw the switches",
+		"mechanical_detail": "knife_switches",
+		"pipe_index": 1,
+		"pipe_width": 0.16,
+	},
+	{
+		"id": "atmosphere",
+		"name": "Atmosphere",
+		"position": Vector3(7.5, 0.0, 7.5),
+		"base_color": Color(0.565, 0.596, 0.627),
+		"glow_color": Color(0.804, 0.835, 0.863),
+		"disc_desc": "A blower the size of a refrigerator. Ducting still detached.",
+		"connected_desc": "Ducting joined. The big red button waits.",
+		"online_desc": "Air handler spooled. Ducts breathing.",
+		"connect_verb": "join the ducts",
+		"activate_verb": "press ignition",
+		"mechanical_detail": "fan_button",
+		"pipe_index": 2,
+		"pipe_width": 0.22,
+	},
+	{
+		"id": "data",
+		"name": "Data",
+		"position": Vector3(-9.4, 0.0, 7.5),
+		"base_color": Color(0.365, 0.753, 0.376),
+		"glow_color": Color(0.573, 0.878, 0.510),
+		"disc_desc": "Server rack. Cold. No fiber to the spine.",
+		"connected_desc": "Fiber bundle joined. The rack is ready to boot.",
+		"online_desc": "Backbone online. Bits flowing up.",
+		"connect_verb": "pull the fiber",
+		"activate_verb": "boot the rack",
+		"mechanical_detail": "led_grid",
+		"pipe_index": 3,
+		"pipe_width": 0.14,
+	},
+	{
+		"id": "waste",
+		"name": "Waste",
+		"position": Vector3(0.0, 0.0, -5.6),
+		"base_color": Color(0.816, 0.345, 0.267),
+		"glow_color": Color(0.941, 0.518, 0.439),
+		"disc_desc": "Cast-iron drain. Sluice gate up. Outflow not tied in yet.",
+		"connected_desc": "Drain tied in. The sluice lever still in the up position.",
+		"online_desc": "Drainage open. Gravity does the rest.",
+		"connect_verb": "tie in the drain",
+		"activate_verb": "open the sluice",
+		"mechanical_detail": "sluice_lever",
+		"pipe_index": 4,
+		"pipe_width": 0.20,
+	},
+	{
+		"id": "cargo",
+		"name": "Cargo",
+		"position": Vector3(0.0, 0.0, 5.6),
+		"base_color": Color(0.722, 0.451, 0.200),
+		"glow_color": Color(0.918, 0.659, 0.345),
+		"disc_desc": "Pneumatic cargo line. Up-tubes upstairs not routed; out-tube to the world is open but unloaded.",
+		"connected_desc": "Cargo loop spliced. The dispatcher console waits to be flipped.",
+		"online_desc": "Cargo flowing both ways. Up-tubes feed; down-tubes sell.",
+		"connect_verb": "splice the cargo line",
+		"activate_verb": "flip the dispatcher",
+		"mechanical_detail": "dispatcher_panel",
+		"pipe_index": 5,
+		"pipe_width": 0.20,
+	},
+]
+
+# Source body bounding box (brief: 0.7 × 0.7 × 1.0).
+const FLOOR_1_SOURCE_SIZE := Vector3(0.7, 1.0, 0.7)
+# Cold (pre-connect) brightness multiplier on each source's base color.
+const FLOOR_1_SOURCE_COLD_MULT := 0.42
+# Spine pipe geometry — six vertical pipes attached to the south face of the
+# central elevator/spine column.
+const FLOOR_1_SPINE_PIPE_RADIUS := 0.10
+const FLOOR_1_SPINE_PIPE_BASE_Y := 0.30
+const FLOOR_1_SPINE_PIPE_TOP_Y := 2.5
 
 # --- Garden visual signature (drives iso_floor.gd in Phase 3) ---
 # Sources: docs/space-tower-project-knowledge-v3.md,

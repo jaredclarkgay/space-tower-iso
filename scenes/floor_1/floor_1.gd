@@ -10,44 +10,54 @@ extends Node3D
 #   ~/Downloads/files 10/b1-utility-floor-godot-brief.md
 #   ~/Downloads/files 10/utility-floor-prototype.html
 #
-# This is M1 of the Floor 1 build: scene scaffold + master breaker only.
-# No spine yet, no sources, no attention arrows, no audio. The breaker
-# is functional — tap E nearby to pull it, room ramps from dark to lit.
-# Subsequent milestones layer in the spine, the 6 sources, mechanical
-# details, attention arrows, and audio.
+# This commit (M1.1): footprint matches the Garden (30×30 with the same
+# wall style + extension grid), emergency lighting is on by default so the
+# room reads, and the master breaker has a fixed spotlight on it. The
+# player gets a soft top-down follow-spotlight set up in the .tscn.
+# M2 layers in the spine pipes + 6 source objects.
+
+const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-# Lighting state machine. `room_brightness` lerps toward `target_brightness`
-# at the rate dictated by ROOM_LIGHT_FADE_DURATION. Drives the directional
-# light's `light_energy` and the WorldEnvironment's ambient energy.
 var _room_brightness := 0.0
 var _target_brightness := 0.0
 var _master_on := false
-var _master_anim_t := 0.0   # 0..1 progress of the breaker pull animation
+var _master_anim_t := 0.0
 
-# Player ref for proximity checks. Resolved in _ready from a NodePath.
 @export var player_path: NodePath
 var _player: Node3D
 
-# Scene refs to drive lighting + visuals each frame.
 @export var directional_light_path: NodePath
 @export var world_environment_path: NodePath
 var _directional_light: DirectionalLight3D
 var _world_environment: WorldEnvironment
 
-# Master breaker visual handles. Built procedurally in _build_master_breaker.
 var _breaker_chassis: MeshInstance3D
-var _breaker_lever: Node3D            # pivot — child mesh hangs forward; pivot rotates
+var _breaker_lever: Node3D
 var _breaker_status_light: MeshInstance3D
 var _breaker_status_mat: StandardMaterial3D
+# Spotlight that pools warm light on the breaker even when the master is
+# off, so it reads as the obvious target across the dark room.
+var _breaker_spot: SpotLight3D
+# Always-on overhead emergency light at room centre. Low energy; gives the
+# room enough fill to be readable when the master is off.
+var _emergency_omni: OmniLight3D
 
 
 func _ready() -> void:
-	_build_slab()
-	_build_walls()
+	# Slab + walls + extension grid — same construction the Garden uses, so
+	# Floor 1 reads as the same building viewed one story down.
+	FloorChrome.build_slab(self, _c)
+	FloorChrome.build_walls(self, _c)
+	FloorChrome.build_extension_grid(self, _c)
+	FloorChrome.build_elevator_core(self, _c)
+	_build_spine_pipes()
+	_build_sources()
+	_build_emergency_omni()
 	_build_master_breaker()
+	_build_breaker_spot()
 
 	if player_path:
 		_player = get_node(player_path)
@@ -67,8 +77,6 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	# Smooth lerp toward target brightness — critical-damped feel rather
-	# than a linear ramp so the room "comes alive" with a soft surge.
 	if _room_brightness != _target_brightness:
 		var k: float = 1.0 - exp(-(1.0 / _c.ROOM_LIGHT_FADE_DURATION) * 4.0 * delta)
 		_room_brightness = lerpf(_room_brightness, _target_brightness, k)
@@ -76,11 +84,8 @@ func _process(delta: float) -> void:
 			_room_brightness = _target_brightness
 		_apply_brightness_to_lighting()
 
-	# Status light pulse when off — rapid red blink to draw attention from
-	# across the dark room. Steady green when on.
 	_update_status_light(delta)
 
-	# Master breaker interaction: tap E within range when room is dark.
 	if not _master_on:
 		_check_master_breaker_interact()
 	elif _master_anim_t < 1.0:
@@ -90,76 +95,213 @@ func _process(delta: float) -> void:
 
 # --- Geometry --------------------------------------------------------------
 
-func _build_slab() -> void:
-	# Floor body — collision so the player walks on it; mesh for visual.
-	var body := StaticBody3D.new()
-	body.name = "Slab"
-	add_child(body)
+func _build_spine_pipes() -> void:
+	# Six vertical pipes attached to the south face (+Z) of the elevator
+	# core. Cold (pre-activate) = base_color × COLD_MULT. Pipe order left to
+	# right matches FLOOR_1_SYSTEMS pipe_index. The elevator core has a 4×4
+	# footprint, so the south face spans x ∈ [-2, +2]; six pipes evenly
+	# spaced fit at x = -1.67, -1.0, -0.33, 0.33, 1.0, 1.67.
+	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
+	var face_z: float = elev_size * 0.5 + _c.FLOOR_1_SPINE_PIPE_RADIUS + 0.02
+	var pipe_count: int = _c.FLOOR_1_SYSTEMS.size()
+	var pipe_step: float = elev_size / float(pipe_count)
+	for sys in _c.FLOOR_1_SYSTEMS:
+		var idx: int = int(sys.pipe_index)
+		var pipe := MeshInstance3D.new()
+		pipe.name = "SpinePipe_" + sys.id
+		var pipe_mesh := CylinderMesh.new()
+		pipe_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
+		pipe_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
+		pipe_mesh.height = _c.FLOOR_1_SPINE_PIPE_TOP_Y - _c.FLOOR_1_SPINE_PIPE_BASE_Y
+		pipe.mesh = pipe_mesh
+		var mat := StandardMaterial3D.new()
+		var base_col: Color = sys.base_color
+		mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
+		mat.roughness = 0.5
+		mat.metallic = 0.4
+		pipe.material_override = mat
+		var cx: float = -elev_size * 0.5 + (float(idx) + 0.5) * pipe_step
+		var cy: float = (_c.FLOOR_1_SPINE_PIPE_BASE_Y + _c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
+		pipe.position = Vector3(cx, cy, face_z)
+		add_child(pipe)
 
-	var col := CollisionShape3D.new()
-	var col_shape := BoxShape3D.new()
-	col_shape.size = Vector3(_c.FLOOR_1_SIZE, 0.4, _c.FLOOR_1_SIZE)
-	col.shape = col_shape
-	col.position = Vector3(0, -0.2, 0)
-	body.add_child(col)
 
-	var mesh := MeshInstance3D.new()
-	mesh.name = "SlabMesh"
-	var box := BoxMesh.new()
-	box.size = Vector3(_c.FLOOR_1_SIZE, 0.2, _c.FLOOR_1_SIZE)
-	mesh.mesh = box
-	mesh.material_override = _make_material(Color(0.18, 0.16, 0.13))
-	mesh.position = Vector3(0, -0.1, 0)
-	body.add_child(mesh)
+func _build_sources() -> void:
+	# One source object per system. Cold visual only — no interaction yet
+	# (M3 wires connect, M4 wires activate). Body sits on the floor with a
+	# distinct mechanical detail on top so the player reads each source's
+	# function at a glance even before approaching it.
+	for sys in _c.FLOOR_1_SYSTEMS:
+		var root := Node3D.new()
+		root.name = "Source_" + sys.id
+		root.position = sys.position
+		add_child(root)
 
-
-func _build_walls() -> void:
-	# Four perimeter walls. StaticBody3D with a box collider + mesh.
-	var half: float = _c.FLOOR_1_SIZE * 0.5
-	var t: float = _c.FLOOR_1_WALL_THICKNESS
-	var h: float = _c.FLOOR_1_WALL_HEIGHT
-	# Sides: (axis, sign) pairs. axis 0 = X (left/right walls), 1 = Z (back/front).
-	var sides := [
-		[Vector3(-half - t * 0.5, h * 0.5, 0), Vector3(t, h, _c.FLOOR_1_SIZE)],
-		[Vector3(half + t * 0.5, h * 0.5, 0), Vector3(t, h, _c.FLOOR_1_SIZE)],
-		[Vector3(0, h * 0.5, -half - t * 0.5), Vector3(_c.FLOOR_1_SIZE + t * 2, h, t)],
-		[Vector3(0, h * 0.5, half + t * 0.5), Vector3(_c.FLOOR_1_SIZE + t * 2, h, t)],
-	]
-	for s in sides:
-		var pos: Vector3 = s[0]
-		var size: Vector3 = s[1]
+		var size: Vector3 = _c.FLOOR_1_SOURCE_SIZE
 		var body := StaticBody3D.new()
-		body.name = "Wall"
-		body.position = pos
-		add_child(body)
+		body.name = "Body"
+		root.add_child(body)
+
+		var mesh := MeshInstance3D.new()
+		mesh.name = "Chassis"
+		var box := BoxMesh.new()
+		box.size = size
+		mesh.mesh = box
+		var mat := StandardMaterial3D.new()
+		var base_col: Color = sys.base_color
+		mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
+		mat.roughness = 0.7
+		mesh.material_override = mat
+		mesh.position = Vector3(0, size.y * 0.5, 0)
+		body.add_child(mesh)
+
 		var col := CollisionShape3D.new()
 		var col_shape := BoxShape3D.new()
 		col_shape.size = size
 		col.shape = col_shape
+		col.position = Vector3(0, size.y * 0.5, 0)
 		body.add_child(col)
-		var mesh := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = size
-		mesh.mesh = box
-		mesh.material_override = _make_material(Color(0.22, 0.20, 0.18))
-		body.add_child(mesh)
+
+		_build_source_detail(root, sys, size)
+
+
+func _build_source_detail(root: Node3D, sys: Dictionary, size: Vector3) -> void:
+	# Distinct top/front mechanical detail per source. Cold = inert pose;
+	# active animations land in M4. The geometry only — no animation here.
+	var detail_y: float = size.y + 0.04
+	var base_col: Color = sys.base_color
+	var glow_col: Color = sys.glow_color
+	match sys.mechanical_detail:
+		"wheel_valve":
+			var wheel := MeshInstance3D.new()
+			wheel.name = "WheelValve"
+			var wheel_mesh := TorusMesh.new()
+			wheel_mesh.inner_radius = 0.13
+			wheel_mesh.outer_radius = 0.22
+			wheel.mesh = wheel_mesh
+			wheel.material_override = _make_material(base_col * 0.7)
+			wheel.position = Vector3(0, detail_y + 0.05, 0)
+			root.add_child(wheel)
+		"knife_switches":
+			for k in range(3):
+				var sw := MeshInstance3D.new()
+				sw.name = "KnifeSwitch_%d" % k
+				var sw_mesh := BoxMesh.new()
+				sw_mesh.size = Vector3(0.06, 0.32, 0.04)
+				sw.mesh = sw_mesh
+				sw.material_override = _make_material(base_col * 0.7)
+				sw.position = Vector3(-0.18 + 0.18 * float(k), detail_y + 0.18, 0)
+				sw.rotation.x = -PI * 0.18  # leaning back = "off"
+				root.add_child(sw)
+		"fan_button":
+			var grille := MeshInstance3D.new()
+			grille.name = "FanGrille"
+			var grille_mesh := CylinderMesh.new()
+			grille_mesh.top_radius = 0.22
+			grille_mesh.bottom_radius = 0.22
+			grille_mesh.height = 0.05
+			grille.mesh = grille_mesh
+			grille.material_override = _make_material(base_col * 0.5)
+			grille.position = Vector3(0, detail_y + 0.04, 0)
+			root.add_child(grille)
+			var btn := MeshInstance3D.new()
+			btn.name = "FanButton"
+			var btn_mesh := CylinderMesh.new()
+			btn_mesh.top_radius = 0.06
+			btn_mesh.bottom_radius = 0.06
+			btn_mesh.height = 0.06
+			btn.mesh = btn_mesh
+			var btn_mat := StandardMaterial3D.new()
+			btn_mat.albedo_color = Color(0.85, 0.22, 0.18) * 0.55
+			btn.material_override = btn_mat
+			btn.position = Vector3(0.13, detail_y + 0.06, 0)
+			root.add_child(btn)
+		"led_grid":
+			# 4×4 LED matrix on the front face (-Z direction). Cold = dim.
+			var spacing: float = 0.08
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = base_col * 0.45
+			mat.emission_enabled = true
+			mat.emission = base_col * 0.3
+			mat.emission_energy_multiplier = 0.4
+			for r in range(4):
+				for col2 in range(4):
+					var led := MeshInstance3D.new()
+					led.name = "LED_%d_%d" % [r, col2]
+					var led_mesh := BoxMesh.new()
+					led_mesh.size = Vector3(0.04, 0.04, 0.02)
+					led.mesh = led_mesh
+					led.material_override = mat
+					led.position = Vector3(
+						-1.5 * spacing + spacing * float(col2),
+						0.25 + spacing * float(r),
+						-size.z * 0.5 - 0.012,
+					)
+					root.add_child(led)
+		"sluice_lever":
+			var grate := MeshInstance3D.new()
+			grate.name = "Grate"
+			var grate_mesh := BoxMesh.new()
+			grate_mesh.size = Vector3(size.x, 0.04, size.z)
+			grate.mesh = grate_mesh
+			grate.material_override = _make_material(base_col * 0.5)
+			grate.position = Vector3(0, detail_y + 0.02, 0)
+			root.add_child(grate)
+			var lever := MeshInstance3D.new()
+			lever.name = "SluiceLever"
+			var lever_mesh := BoxMesh.new()
+			lever_mesh.size = Vector3(0.06, 0.4, 0.06)
+			lever.mesh = lever_mesh
+			lever.material_override = _make_material(Color(0.78, 0.55, 0.30) * 0.7)
+			lever.position = Vector3(size.x * 0.5 + 0.08, detail_y + 0.20, 0)
+			root.add_child(lever)
+		"dispatcher_panel":
+			# A small angled control console + a couple of status LEDs.
+			var console := MeshInstance3D.new()
+			console.name = "DispatcherConsole"
+			var console_mesh := BoxMesh.new()
+			console_mesh.size = Vector3(size.x * 0.85, 0.20, size.z * 0.45)
+			console.mesh = console_mesh
+			console.material_override = _make_material(base_col * 0.6)
+			console.position = Vector3(0, detail_y + 0.10, -size.z * 0.18)
+			console.rotation.x = -PI * 0.18
+			root.add_child(console)
+			# Two small dim lamps.
+			for k in range(2):
+				var lamp := MeshInstance3D.new()
+				lamp.name = "Lamp_%d" % k
+				var lamp_mesh := SphereMesh.new()
+				lamp_mesh.radius = 0.04
+				lamp_mesh.height = 0.08
+				lamp.mesh = lamp_mesh
+				var lamp_mat := StandardMaterial3D.new()
+				lamp_mat.albedo_color = glow_col * 0.5
+				lamp_mat.emission_enabled = true
+				lamp_mat.emission = glow_col * 0.4
+				lamp_mat.emission_energy_multiplier = 0.5
+				lamp.material_override = lamp_mat
+				lamp.position = Vector3(-0.10 + 0.20 * float(k), detail_y + 0.16, -size.z * 0.18)
+				root.add_child(lamp)
+
+
+func _build_emergency_omni() -> void:
+	_emergency_omni = OmniLight3D.new()
+	_emergency_omni.name = "EmergencyOmni"
+	_emergency_omni.light_color = Color(1.0, 0.78, 0.45)   # warm amber
+	_emergency_omni.light_energy = _c.FLOOR_1_EMERGENCY_OMNI_ENERGY
+	_emergency_omni.omni_range = _c.FLOOR_1_EMERGENCY_OMNI_RANGE
+	_emergency_omni.omni_attenuation = 1.5
+	_emergency_omni.position = Vector3(0, _c.WALL_HEIGHT - 0.4, 0)
+	add_child(_emergency_omni)
 
 
 func _build_master_breaker() -> void:
-	# Industrial breaker box: chassis + lever + status light. The lever is
-	# a child of a pivot Node3D so we can rotate it on pull without moving
-	# the chassis or the light. Brief says ~0.6 × 0.4 × 1.4 units; we use
-	# (0.7, 1.4, 0.4) since x and z are the floor plane in Godot.
 	var root := Node3D.new()
 	root.name = "MasterBreaker"
 	root.position = _c.MASTER_BREAKER_POSITION
-	# Face the breaker toward the room interior. With Floor 1 centred on the
-	# origin and the breaker on the south wall (positive Z), it should look
-	# back toward -Z.
 	root.rotation.y = 0.0
 	add_child(root)
 
-	# Chassis box — sits on the floor, sticks out from the wall.
 	_breaker_chassis = MeshInstance3D.new()
 	_breaker_chassis.name = "Chassis"
 	var chassis_mesh := BoxMesh.new()
@@ -169,14 +311,10 @@ func _build_master_breaker() -> void:
 	_breaker_chassis.position = Vector3(0, 0.7, 0)
 	root.add_child(_breaker_chassis)
 
-	# Lever pivot — sits at lever-base height on the front face of the chassis.
-	# When master is OFF the lever points up (+Y); when ON it swings down.
-	# We tween rotation.x of this pivot from a negative angle (up) to a
-	# positive angle (down) over the pull animation.
 	_breaker_lever = Node3D.new()
 	_breaker_lever.name = "LeverPivot"
 	_breaker_lever.position = Vector3(0, 0.95, -0.22)
-	_breaker_lever.rotation.x = -PI * 0.3   # initial: pointing up-and-forward
+	_breaker_lever.rotation.x = -PI * 0.3
 	root.add_child(_breaker_lever)
 
 	var lever_mesh_node := MeshInstance3D.new()
@@ -185,12 +323,9 @@ func _build_master_breaker() -> void:
 	lever_mesh.size = Vector3(0.08, 0.55, 0.08)
 	lever_mesh_node.mesh = lever_mesh
 	lever_mesh_node.material_override = _make_material(Color(0.78, 0.55, 0.30))
-	# Mesh's local origin sits at its centre — offset down by half-height so
-	# the pivot is at the lever's base, not its centre.
 	lever_mesh_node.position = Vector3(0, 0.275, 0)
 	_breaker_lever.add_child(lever_mesh_node)
 
-	# Lever knob — small ball at the tip.
 	var knob := MeshInstance3D.new()
 	knob.name = "LeverKnob"
 	var knob_mesh := SphereMesh.new()
@@ -201,7 +336,6 @@ func _build_master_breaker() -> void:
 	knob.position = Vector3(0, 0.55, 0)
 	_breaker_lever.add_child(knob)
 
-	# Status light — small emissive disc on top of the chassis.
 	_breaker_status_light = MeshInstance3D.new()
 	_breaker_status_light.name = "StatusLight"
 	var light_mesh := SphereMesh.new()
@@ -216,6 +350,23 @@ func _build_master_breaker() -> void:
 	_breaker_status_light.material_override = _breaker_status_mat
 	_breaker_status_light.position = Vector3(0, 1.46, 0)
 	root.add_child(_breaker_status_light)
+
+
+func _build_breaker_spot() -> void:
+	# Soft top-down spotlight pooled on the breaker — gives the player a
+	# clear "this is what to walk toward" cue across the dim room.
+	# add_child first, then look_at (F-006 lesson — look_at requires the
+	# node to be in the tree).
+	_breaker_spot = SpotLight3D.new()
+	_breaker_spot.name = "BreakerSpot"
+	_breaker_spot.light_color = Color(1.0, 0.92, 0.78)
+	_breaker_spot.light_energy = _c.FLOOR_1_BREAKER_SPOT_ENERGY
+	_breaker_spot.spot_range = 4.5
+	_breaker_spot.spot_angle = 32.0
+	_breaker_spot.spot_attenuation = 0.7
+	_breaker_spot.position = _c.MASTER_BREAKER_POSITION + Vector3(0, 3.5, 0)
+	add_child(_breaker_spot)
+	_breaker_spot.look_at(_c.MASTER_BREAKER_POSITION + Vector3(0, 0.7, 0), Vector3(0, 0, -1))
 
 
 # --- State + behaviour -----------------------------------------------------
@@ -239,9 +390,6 @@ func _pull_master_breaker() -> void:
 
 
 func _apply_breaker_visual_state(initial: bool) -> void:
-	# Lever rotation interpolates from up-forward (-PI*0.3) to down-forward
-	# (+PI*0.4) over the pull animation. When initial=true (re-entry into a
-	# room that's already on, or just after _ready), snap to the end state.
 	var t: float = _master_anim_t if not initial else (1.0 if _master_on else 0.0)
 	if _breaker_lever:
 		var start_angle := -PI * 0.3
@@ -253,13 +401,11 @@ func _update_status_light(_delta: float) -> void:
 	if _breaker_status_mat == null:
 		return
 	if _master_on:
-		# Steady green when on.
 		var c := Color(0.36, 0.79, 0.65)
 		_breaker_status_mat.albedo_color = c
 		_breaker_status_mat.emission = c
 		_breaker_status_mat.emission_energy_multiplier = 1.6
 	else:
-		# Rapid red pulse when off — attention beacon across the dark room.
 		var t: float = Time.get_ticks_msec() / 1000.0
 		var pulse: float = 0.7 + sin(t * 6.28 * 1.4) * 0.3
 		var c := Color(0.91, 0.31, 0.25)
@@ -271,8 +417,7 @@ func _update_status_light(_delta: float) -> void:
 func _apply_brightness_to_lighting() -> void:
 	# Map room_brightness (0..1) to a multiplier between dark and lit ambient
 	# levels. Both the directional light and the WorldEnvironment ambient
-	# energy ride this scalar so the room reads as one cohesive lighting
-	# state rather than two independent dimmers.
+	# energy ride this scalar.
 	var mult: float = lerpf(
 		_c.FLOOR_1_DARK_AMBIENT_MULT,
 		_c.FLOOR_1_LIT_AMBIENT_MULT,
@@ -282,6 +427,16 @@ func _apply_brightness_to_lighting() -> void:
 		_directional_light.light_energy = 0.7 * mult
 	if _world_environment and _world_environment.environment:
 		_world_environment.environment.ambient_light_energy = 0.6 * mult
+	# When the room comes on, dim the breaker's spotlight so it doesn't
+	# stay overbright after the room is lit. Stays at 30% energy when on
+	# rather than fully off — keeps the breaker subtly highlighted as a
+	# returnable interactable.
+	if _breaker_spot:
+		_breaker_spot.light_energy = lerpf(
+			_c.FLOOR_1_BREAKER_SPOT_ENERGY,
+			_c.FLOOR_1_BREAKER_SPOT_ENERGY * 0.3,
+			_room_brightness,
+		)
 
 
 func _make_material(color: Color) -> StandardMaterial3D:

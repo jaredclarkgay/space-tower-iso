@@ -25,6 +25,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 script = ExtResource("2_player")
 camera_pivot_path = NodePath("../../CameraPivot")
 
+[node name="PlayerSpot" type="SpotLight3D" parent="World/IsoPlayer"]
+position = Vector3(0, 3.2, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+light_color = Color(1, 0.92, 0.78, 1)
+light_energy = 1.4
+spot_range = 4.5
+spot_angle = 38.0
+spot_attenuation = 0.7
+
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
 light_color = Color(1, 0.92, 0.78, 1)
@@ -38,10 +47,10 @@ position = Vector3(0, 1, 0)
 rotation_degrees = Vector3(0, -135, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-position = Vector3(0, 9, 15.5885)
+position = Vector3(0, 10, 17.3205)
 rotation_degrees = Vector3(-30, 0, 0)
 projection = 1
-size = 14.0
+size = 18.0
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
