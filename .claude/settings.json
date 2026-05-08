@@ -1,29 +1,3 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "hooks": {
-    "SessionEnd": [
-      {
-        "matcher": "clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash agent/capture_session.sh",
-            "timeout": 8000
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash agent/capture_session.sh",
-            "timeout": 8000
-          }
-        ]
-      }
-    ]
-  }
+  "$schema": "https://json.schemastore.org/claude-code-settings.json"
 }
