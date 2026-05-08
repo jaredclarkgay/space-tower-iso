@@ -50,7 +50,7 @@ rotation_degrees = Vector3(0, -135, 0)
 position = Vector3(0, 10, 17.3205)
 rotation_degrees = Vector3(-30, 0, 0)
 projection = 1
-size = 18.0
+size = 40.0
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

@@ -54,6 +54,15 @@ iso_robot_path = NodePath("../IsoRobot")
 iso_dispenser_path = NodePath("../IsoDispenser")
 iso_tubes_path = NodePath("../IsoTubes")
 
+[node name="PlayerSpot" type="SpotLight3D" parent="World/IsoPlayer"]
+position = Vector3(0, 3.2, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+light_color = Color(1, 0.92, 0.78, 1)
+light_energy = 0.9
+spot_range = 4.5
+spot_angle = 38.0
+spot_attenuation = 0.7
+
 [node name="IsoRobot" type="Node3D" parent="World"]
 visible = false
 script = ExtResource("5_robot")

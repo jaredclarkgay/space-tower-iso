@@ -41,6 +41,11 @@ var _breaker_status_mat: StandardMaterial3D
 # Spotlight that pools warm light on the breaker even when the master is
 # off, so it reads as the obvious target across the dark room.
 var _breaker_spot: SpotLight3D
+# 3D "E" prompt + label above the breaker. Fades in on approach so the
+# player knows it's interactable; hidden once the breaker is on.
+var _breaker_prompt_root: Node3D
+var _breaker_prompt_e: Label3D
+var _breaker_prompt_label: Label3D
 # Always-on overhead emergency light at room centre. Low energy; gives the
 # room enough fill to be readable when the master is off.
 var _emergency_omni: OmniLight3D
@@ -85,6 +90,7 @@ func _process(delta: float) -> void:
 		_apply_brightness_to_lighting()
 
 	_update_status_light(delta)
+	_update_breaker_prompt()
 
 	if not _master_on:
 		_check_master_breaker_interact()
@@ -302,14 +308,27 @@ func _build_master_breaker() -> void:
 	root.rotation.y = 0.0
 	add_child(root)
 
+	# Chassis is a StaticBody3D so the player physically collides with it
+	# instead of walking through (operator: "my player is walking through
+	# the breaker box"). Mesh is a child of the body.
+	var body := StaticBody3D.new()
+	body.name = "ChassisBody"
+	root.add_child(body)
+	var chassis_size := Vector3(0.7, 1.4, 0.4)
 	_breaker_chassis = MeshInstance3D.new()
 	_breaker_chassis.name = "Chassis"
 	var chassis_mesh := BoxMesh.new()
-	chassis_mesh.size = Vector3(0.7, 1.4, 0.4)
+	chassis_mesh.size = chassis_size
 	_breaker_chassis.mesh = chassis_mesh
 	_breaker_chassis.material_override = _make_material(Color(0.16, 0.18, 0.22))
 	_breaker_chassis.position = Vector3(0, 0.7, 0)
-	root.add_child(_breaker_chassis)
+	body.add_child(_breaker_chassis)
+	var col := CollisionShape3D.new()
+	var col_shape := BoxShape3D.new()
+	col_shape.size = chassis_size
+	col.shape = col_shape
+	col.position = Vector3(0, 0.7, 0)
+	body.add_child(col)
 
 	_breaker_lever = Node3D.new()
 	_breaker_lever.name = "LeverPivot"
@@ -351,6 +370,40 @@ func _build_master_breaker() -> void:
 	_breaker_status_light.position = Vector3(0, 1.46, 0)
 	root.add_child(_breaker_status_light)
 
+	# 3D interaction prompt — "[E]" + "Pull breaker" subtext above the box.
+	# Hidden by default; fades in when the player is in interaction range.
+	# Style mirrors the iso slice's plot/dispenser prompt language so the
+	# verb-grammar is consistent across floors.
+	_breaker_prompt_root = Node3D.new()
+	_breaker_prompt_root.name = "BreakerPromptGroup"
+	_breaker_prompt_root.position = Vector3(0, 1.85, 0)
+	_breaker_prompt_root.visible = false
+	root.add_child(_breaker_prompt_root)
+
+	_breaker_prompt_e = Label3D.new()
+	_breaker_prompt_e.text = "E"
+	_breaker_prompt_e.font_size = 96
+	_breaker_prompt_e.outline_size = 12
+	_breaker_prompt_e.modulate = Color(1.0, 0.92, 0.55, 1.0)
+	_breaker_prompt_e.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_breaker_prompt_e.pixel_size = 0.005
+	_breaker_prompt_e.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_breaker_prompt_e.no_depth_test = true
+	_breaker_prompt_e.position = Vector3(0, 0.32, 0)
+	_breaker_prompt_root.add_child(_breaker_prompt_e)
+
+	_breaker_prompt_label = Label3D.new()
+	_breaker_prompt_label.text = "Pull breaker"
+	_breaker_prompt_label.font_size = 56
+	_breaker_prompt_label.outline_size = 8
+	_breaker_prompt_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
+	_breaker_prompt_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_breaker_prompt_label.pixel_size = 0.005
+	_breaker_prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_breaker_prompt_label.no_depth_test = true
+	_breaker_prompt_label.position = Vector3(0, 0.0, 0)
+	_breaker_prompt_root.add_child(_breaker_prompt_label)
+
 
 func _build_breaker_spot() -> void:
 	# Soft top-down spotlight pooled on the breaker — gives the player a
@@ -370,6 +423,21 @@ func _build_breaker_spot() -> void:
 
 
 # --- State + behaviour -----------------------------------------------------
+
+func _update_breaker_prompt() -> void:
+	if _breaker_prompt_root == null:
+		return
+	# Once the breaker is on, the prompt stays hidden — there's no reason
+	# to re-pull. Before that, show only when the player is in range.
+	if _master_on:
+		_breaker_prompt_root.visible = false
+		return
+	if _player == null:
+		_breaker_prompt_root.visible = false
+		return
+	var d: float = (_player.global_position - _c.MASTER_BREAKER_POSITION).length()
+	_breaker_prompt_root.visible = d <= _c.MASTER_BREAKER_INTERACT_RADIUS
+
 
 func _check_master_breaker_interact() -> void:
 	if _player == null:

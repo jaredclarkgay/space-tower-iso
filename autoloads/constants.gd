@@ -311,7 +311,10 @@ const TUBE_SELL_VALUE_MULTIPLIER := 1.0
 const FLOOR_1_CAMERA_TILT_DEG := -30.0
 const FLOOR_1_CAMERA_YAW_DEG := -135.0
 const FLOOR_1_CAMERA_DISTANCE := 20.0
-const FLOOR_1_CAMERA_ORTHO_SIZE := 18.0
+# Match the Garden's default — operator: "1st floor also looks a lot smaller
+# than the second". Same scene size with the same ortho framing reads as
+# the same building.
+const FLOOR_1_CAMERA_ORTHO_SIZE := 40.0
 
 # Master breaker — south wall, inset from the corner. Position scaled from
 # the brief's (9.7, 14) on a 0..16 grid to fit the 30×30 floor centred at
