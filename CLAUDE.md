@@ -93,6 +93,7 @@ update, so empty-session clears don't spam.
 | `docs/rgb-floor5-design-brief.md` | The RGB experience — describes what the slice must NOT erode. |
 | `docs/builder-agent-design-v1.md` | Agent loop, request types, session log shape. |
 | `docs/player-journey-map-v3-final.html` | Step 07 "The Garden of Eden" — the visual reference for Floor 3. |
+| `docs/floor_design_system.md` | **Universal floor rules.** Footprint, walls, camera, lighting, HUD, and interaction grammar every floor inherits. Read before adding a new floor. |
 
 ## Phase gates (from the brief)
 

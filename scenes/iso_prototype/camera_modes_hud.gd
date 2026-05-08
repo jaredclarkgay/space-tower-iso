@@ -5,7 +5,9 @@ extends Control
 # polls _gs.camera_mode every frame and tweens the camera to the matching
 # preset.
 #
-# Layout: vertical stack at top-right, just below the Resources panel.
+# Layout: vertical stack anchored bottom-right, well clear of the
+# Resources panel which lives top-right. Operator: "the camera toggles
+# should be on the lower right, they're bumping up against resources".
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -14,7 +16,7 @@ const _BUTTON_W := 124.0
 const _BUTTON_H := 38.0
 const _BUTTON_GAP := 4.0
 const _RIGHT_MARGIN := 20.0
-const _TOP_OFFSET := 220.0           # below the Resources panel
+const _BOTTOM_MARGIN := 20.0
 
 var _buttons: Dictionary = {}        # mode_key -> { root, label }
 var _style_idle: StyleBoxFlat
@@ -33,16 +35,19 @@ func _ready() -> void:
 	var n: int = entries.size()
 	var total_h: float = n * _BUTTON_H + (n - 1) * _BUTTON_GAP
 
+	# Account for the header label that sits above the buttons.
+	var header_h: float = 18.0
+	var stack_h: float = total_h + header_h + 4.0
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	custom_minimum_size = Vector2(_BUTTON_W, total_h)
+	custom_minimum_size = Vector2(_BUTTON_W, stack_h)
 	anchor_left = 1.0
 	anchor_right = 1.0
-	anchor_top = 0.0
-	anchor_bottom = 0.0
+	anchor_top = 1.0
+	anchor_bottom = 1.0
 	offset_left = -(_BUTTON_W + _RIGHT_MARGIN)
 	offset_right = -_RIGHT_MARGIN
-	offset_top = _TOP_OFFSET
-	offset_bottom = _TOP_OFFSET + total_h
+	offset_top = -(stack_h + _BOTTOM_MARGIN)
+	offset_bottom = -_BOTTOM_MARGIN
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", int(_BUTTON_GAP))
