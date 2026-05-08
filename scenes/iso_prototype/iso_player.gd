@@ -236,6 +236,16 @@ func _ready() -> void:
 	if iso_tubes_path:
 		_iso_tubes = get_node(iso_tubes_path)
 
+	# Spawn facing the camera so the player's front is visible on first
+	# frame instead of their back. Camera yaw -135° puts the camera at NW
+	# looking SE; player should look NW (toward the camera). Math: the
+	# world direction from player toward camera maps via atan2(x,z) to the
+	# same numeric value as CAMERA_YAW_DEG_INITIAL, so this stays correct
+	# if the operator changes the default yaw later.
+	_facing_yaw = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
+	if _visual:
+		_visual.rotation.y = _facing_yaw
+
 
 func _physics_process(delta: float) -> void:
 	# Debug stop-gap until M6 wires the elevator: backslash swaps the
@@ -904,6 +914,12 @@ func _update_charge_bar(progress: float) -> void:
 	mat.albedo_color = color
 	mat.emission = color
 	mat.emission_energy_multiplier = lerp(1.2, 2.4, progress)
+
+
+func set_facing_yaw(yaw: float) -> void:
+	_facing_yaw = yaw
+	if _visual:
+		_visual.rotation.y = yaw
 
 
 func get_facing_yaw() -> float:

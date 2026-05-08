@@ -15,8 +15,14 @@ extends Node3D
 
 @export var target_scene_path: String = ""
 @export var target_label: String = ""
+# "up" or "down" — drives the prompt arrow and the directional feel.
+@export var direction: String = "up"
 @export var player_path: NodePath
 var _player: Node3D
+
+# Where to place the player after arrival. Just south of the central
+# elevator core so they exit through the "south door" facing the camera.
+const ARRIVAL_POSITION := Vector3(0, 0.2, 3.0)
 
 # Prompt above the elevator. Built once; visibility + position lerp.
 var _prompt_root: Node3D
@@ -36,9 +42,14 @@ func _ready() -> void:
 		_player = get_node(player_path)
 	_build_prompt()
 	_build_fade()
-	# If we just travelled, run the fade-in. Otherwise skip — fresh F5
-	# into the project shouldn't open with a black-to-clear ramp.
+	# If we just travelled, run the fade-in and reposition the player at
+	# the south door of the elevator. Otherwise skip — a fresh F5 into
+	# the project shouldn't open on a black-to-clear ramp.
 	if _gs.get("in_transit"):
+		if _player:
+			_player.global_position = ARRIVAL_POSITION
+			if _player.has_method("set_facing_yaw"):
+				_player.set_facing_yaw(deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL))
 		_fade_rect.color.a = 1.0
 		_fade_rect.visible = true
 		var tween := create_tween()
@@ -104,7 +115,8 @@ func _build_prompt() -> void:
 	_prompt_root.add_child(_prompt_e)
 
 	_prompt_label = Label3D.new()
-	_prompt_label.text = "Travel to %s" % target_label
+	var arrow := "↑" if direction == "up" else "↓"
+	_prompt_label.text = "%s  Travel to %s" % [arrow, target_label]
 	_prompt_label.font_size = 56
 	_prompt_label.outline_size = 8
 	_prompt_label.modulate = Color(1.0, 0.96, 0.85, 1.0)

@@ -31,10 +31,11 @@ camera_pivot_path = NodePath("../../CameraPivot")
 script = ExtResource("7_elev")
 target_scene_path = "res://scenes/iso_prototype/iso_prototype.tscn"
 target_label = "Garden"
+direction = "up"
 player_path = NodePath("../IsoPlayer")
 
 [node name="IsoPlayer" type="CharacterBody3D" parent="World"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 3)
 script = ExtResource("2_player")
 camera_pivot_path = NodePath("../../CameraPivot")
 

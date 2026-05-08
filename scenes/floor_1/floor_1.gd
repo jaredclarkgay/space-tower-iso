@@ -570,7 +570,13 @@ func _build_master_breaker() -> void:
 	var root := Node3D.new()
 	root.name = "MasterBreaker"
 	root.position = _c.MASTER_BREAKER_POSITION
-	root.rotation.y = 0.0
+	# Rotate so the lever side faces the default camera (NW). With Y-rotation
+	# of +45°, the chassis's local -Z (where the lever pivot sits) aligns
+	# with world (-X, -Z) — the direction from the breaker toward the camera.
+	# If the operator changes CAMERA_YAW_DEG_INITIAL later this won't auto-
+	# track, but the chassis still reads as "facing into the room" from
+	# every iso angle.
+	root.rotation.y = PI * 0.25
 	add_child(root)
 
 	# Chassis is a StaticBody3D so the player physically collides with it

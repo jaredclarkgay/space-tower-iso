@@ -154,7 +154,23 @@ hint and the SeedHud already share that visual lane).
 
 ---
 
-## 7. Interaction grammar
+## 7. Player spawn
+
+Every floor spawns the player just south of the elevator core, at
+`Vector3(0, 0.2, 3.0)`. The player's facing yaw is set to face the
+camera (`deg_to_rad(CAMERA_YAW_DEG_INITIAL)`), so on first frame their
+front is visible rather than their back. The same position + facing is
+applied on arrival via the elevator (`ElevatorHandler` repositions the
+player after the scene swap so they exit through the south door
+instead of inside the elevator collision shape).
+
+If a floor needs the player to spawn elsewhere (e.g. a cinematic intro),
+override the `IsoPlayer` transform in that floor's `.tscn` and reset
+the facing yaw with `IsoPlayer.set_facing_yaw(...)`.
+
+---
+
+## 8. Interaction grammar
 
 - **Tap-E** for any verb. No 1.6/1.2/0.9-second holds; the iso slice
   established a tap-and-tween idiom (~0.5 s animation, no charge bar)
@@ -168,7 +184,7 @@ hint and the SeedHud already share that visual lane).
 
 ---
 
-## 8. Constants and state
+## 9. Constants and state
 
 - Per-floor constants live as a `FLOOR_<n>_*` block in
   `autoloads/constants.gd`, after the shared base constants.
@@ -179,7 +195,7 @@ hint and the SeedHud already share that visual lane).
 
 ---
 
-## 9. Adding a new floor — checklist
+## 10. Adding a new floor — checklist
 
 - [ ] `scenes/floor_<n>/floor_<n>.tscn` + `floor_<n>.gd`
 - [ ] `_ready` calls `FloorChrome.build_slab/walls/extension_grid/elevator_core`
