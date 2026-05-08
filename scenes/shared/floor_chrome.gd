@@ -192,41 +192,39 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	inner.rotation.y = PI * 0.125
 	body.add_child(inner)
 
-	# --- Chamfered corner panels (4) — pipes will mount on these.
+	# --- Chamfered corner panels (4) — pipes will mount on these. Each
+	# panel also carries a thin collision shape so the player can't walk
+	# through the elevator's corners; the cardinal-face areas have NO
+	# collision so the player can walk INTO the elevator through the doors.
 	for corner in ["NW", "NE", "SE", "SW"]:
 		var sx: float = -1.0 if corner == "NW" or corner == "SW" else 1.0
 		var sz: float = -1.0 if corner == "NW" or corner == "NE" else 1.0
-		var panel := MeshInstance3D.new()
-		panel.name = "Chamfer_" + corner
-		var pm := BoxMesh.new()
-		# Chamfer face is a rectangle: width = chamfer * sqrt(2), height = full.
-		pm.size = Vector3(chamfer * sqrt(2.0), height, 0.08)
-		panel.mesh = pm
-		panel.material_override = cap_mat
-		# Position at the corner, midpoint between (size/2, 0, size/2 - chamfer)
-		# and (size/2 - chamfer, 0, size/2). Centre = (size/2 - chamfer/2).
 		var cx: float = sx * (size * 0.5 - chamfer * 0.5)
 		var cz: float = sz * (size * 0.5 - chamfer * 0.5)
-		panel.position = Vector3(cx, height * 0.5, cz)
-		# Each corner panel is rotated 45° around Y, with sign depending on
-		# which corner.
 		var yaw_for_corner: float
 		match corner:
 			"NW": yaw_for_corner = PI * 0.25
 			"NE": yaw_for_corner = -PI * 0.25
 			"SE": yaw_for_corner = PI * 0.25
 			"SW": yaw_for_corner = -PI * 0.25
+		var panel := MeshInstance3D.new()
+		panel.name = "Chamfer_" + corner
+		var pm := BoxMesh.new()
+		pm.size = Vector3(chamfer * sqrt(2.0), height, 0.08)
+		panel.mesh = pm
+		panel.material_override = cap_mat
+		panel.position = Vector3(cx, height * 0.5, cz)
 		panel.rotation.y = yaw_for_corner
 		body.add_child(panel)
-
-	# --- Solid collision (square footprint — simpler than octagonal,
-	# player can't tell from outside, and saves complexity).
-	var col := CollisionShape3D.new()
-	var col_shape := BoxShape3D.new()
-	col_shape.size = Vector3(size, height, size)
-	col.shape = col_shape
-	col.position.y = height * 0.5
-	body.add_child(col)
+		# Collision shape — thin slab matching the chamfer panel.
+		var col := CollisionShape3D.new()
+		col.name = "ChamferCol_" + corner
+		var col_shape := BoxShape3D.new()
+		col_shape.size = Vector3(chamfer * sqrt(2.0), height, 0.08)
+		col.shape = col_shape
+		col.position = Vector3(cx, height * 0.5, cz)
+		col.rotation.y = yaw_for_corner
+		body.add_child(col)
 
 	# --- Geometry-data dict for handler to build doors against.
 	# Cardinal faces (N/S/E/W) — used by ElevatorHandler to spawn door
@@ -267,7 +265,69 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 		"side_length": side_length,
 		"cardinals": cardinals,
 		"corners": corners,
+		"inner_mat": inner_mat,
 	}
+
+
+# Passive spine pipes — visual-only renderer used by floors that don't own
+# the connect/activate flow. Reads GameState.floor_1 to determine each
+# pipe's state at scene-load time. Cold pipes are always present; the
+# emissive fill cylinder is drawn only when pipe_active[id] is true,
+# already at full height. No tweens, no per-frame state.
+static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevator_data: Dictionary) -> void:
+	var pipe_height: float = c.FLOOR_1_SPINE_PIPE_TOP_Y - c.FLOOR_1_SPINE_PIPE_BASE_Y
+	var pipe_mid_y: float = (c.FLOOR_1_SPINE_PIPE_BASE_Y + c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
+	var chamfer_width: float = c.ELEVATOR_CHAMFER * sqrt(2.0)
+	var slot_offset: float = chamfer_width * 0.22
+	var corners: Dictionary = elevator_data.get("corners", {})
+	for sys in c.FLOOR_1_SYSTEMS:
+		var corner_spec: Array = c.FLOOR_1_PIPE_CORNERS[sys.id]
+		var corner_name: String = corner_spec[0]
+		var slot: int = corner_spec[1]
+		var corner: Dictionary = corners.get(corner_name, {})
+		if corner.is_empty():
+			continue
+		var centre: Vector3 = corner.centre
+		var tangent: Vector3 = corner.tangent
+		var normal: Vector3 = corner.normal
+		var outboard: float = c.FLOOR_1_SPINE_PIPE_RADIUS + 0.06
+		var count: int = int(c.FLOOR_1_CORNER_COUNTS.get(corner_name, 1))
+		var slot_pos: float = 0.0 if count == 1 else (slot_offset if slot == 1 else -slot_offset)
+		var pipe_pos: Vector3 = centre + tangent * slot_pos + normal * outboard
+		var base_col: Color = sys.base_color
+		var active: bool = bool(gs.floor_1.pipe_active.get(sys.id, false))
+
+		var cold := MeshInstance3D.new()
+		cold.name = "PassivePipe_" + sys.id
+		var cold_mesh := CylinderMesh.new()
+		cold_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.height = pipe_height
+		cold.mesh = cold_mesh
+		var cold_mat := StandardMaterial3D.new()
+		cold_mat.albedo_color = base_col * c.FLOOR_1_SOURCE_COLD_MULT
+		cold_mat.roughness = 0.5
+		cold_mat.metallic = 0.4
+		cold.material_override = cold_mat
+		cold.position = pipe_pos + Vector3(0, pipe_mid_y, 0)
+		parent.add_child(cold)
+
+		if active:
+			var fill := MeshInstance3D.new()
+			fill.name = "PassiveFill_" + sys.id
+			var fill_mesh := CylinderMesh.new()
+			fill_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+			fill_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+			fill_mesh.height = pipe_height
+			fill.mesh = fill_mesh
+			var fill_mat := StandardMaterial3D.new()
+			fill_mat.albedo_color = base_col
+			fill_mat.emission_enabled = true
+			fill_mat.emission = sys.glow_color
+			fill_mat.emission_energy_multiplier = 1.6
+			fill.material_override = fill_mat
+			fill.position = pipe_pos + Vector3(0, pipe_mid_y, 0) + normal * 0.005
+			parent.add_child(fill)
 
 
 # --- Internal --------------------------------------------------------------

@@ -18,17 +18,49 @@ extends Node3D
 # "up" or "down" — drives the prompt arrow and the directional feel.
 @export var direction: String = "up"
 @export var player_path: NodePath
+# Floor controller exposing _elevator_data dict (FloorChrome's return) —
+# carries the inner-core material reference so the handler can drive the
+# yellow travel glow.
+@export var floor_provider_path: NodePath
 var _player: Node3D
+var _floor_provider: Node
 
-# Where to place the player after arrival. Just south of the central
-# elevator core so they exit through the "south door" facing the camera.
-const ARRIVAL_POSITION := Vector3(0, 0.2, 3.0)
+# Player's resting position once they've stepped out of the elevator.
+# Travel-arrive places them at the elevator centre and lets the doors
+# open around them.
+const ARRIVAL_POSITION := Vector3(0, 0.2, 0.0)
 
 # Door panels — 8 total (2 per cardinal face). Each pair slides apart
 # along the face's tangent axis when the player is in interaction range.
 # Built procedurally from the elevator's geometry constants in _ready.
 var _door_panels: Array = []   # list of {pivot: Node3D, base: Vector3, tangent: Vector3, slot_sign: int}
 var _doors_open_t := 0.0       # 0 closed, 1 fully open
+
+# Elevator inner-core material reference. Pulled from the floor
+# controller's _elevator_data; tweened to a yellow high-energy emission
+# during DEPARTING + ARRIVING, decays back to the baseline blue glow
+# in PROXIMITY.
+var _inner_mat: StandardMaterial3D
+var _inner_mat_base_emission: Color = Color(0.30, 0.55, 0.85)
+var _inner_mat_base_energy: float = 0.4
+var _glow_t := 0.0   # 0 baseline, 1 full travel glow
+
+# Travel state machine.
+const DOOR_STATE_PROXIMITY := 0
+const DOOR_STATE_DEPARTING := 1
+const DOOR_STATE_ARRIVING := 2
+var _door_state: int = DOOR_STATE_PROXIMITY
+# Time elapsed in the current state, used to drive the multi-step
+# departure / arrival animations.
+var _state_t := 0.0
+
+# Travel timing — see _update_travel_state for what each segment owns.
+const DEPART_DOOR_CLOSE := 0.35
+const DEPART_HOLD := 0.10
+const DEPART_FADE := 0.40
+const ARRIVE_FADE := 0.40
+const ARRIVE_HOLD := 0.30
+const ARRIVE_DOOR_OPEN := 0.40
 
 # Prompt above the elevator. Built once; visibility + position lerp.
 var _prompt_root: Node3D
@@ -46,63 +78,142 @@ const FADE_DURATION := 0.4
 func _ready() -> void:
 	if player_path:
 		_player = get_node(player_path)
+	if floor_provider_path:
+		_floor_provider = get_node(floor_provider_path)
+		var data: Dictionary = _floor_provider.get("_elevator_data") if _floor_provider else {}
+		if data and data.has("inner_mat"):
+			_inner_mat = data.inner_mat
 	_build_prompt()
 	_build_fade()
 	_build_doors()
-	# If we just travelled, run the fade-in and reposition the player at
-	# the south door of the elevator. Otherwise skip — a fresh F5 into
-	# the project shouldn't open on a black-to-clear ramp.
+	# Arrival path — start in ARRIVING state. Player at elevator centre,
+	# doors closed, glow on. State machine ramps fade-in → hold → doors
+	# open + glow fades, then settles to PROXIMITY. Fresh F5 (no
+	# in_transit) skips this and opens in PROXIMITY.
 	if _gs.get("in_transit"):
 		if _player:
 			_player.global_position = ARRIVAL_POSITION
 			if _player.has_method("set_facing_yaw"):
 				_player.set_facing_yaw(deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL))
+		_door_state = DOOR_STATE_ARRIVING
+		_state_t = 0.0
+		_doors_open_t = 0.0
+		_glow_t = 1.0
+		_apply_glow()
+		_apply_door_offsets()
 		_fade_rect.color.a = 1.0
 		_fade_rect.visible = true
-		var tween := create_tween()
-		tween.tween_property(_fade_rect, "color:a", 0.0, FADE_DURATION)
-		tween.tween_callback(func(): _fade_rect.visible = false)
 		_gs.set("in_transit", false)
+	else:
+		_apply_glow()
 
 
 func _process(delta: float) -> void:
 	if _player == null:
 		return
+	if _door_state == DOOR_STATE_PROXIMITY:
+		_update_proximity_state(delta)
+	elif _door_state == DOOR_STATE_DEPARTING:
+		_update_departing_state(delta)
+	elif _door_state == DOOR_STATE_ARRIVING:
+		_update_arriving_state(delta)
+	_apply_door_offsets()
+	_apply_glow()
+
+
+func _update_proximity_state(delta: float) -> void:
 	var pos: Vector3 = _player.global_position
 	var d: float = Vector2(pos.x, pos.z).length()
 	var in_range: bool = d <= INTERACT_RADIUS
 	_prompt_root.visible = in_range
-	# Doors open as the player approaches; close when they walk away.
-	# The interpolation rate maps 0→1 over ELEVATOR_DOOR_OPEN_DURATION.
-	var target: float = 1.0 if in_range else 0.0
+	var target_door: float = 1.0 if in_range else 0.0
 	var rate: float = 1.0 / _c.ELEVATOR_DOOR_OPEN_DURATION
-	_doors_open_t = move_toward(_doors_open_t, target, rate * delta)
-	_apply_door_offsets()
+	_doors_open_t = move_toward(_doors_open_t, target_door, rate * delta)
+	# Glow decays back to baseline.
+	_glow_t = move_toward(_glow_t, 0.0, delta / 0.4)
 	if in_range and Input.is_action_just_pressed(&"interact"):
-		_travel()
+		_begin_departing()
 
 
-func _travel() -> void:
-	if target_scene_path == "":
-		return
-	if not _gs.has_meta("_elevator_traveling"):
-		_gs.set_meta("_elevator_traveling", false)
-	if _gs.get_meta("_elevator_traveling", false):
-		return
-	_gs.set_meta("_elevator_traveling", true)
+func _update_departing_state(delta: float) -> void:
+	# Phase 1 (0 .. DEPART_DOOR_CLOSE): doors close, glow ramps yellow.
+	# Phase 2 (.. DEPART_HOLD added): doors stay shut, glow at full.
+	# Phase 3 (.. DEPART_FADE added): screen fades to black, then change_scene.
+	_state_t += delta
+	_prompt_root.visible = false
+	var t1: float = DEPART_DOOR_CLOSE
+	var t2: float = t1 + DEPART_HOLD
+	var t3: float = t2 + DEPART_FADE
+	if _state_t < t1:
+		_doors_open_t = 1.0 - clampf(_state_t / DEPART_DOOR_CLOSE, 0.0, 1.0)
+		_glow_t = clampf(_state_t / DEPART_DOOR_CLOSE, 0.0, 1.0)
+	elif _state_t < t2:
+		_doors_open_t = 0.0
+		_glow_t = 1.0
+	elif _state_t < t3:
+		_doors_open_t = 0.0
+		_glow_t = 1.0
+		var fade_p: float = clampf((_state_t - t2) / DEPART_FADE, 0.0, 1.0)
+		_fade_rect.visible = true
+		_fade_rect.color = Color(0.0, 0.0, 0.0, fade_p)
+	else:
+		_perform_swap()
+
+
+func _update_arriving_state(delta: float) -> void:
+	# Phase 1 (0 .. ARRIVE_FADE): screen fades from black; doors closed,
+	# glow on. Phase 2 (.. ARRIVE_HOLD added): screen clear; hold the
+	# closed/glowing pose for a beat. Phase 3 (.. ARRIVE_DOOR_OPEN added):
+	# doors open, glow fades to baseline. Then back to PROXIMITY.
+	_state_t += delta
+	_prompt_root.visible = false
+	var t1: float = ARRIVE_FADE
+	var t2: float = t1 + ARRIVE_HOLD
+	var t3: float = t2 + ARRIVE_DOOR_OPEN
+	if _state_t < t1:
+		_doors_open_t = 0.0
+		_glow_t = 1.0
+		var fade_p: float = 1.0 - clampf(_state_t / ARRIVE_FADE, 0.0, 1.0)
+		_fade_rect.visible = true
+		_fade_rect.color = Color(0.0, 0.0, 0.0, fade_p)
+	elif _state_t < t2:
+		_fade_rect.visible = false
+		_doors_open_t = 0.0
+		_glow_t = 1.0
+	elif _state_t < t3:
+		_fade_rect.visible = false
+		var p: float = clampf((_state_t - t2) / ARRIVE_DOOR_OPEN, 0.0, 1.0)
+		_doors_open_t = p
+		_glow_t = 1.0 - p
+	else:
+		_door_state = DOOR_STATE_PROXIMITY
+		_state_t = 0.0
+
+
+func _begin_departing() -> void:
+	_door_state = DOOR_STATE_DEPARTING
+	_state_t = 0.0
 	_gs.set("in_transit", true)
-	_fade_rect.visible = true
-	_fade_rect.color.a = 0.0
-	var tween := create_tween()
-	tween.tween_property(_fade_rect, "color:a", 1.0, FADE_DURATION)
-	tween.tween_callback(_perform_swap)
+
+
+func _apply_glow() -> void:
+	if _inner_mat == null:
+		return
+	# Lerp the inner-core material between baseline blue dim and a hot
+	# yellow during travel. The seams between door panels (and the gaps
+	# between chamfer panels) let this light leak through visibly.
+	var travel_emission := Color(1.0, 0.78, 0.20)   # warm yellow
+	var travel_energy: float = 4.5
+	_inner_mat.emission = _inner_mat_base_emission.lerp(travel_emission, _glow_t)
+	_inner_mat.emission_energy_multiplier = lerpf(_inner_mat_base_energy, travel_energy, _glow_t)
 
 
 func _perform_swap() -> void:
-	# `change_scene_to_file` is deferred — Godot tears down the current
-	# tree at end of frame. Clear the gate flag last so a re-entry can
-	# tween in cleanly.
-	_gs.set_meta("_elevator_traveling", false)
+	# Final step of DEPARTING state — change_scene_to_file is deferred,
+	# so the new scene's _ready picks up GameState.in_transit and runs
+	# the inverse animation (fade-in → hold → doors open + glow fades).
+	if target_scene_path == "":
+		return
 	get_tree().change_scene_to_file(target_scene_path)
 
 

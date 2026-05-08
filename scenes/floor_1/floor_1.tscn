@@ -33,6 +33,7 @@ target_scene_path = "res://scenes/iso_prototype/iso_prototype.tscn"
 target_label = "Garden"
 direction = "up"
 player_path = NodePath("../IsoPlayer")
+floor_provider_path = NodePath("../FloorController")
 
 [node name="IsoPlayer" type="CharacterBody3D" parent="World"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 3)

@@ -21,8 +21,14 @@ extends Node3D
 # the floor (fixes bug F-005, infinite fall).
 
 @onready var _c: Node = get_node("/root/Constants")
+@onready var _gs: Node = get_node("/root/GameState")
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
+
+# Elevator geometry data — populated by FloorChrome and read by
+# ElevatorHandler so it can build doors that match the column's
+# proportions and drive the inner-core glow on travel.
+var _elevator_data: Dictionary = {}
 
 var _grow_lights: Array[OmniLight3D] = []
 var _time := 0.0
@@ -364,10 +370,12 @@ func _build_window_spotlight(side: String, half: float) -> void:
 # --- Elevator shaft (centre 4×4 plots) --------------------------------------
 
 func _build_elevator_shaft() -> void:
-	# Delegated to FloorChrome's canonical builder so the Garden's elevator
-	# matches Floor 1's (octagonal column, chamfered corners, taller, with
-	# door panels owned by ElevatorHandler).
-	FloorChrome.build_elevator_core(self, _c)
+	# Canonical elevator core built by FloorChrome; data captured for the
+	# ElevatorHandler. Garden also gets passive spine pipes — they reflect
+	# Floor 1's connect/activate state so an online lane shows a glowing
+	# pipe on every floor, not just where you flip the switch.
+	_elevator_data = FloorChrome.build_elevator_core(self, _c)
+	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
 
 
 # --- 20×20 plot grid --------------------------------------------------------

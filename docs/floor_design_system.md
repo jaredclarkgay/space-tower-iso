@@ -22,9 +22,30 @@ deviations require an explicit reason.
   multi-story shaft. The four cardinal faces hold sliding doors (built
   + animated by `ElevatorHandler`); the four chamfered corner faces
   hold spine pipes — Floor 1 distributes its six pipes 1-2-1-2 across
-  them. `FloorChrome.build_elevator_core()` returns a geometry-data
-  Dictionary so the handler can spawn doors that match the column's
-  proportions.
+  them, and every other floor renders **passive** copies of the same
+  pipes (via `FloorChrome.build_passive_spine_pipes`) reading
+  GameState.floor_1 so an online lane glows on every floor it passes
+  through, not just the floor where you flipped the switch. Collision
+  is on the chamfer panels only — the cardinal-face areas are passable
+  so the player can walk INTO the elevator through the doors.
+
+  Travel sequence (`ElevatorHandler` state machine):
+
+  1. **PROXIMITY** (default): doors slide apart as the player approaches,
+     close as they walk away. Glow at baseline (faint blue).
+  2. **DEPARTING** (E pressed near elevator): doors slide closed around
+     the player; inner core glow ramps up to a hot yellow over the same
+     0.35 s; brief 0.1 s held pose with doors shut + glow at full;
+     0.4 s screen fade-to-black; `change_scene_to_file`.
+  3. **ARRIVING** (next floor's `_ready`, with `GameState.in_transit`):
+     player positioned at elevator centre, doors closed, glow at full.
+     0.4 s fade-in from black; 0.3 s held pose with doors still shut +
+     glow on; 0.4 s doors slide apart while glow fades to baseline.
+     Returns to PROXIMITY.
+
+  The yellow glow leaks visibly through the seams between door panels
+  and the gaps between chamfer panels — that's the visual signature of
+  "rider inside the column."
 
 A floor that needs more space negotiates that as a design exception
 (e.g. an open rooftop). A floor that needs *less* doesn't exist —
