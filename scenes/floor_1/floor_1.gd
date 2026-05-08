@@ -74,6 +74,11 @@ var _source_prompt_anchor_id: String = ""
 # wheel-spin / fan-spin / LED-blink doesn't snap on activate.
 var _detail_phase := 0.0
 
+# Geometry data returned by FloorChrome.build_elevator_core. ElevatorHandler
+# reads this to know where to spawn doors; _build_spine_pipes reads it to
+# place pipes on the chamfered corner panels.
+var _elevator_data: Dictionary = {}
+
 # Yellow pulsing floor halo around the breaker — visible while master is
 # off so the player can see the target across the dark room.
 var _master_halo: MeshInstance3D
@@ -99,7 +104,7 @@ func _ready() -> void:
 	FloorChrome.build_slab(self, _c)
 	FloorChrome.build_walls(self, _c)
 	FloorChrome.build_extension_grid(self, _c)
-	FloorChrome.build_elevator_core(self, _c)
+	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	_build_sources()
 	_build_spine_pipes()
 	_build_floor_pipes()
@@ -164,22 +169,46 @@ func _process(delta: float) -> void:
 # --- Geometry --------------------------------------------------------------
 
 func _build_spine_pipes() -> void:
-	# Six vertical pipes attached to the south face (+Z) of the elevator
-	# core. Two cylinders per system: a "cold" pipe always at full height
-	# (dim base color), and a "fill" cylinder that lerps from y-scale 0 to
-	# 1 on activate, drawn slightly proud of the cold pipe with emission.
-	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
-	var face_z: float = elev_size * 0.5 + _c.FLOOR_1_SPINE_PIPE_RADIUS + 0.02
-	var pipe_count: int = _c.FLOOR_1_SYSTEMS.size()
-	var pipe_step: float = elev_size / float(pipe_count)
+	# Six vertical pipes — one per system — running up the four chamfered
+	# corner panels of the elevator. Distributed 1-2-1-2 (NW: water, NE:
+	# power+waste, SE: atmosphere, SW: data+cargo). When a corner has 2
+	# pipes they sit on opposite tangent offsets along the chamfer face.
+	# Each pipe is a "cold" cylinder (always-present dim base) plus a
+	# "fill" cylinder bottom-anchored so y-scale 0→1 lerps upward fill
+	# on activate. Wavefront band sits at the fill's leading edge.
 	var pipe_height: float = _c.FLOOR_1_SPINE_PIPE_TOP_Y - _c.FLOOR_1_SPINE_PIPE_BASE_Y
 	var pipe_mid_y: float = (_c.FLOOR_1_SPINE_PIPE_BASE_Y + _c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
+	# Two-pipe corners: side-offset so each pipe sits half-way between the
+	# centre and its end of the chamfer face. Chamfer width = chamfer*sqrt(2).
+	var chamfer_width: float = _c.ELEVATOR_CHAMFER * sqrt(2.0)
+	var slot_offset: float = chamfer_width * 0.22  # ±slot_offset from centre
+
+	var corners: Dictionary = _elevator_data.get("corners", {})
+
 	for sys in _c.FLOOR_1_SYSTEMS:
-		var idx: int = int(sys.pipe_index)
-		var cx: float = -elev_size * 0.5 + (float(idx) + 0.5) * pipe_step
+		var corner_spec: Array = _c.FLOOR_1_PIPE_CORNERS[sys.id]
+		var corner_name: String = corner_spec[0]
+		var slot: int = corner_spec[1]
+		var corner: Dictionary = corners.get(corner_name, {})
+		if corner.is_empty():
+			continue
+		var centre: Vector3 = corner.centre
+		var tangent: Vector3 = corner.tangent
+		var normal: Vector3 = corner.normal
+		# Push the pipe slightly outboard from the chamfer face so it doesn't
+		# z-fight with the panel.
+		var outboard: float = _c.FLOOR_1_SPINE_PIPE_RADIUS + 0.06
+		var count: int = int(_c.FLOOR_1_CORNER_COUNTS.get(corner_name, 1))
+		var slot_pos: float = 0.0 if count == 1 else (slot_offset if slot == 1 else -slot_offset)
+		var pipe_pos: Vector3 = (
+			centre
+			+ tangent * slot_pos
+			+ normal * outboard
+		)
+
 		var base_col: Color = sys.base_color
 
-		# Cold pipe — always present, dim.
+		# Cold pipe.
 		var cold := MeshInstance3D.new()
 		cold.name = "SpinePipe_" + sys.id
 		var cold_mesh := CylinderMesh.new()
@@ -192,17 +221,13 @@ func _build_spine_pipes() -> void:
 		cold_mat.roughness = 0.5
 		cold_mat.metallic = 0.4
 		cold.material_override = cold_mat
-		cold.position = Vector3(cx, pipe_mid_y, face_z)
+		cold.position = pipe_pos + Vector3(0, pipe_mid_y, 0)
 		add_child(cold)
 
-		# Fill pipe — bottom-anchored so y-scale grows upward. Place a
-		# pivot Node3D at the pipe's BASE (y = base_y), then a child mesh
-		# at local y = pipe_height/2 with cylinder height = pipe_height.
-		# Scaling the pivot's y-axis from 0 to 1 grows the fill upward
-		# without translation.
+		# Fill pivot at the pipe's base.
 		var fill_pivot := Node3D.new()
 		fill_pivot.name = "SpineFillPivot_" + sys.id
-		fill_pivot.position = Vector3(cx, _c.FLOOR_1_SPINE_PIPE_BASE_Y, face_z + 0.01)
+		fill_pivot.position = pipe_pos + Vector3(0, _c.FLOOR_1_SPINE_PIPE_BASE_Y, 0) + normal * 0.005
 		fill_pivot.scale = Vector3(1, 0.001, 1)
 		add_child(fill_pivot)
 		var fill := MeshInstance3D.new()
@@ -221,10 +246,7 @@ func _build_spine_pipes() -> void:
 		fill.position = Vector3(0, pipe_height * 0.5, 0)
 		fill_pivot.add_child(fill)
 
-		# Wavefront — small emissive band that rides at the top of the fill.
-		# Parented to the fill pivot so it scales with it; position at the
-		# pipe's top edge (local y = pipe_height) so it stays at the
-		# leading edge as the fill grows.
+		# Wavefront at top edge.
 		var wave := MeshInstance3D.new()
 		wave.name = "Wavefront"
 		var wave_mesh := CylinderMesh.new()
@@ -240,9 +262,8 @@ func _build_spine_pipes() -> void:
 		wave.material_override = wave_mat
 		wave.position = Vector3(0, pipe_height - 0.03, 0)
 		fill_pivot.add_child(wave)
-		wave.visible = false  # only visible while fill is in flight
+		wave.visible = false
 
-		# Stash refs into source_state for later updates.
 		var st: Dictionary = _source_state.get(sys.id, {})
 		st["spine_cold_mat"] = cold_mat
 		st["spine_fill_pivot"] = fill_pivot

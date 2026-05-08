@@ -34,6 +34,19 @@ const FLOOR_3D_SLAB_THICKNESS := 0.2
 const FLOOR_3D_STORY_HEIGHT := 3.0
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
 
+# --- Elevator core geometry ----------------------------------------------
+# Square footprint with the corners cut at 45° — chamfered into a regular
+# octagon-ish shape. The 4 cardinal faces hold sliding doors; the 4
+# chamfered corner faces are where the spine pipes run up. Taller than
+# the wall trim so the column reads as part of a multi-story shaft.
+const ELEVATOR_CHAMFER := 0.7              # cut length on each corner edge
+const ELEVATOR_HEIGHT_MULT := 1.45         # × WALL_HEIGHT, extends above ceiling
+# Door panel width is half the chamfered side length; spans full elevator
+# height; slides outward along the face's tangent axis when opening.
+const ELEVATOR_DOOR_THICKNESS := 0.08
+const ELEVATOR_DOOR_OPEN_OFFSET := 1.05    # m each panel slides apart
+const ELEVATOR_DOOR_OPEN_DURATION := 0.35  # seconds — both directions
+
 # Walls — perimeter framing with translucent window panels.
 const WALL_HEIGHT := 2.6
 const WALL_BASE_HEIGHT := 0.6
@@ -362,7 +375,7 @@ const FLOOR_1_SYSTEMS := [
 		"pipe_width": 0.16,
 		# Floor pipe Manhattan route — list of waypoints. Each adjacent pair
 		# is one axis-aligned segment, lateral first then longitudinal.
-		"route": [Vector2(-9.4, -9.4), Vector2(-2.0, -9.4), Vector2(-2.0, -2.0)],
+		"route": [Vector2(-9.4, -9.4), Vector2(-1.65, -9.4), Vector2(-1.65, -1.65)],
 	},
 	{
 		"id": "power",
@@ -378,7 +391,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "knife_switches",
 		"pipe_index": 1,
 		"pipe_width": 0.16,
-		"route": [Vector2(7.5, -9.4), Vector2(2.0, -9.4), Vector2(2.0, -2.0)],
+		"route": [Vector2(7.5, -9.4), Vector2(1.65, -9.4), Vector2(1.65, -1.65)],
 	},
 	{
 		"id": "atmosphere",
@@ -394,7 +407,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "fan_button",
 		"pipe_index": 2,
 		"pipe_width": 0.22,
-		"route": [Vector2(7.5, 7.5), Vector2(2.0, 7.5), Vector2(2.0, 2.0)],
+		"route": [Vector2(7.5, 7.5), Vector2(1.65, 7.5), Vector2(1.65, 1.65)],
 	},
 	{
 		"id": "data",
@@ -410,7 +423,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "led_grid",
 		"pipe_index": 3,
 		"pipe_width": 0.14,
-		"route": [Vector2(-9.4, 7.5), Vector2(-2.0, 7.5), Vector2(-2.0, 2.0)],
+		"route": [Vector2(-9.4, 7.5), Vector2(-1.65, 7.5), Vector2(-1.65, 1.65)],
 	},
 	{
 		"id": "waste",
@@ -426,7 +439,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "sluice_lever",
 		"pipe_index": 4,
 		"pipe_width": 0.20,
-		"route": [Vector2(0.0, -5.6), Vector2(0.0, -2.0)],
+		"route": [Vector2(0.0, -5.6), Vector2(1.65, -5.6), Vector2(1.65, -1.65)],
 	},
 	{
 		"id": "cargo",
@@ -442,7 +455,7 @@ const FLOOR_1_SYSTEMS := [
 		"mechanical_detail": "dispatcher_panel",
 		"pipe_index": 5,
 		"pipe_width": 0.20,
-		"route": [Vector2(0.0, 5.6), Vector2(0.0, 2.0)],
+		"route": [Vector2(0.0, 5.6), Vector2(-1.65, 5.6), Vector2(-1.65, 1.65)],
 	},
 ]
 
@@ -454,6 +467,20 @@ const SPINE_PIPE_FILL_DURATION := 1.4    # bottom-up fill after activate
 const FLOOR_PIPE_BRIGHT_DURATION := 0.5  # cold→bright after activate
 const FLOOR_PIPE_BASE_Y := 0.05          # height above slab
 const FLOOR_PIPE_HEIGHT := 0.18          # vertical thickness of pipe boxes
+# Pipe-to-corner mapping. The elevator core has four 45° chamfered corners;
+# six pipes distribute as 1-2-1-2 across them. Each entry is [corner, slot]
+# where corner ∈ {NW, NE, SE, SW} and slot is the index within that corner
+# (0 if alone, 0 or 1 if shared with a sibling).
+const FLOOR_1_PIPE_CORNERS := {
+	"water":      ["NW", 0],
+	"power":      ["NE", 0],
+	"waste":      ["NE", 1],
+	"atmosphere": ["SE", 0],
+	"data":       ["SW", 0],
+	"cargo":      ["SW", 1],
+}
+# Counts per corner (computed implicitly above, restated for the builder).
+const FLOOR_1_CORNER_COUNTS := {"NW": 1, "NE": 2, "SE": 1, "SW": 2}
 # Brightness multipliers per source state on the source body and the
 # floor pipe albedo. Cold dim, primed mid-pulse, active full bright.
 const SOURCE_PRIMED_MULT := 0.78

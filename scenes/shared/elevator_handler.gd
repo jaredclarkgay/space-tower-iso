@@ -24,6 +24,12 @@ var _player: Node3D
 # elevator core so they exit through the "south door" facing the camera.
 const ARRIVAL_POSITION := Vector3(0, 0.2, 3.0)
 
+# Door panels — 8 total (2 per cardinal face). Each pair slides apart
+# along the face's tangent axis when the player is in interaction range.
+# Built procedurally from the elevator's geometry constants in _ready.
+var _door_panels: Array = []   # list of {pivot: Node3D, base: Vector3, tangent: Vector3, slot_sign: int}
+var _doors_open_t := 0.0       # 0 closed, 1 fully open
+
 # Prompt above the elevator. Built once; visibility + position lerp.
 var _prompt_root: Node3D
 var _prompt_e: Label3D
@@ -42,6 +48,7 @@ func _ready() -> void:
 		_player = get_node(player_path)
 	_build_prompt()
 	_build_fade()
+	_build_doors()
 	# If we just travelled, run the fade-in and reposition the player at
 	# the south door of the elevator. Otherwise skip — a fresh F5 into
 	# the project shouldn't open on a black-to-clear ramp.
@@ -58,15 +65,19 @@ func _ready() -> void:
 		_gs.set("in_transit", false)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _player == null:
 		return
-	# Player position vs elevator centre (this Node3D is parented at floor
-	# root; the elevator core is at world origin per FloorChrome).
 	var pos: Vector3 = _player.global_position
 	var d: float = Vector2(pos.x, pos.z).length()
 	var in_range: bool = d <= INTERACT_RADIUS
 	_prompt_root.visible = in_range
+	# Doors open as the player approaches; close when they walk away.
+	# The interpolation rate maps 0→1 over ELEVATOR_DOOR_OPEN_DURATION.
+	var target: float = 1.0 if in_range else 0.0
+	var rate: float = 1.0 / _c.ELEVATOR_DOOR_OPEN_DURATION
+	_doors_open_t = move_toward(_doors_open_t, target, rate * delta)
+	_apply_door_offsets()
 	if in_range and Input.is_action_just_pressed(&"interact"):
 		_travel()
 
@@ -126,6 +137,75 @@ func _build_prompt() -> void:
 	_prompt_label.no_depth_test = true
 	_prompt_label.position = Vector3(0, 0.0, 0)
 	_prompt_root.add_child(_prompt_label)
+
+
+func _build_doors() -> void:
+	# Eight panels — two per cardinal face. Each panel slides outward
+	# along its face's tangent axis from the closed centre point. Width =
+	# half the chamfered side length minus a small visual gap; spans the
+	# full elevator height. Built as MeshInstance3D children of this
+	# handler (not the elevator core) so the slide tween owns the
+	# transform without competing with the static core.
+	var size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
+	var chamfer: float = _c.ELEVATOR_CHAMFER
+	var height: float = _c.WALL_HEIGHT * _c.ELEVATOR_HEIGHT_MULT
+	var side_length: float = size - 2.0 * chamfer
+	var panel_w: float = side_length * 0.5 - 0.04   # 0.04 m gap at the meeting line
+	var face_pad: float = 0.02   # outboard offset so doors sit slightly proud of the core face
+
+	var door_mat := StandardMaterial3D.new()
+	door_mat.albedo_color = Color(0.40, 0.46, 0.55)
+	door_mat.metallic = 0.6
+	door_mat.roughness = 0.35
+	door_mat.emission_enabled = true
+	door_mat.emission = Color(0.30, 0.55, 0.85)
+	door_mat.emission_energy_multiplier = 0.18
+
+	var faces := [
+		{"name": "N", "centre": Vector3(0, 0, -size * 0.5 - face_pad), "tangent": Vector3(1, 0, 0)},
+		{"name": "S", "centre": Vector3(0, 0, size * 0.5 + face_pad), "tangent": Vector3(1, 0, 0)},
+		{"name": "E", "centre": Vector3(size * 0.5 + face_pad, 0, 0), "tangent": Vector3(0, 0, 1)},
+		{"name": "W", "centre": Vector3(-size * 0.5 - face_pad, 0, 0), "tangent": Vector3(0, 0, 1)},
+	]
+	for face in faces:
+		for slot_sign in [-1, 1]:
+			var pivot := Node3D.new()
+			pivot.name = "Door_%s_%s" % [String(face.name), "L" if slot_sign < 0 else "R"]
+			# Closed pose: panel centred at half its width from the meeting
+			# line, on the +/- tangent side.
+			var closed_offset: Vector3 = face.tangent * (panel_w * 0.5 * float(slot_sign))
+			var base: Vector3 = face.centre + closed_offset
+			pivot.position = base + Vector3(0, height * 0.5, 0)
+			add_child(pivot)
+			var panel := MeshInstance3D.new()
+			panel.name = "Panel"
+			var pm := BoxMesh.new()
+			pm.size = Vector3(panel_w, height, _c.ELEVATOR_DOOR_THICKNESS)
+			panel.mesh = pm
+			panel.material_override = door_mat
+			# Rotate so the box's local +X aligns with the face's tangent.
+			# tangent = (1,0,0): no rotation needed. tangent = (0,0,1):
+			# rotate Y by 90°.
+			if abs(face.tangent.z) > 0.5:
+				panel.rotation.y = PI * 0.5
+			pivot.add_child(panel)
+			_door_panels.append({
+				"pivot": pivot,
+				"base": base + Vector3(0, height * 0.5, 0),
+				"tangent": face.tangent,
+				"slot_sign": slot_sign,
+			})
+
+
+func _apply_door_offsets() -> void:
+	# Slide each panel outward along its tangent by ELEVATOR_DOOR_OPEN
+	# _OFFSET × _doors_open_t × slot_sign. Closed = at base; fully open =
+	# offset by the full slide distance.
+	var slide: float = _c.ELEVATOR_DOOR_OPEN_OFFSET * _doors_open_t
+	for entry in _door_panels:
+		var pivot: Node3D = entry.pivot
+		var slide_offset: Vector3 = entry.tangent * (slide * float(entry.slot_sign))
+		pivot.position = entry.base + slide_offset
 
 
 func _build_fade() -> void:

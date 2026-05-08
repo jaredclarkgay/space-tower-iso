@@ -22,6 +22,8 @@ extends Node3D
 
 @onready var _c: Node = get_node("/root/Constants")
 
+const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
+
 var _grow_lights: Array[OmniLight3D] = []
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -362,40 +364,10 @@ func _build_window_spotlight(side: String, half: float) -> void:
 # --- Elevator shaft (centre 4×4 plots) --------------------------------------
 
 func _build_elevator_shaft() -> void:
-	var size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE   # 4 m
-	var body := StaticBody3D.new()
-	body.name = "ElevatorCore"
-	add_child(body)
-	# Translucent shaft column reaching up past the wall trim.
-	var shaft := MeshInstance3D.new()
-	shaft.name = "Shaft"
-	var sm := BoxMesh.new()
-	sm.size = Vector3(size, _c.WALL_HEIGHT, size)
-	shaft.mesh = sm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.32, 0.4, 0.45)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.roughness = 0.4
-	mat.metallic = 0.3
-	shaft.material_override = mat
-	shaft.position.y = _c.WALL_HEIGHT * 0.5
-	body.add_child(shaft)
-	# Solid collision for the elevator footprint so the player can't enter.
-	var col := CollisionShape3D.new()
-	var col_shape := BoxShape3D.new()
-	col_shape.size = Vector3(size, _c.WALL_HEIGHT, size)
-	col.shape = col_shape
-	col.position.y = _c.WALL_HEIGHT * 0.5
-	body.add_child(col)
-	# Bright accent at the door height to suggest a control panel.
-	var accent := MeshInstance3D.new()
-	accent.name = "Accent"
-	var accent_mesh := BoxMesh.new()
-	accent_mesh.size = Vector3(size * 0.9, 0.06, size * 0.9)
-	accent.mesh = accent_mesh
-	accent.material_override = _make_emissive_material(Color(0.4, 0.7, 1.0), 0.8)
-	accent.position.y = 1.6
-	body.add_child(accent)
+	# Delegated to FloorChrome's canonical builder so the Garden's elevator
+	# matches Floor 1's (octagonal column, chamfered corners, taller, with
+	# door panels owned by ElevatorHandler).
+	FloorChrome.build_elevator_core(self, _c)
 
 
 # --- 20×20 plot grid --------------------------------------------------------

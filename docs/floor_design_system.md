@@ -15,9 +15,16 @@ deviations require an explicit reason.
 - **30 × 30 m square slab.** Constants: `FLOOR_3D_SIZE = 30.0`.
 - **Slab thickness** `FLOOR_3D_SLAB_THICKNESS = 0.2` m. Top face at y = 0.
 - **Floor centred on the world origin** (xz extent: ±15).
-- **One central elevator/spine column.** 4 × 4 m footprint, full wall
-  height, translucent shaft. `FloorChrome.build_elevator_core()` is the
-  canonical builder.
+- **One central elevator/spine column.** 4 × 4 m square footprint with
+  the four corners chamfered at 45° (octagonal-ish cross-section, see
+  `ELEVATOR_CHAMFER`). Taller than the wall trim (`ELEVATOR_HEIGHT_MULT
+  × WALL_HEIGHT`) so it pokes above the ceiling and reads as a
+  multi-story shaft. The four cardinal faces hold sliding doors (built
+  + animated by `ElevatorHandler`); the four chamfered corner faces
+  hold spine pipes — Floor 1 distributes its six pipes 1-2-1-2 across
+  them. `FloorChrome.build_elevator_core()` returns a geometry-data
+  Dictionary so the handler can spawn doors that match the column's
+  proportions.
 
 A floor that needs more space negotiates that as a design exception
 (e.g. an open rooftop). A floor that needs *less* doesn't exist —

@@ -121,48 +121,153 @@ static func build_extension_grid(parent: Node3D, c: Node) -> void:
 		parent.add_child(bar)
 
 
-# Builds the central elevator / spine core — translucent shaft column,
-# solid collision, with a bright accent strip at door height.
-static func build_elevator_core(parent: Node3D, c: Node) -> void:
+# Builds the central elevator / spine core. Octagonal cross-section
+# (square with 45° chamfered corners). Chamfered corners are flat panels
+# where the spine pipes run; cardinal faces are doors that slide apart
+# (the doors themselves are owned by ElevatorHandler so it can animate
+# them based on player proximity). Returns a Dictionary the handler
+# uses to attach + drive door panels:
+#   {
+#     "core": StaticBody3D,             # the elevator root
+#     "size": float,                    # outer square side length
+#     "chamfer": float,                 # corner cut length
+#     "height": float,                  # full elevator visual height
+#     "side_length": float,             # cardinal face length after chamfer
+#     "cardinals": [{"normal": Vector3, "tangent": Vector3, "centre": Vector3}, ...],
+#     "corners":   {"NW": {"centre": Vector3, "tangent": Vector3}, ...},
+#   }
+# Doors are NOT built here — handler builds them with the geometry data.
+static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	var size: float = float(c.ELEVATOR_RADIUS) * 2.0 * c.GARDEN_PLOT_SIZE
+	var chamfer: float = c.ELEVATOR_CHAMFER
+	var height: float = c.WALL_HEIGHT * c.ELEVATOR_HEIGHT_MULT
+	var side_length: float = size - 2.0 * chamfer
+
 	var body := StaticBody3D.new()
 	body.name = "ElevatorCore"
 	parent.add_child(body)
 
-	var shaft := MeshInstance3D.new()
-	shaft.name = "Shaft"
-	var sm := BoxMesh.new()
-	sm.size = Vector3(size, c.WALL_HEIGHT, size)
-	shaft.mesh = sm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.32, 0.4, 0.45)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.roughness = 0.4
-	mat.metallic = 0.3
-	shaft.material_override = mat
-	shaft.position.y = c.WALL_HEIGHT * 0.5
-	body.add_child(shaft)
+	# --- Floor + ceiling caps (octagonal prism)
+	# Built as 8 wedge-shaped triangles around the centre, top + bottom.
+	# Easier: two separate cylinder MeshInstance3D nodes with 8 sides.
+	var cap_mat := StandardMaterial3D.new()
+	cap_mat.albedo_color = Color(0.28, 0.30, 0.36)
+	cap_mat.roughness = 0.55
+	cap_mat.metallic = 0.4
 
+	# Outer "halo ring" at the top, matching the chamfered footprint.
+	var top := MeshInstance3D.new()
+	top.name = "TopCap"
+	var top_mesh := CylinderMesh.new()
+	top_mesh.top_radius = size * 0.5 * 0.92
+	top_mesh.bottom_radius = size * 0.5 * 0.92
+	top_mesh.height = 0.2
+	top_mesh.radial_segments = 8
+	top.mesh = top_mesh
+	top.material_override = cap_mat
+	top.position.y = height + 0.1
+	top.rotation.y = PI * 0.125  # rotate to align flat sides with N/S/E/W
+	body.add_child(top)
+
+	# Inner translucent core column — taller than wall height so it pokes
+	# above the ceiling, suggesting it continues to other floors.
+	var inner := MeshInstance3D.new()
+	inner.name = "InnerCore"
+	var inner_mesh := CylinderMesh.new()
+	inner_mesh.top_radius = side_length * 0.5
+	inner_mesh.bottom_radius = side_length * 0.5
+	inner_mesh.height = height
+	inner_mesh.radial_segments = 8
+	inner.mesh = inner_mesh
+	var inner_mat := StandardMaterial3D.new()
+	inner_mat.albedo_color = Color(0.20, 0.25, 0.34, 0.55)
+	inner_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	inner_mat.roughness = 0.3
+	inner_mat.metallic = 0.5
+	inner_mat.emission_enabled = true
+	inner_mat.emission = Color(0.30, 0.55, 0.85)
+	inner_mat.emission_energy_multiplier = 0.4
+	inner.material_override = inner_mat
+	inner.position.y = height * 0.5
+	inner.rotation.y = PI * 0.125
+	body.add_child(inner)
+
+	# --- Chamfered corner panels (4) — pipes will mount on these.
+	for corner in ["NW", "NE", "SE", "SW"]:
+		var sx: float = -1.0 if corner == "NW" or corner == "SW" else 1.0
+		var sz: float = -1.0 if corner == "NW" or corner == "NE" else 1.0
+		var panel := MeshInstance3D.new()
+		panel.name = "Chamfer_" + corner
+		var pm := BoxMesh.new()
+		# Chamfer face is a rectangle: width = chamfer * sqrt(2), height = full.
+		pm.size = Vector3(chamfer * sqrt(2.0), height, 0.08)
+		panel.mesh = pm
+		panel.material_override = cap_mat
+		# Position at the corner, midpoint between (size/2, 0, size/2 - chamfer)
+		# and (size/2 - chamfer, 0, size/2). Centre = (size/2 - chamfer/2).
+		var cx: float = sx * (size * 0.5 - chamfer * 0.5)
+		var cz: float = sz * (size * 0.5 - chamfer * 0.5)
+		panel.position = Vector3(cx, height * 0.5, cz)
+		# Each corner panel is rotated 45° around Y, with sign depending on
+		# which corner.
+		var yaw_for_corner: float
+		match corner:
+			"NW": yaw_for_corner = PI * 0.25
+			"NE": yaw_for_corner = -PI * 0.25
+			"SE": yaw_for_corner = PI * 0.25
+			"SW": yaw_for_corner = -PI * 0.25
+		panel.rotation.y = yaw_for_corner
+		body.add_child(panel)
+
+	# --- Solid collision (square footprint — simpler than octagonal,
+	# player can't tell from outside, and saves complexity).
 	var col := CollisionShape3D.new()
 	var col_shape := BoxShape3D.new()
-	col_shape.size = Vector3(size, c.WALL_HEIGHT, size)
+	col_shape.size = Vector3(size, height, size)
 	col.shape = col_shape
-	col.position.y = c.WALL_HEIGHT * 0.5
+	col.position.y = height * 0.5
 	body.add_child(col)
 
-	var accent := MeshInstance3D.new()
-	accent.name = "Accent"
-	var accent_mesh := BoxMesh.new()
-	accent_mesh.size = Vector3(size * 0.9, 0.06, size * 0.9)
-	accent.mesh = accent_mesh
-	var amat := StandardMaterial3D.new()
-	amat.albedo_color = Color(0.4, 0.7, 1.0)
-	amat.emission_enabled = true
-	amat.emission = Color(0.4, 0.7, 1.0)
-	amat.emission_energy_multiplier = 0.8
-	accent.material_override = amat
-	accent.position.y = 1.6
-	body.add_child(accent)
+	# --- Geometry-data dict for handler to build doors against.
+	# Cardinal faces (N/S/E/W) — used by ElevatorHandler to spawn door
+	# panels along each face's tangent axis.
+	var cardinals := []
+	for spec in [
+		{"name": "N", "normal": Vector3(0, 0, -1), "tangent": Vector3(1, 0, 0), "centre_offset": Vector3(0, 0, -size * 0.5)},
+		{"name": "S", "normal": Vector3(0, 0, 1), "tangent": Vector3(1, 0, 0), "centre_offset": Vector3(0, 0, size * 0.5)},
+		{"name": "E", "normal": Vector3(1, 0, 0), "tangent": Vector3(0, 0, 1), "centre_offset": Vector3(size * 0.5, 0, 0)},
+		{"name": "W", "normal": Vector3(-1, 0, 0), "tangent": Vector3(0, 0, 1), "centre_offset": Vector3(-size * 0.5, 0, 0)},
+	]:
+		cardinals.append(spec)
+
+	var corners := {}
+	for corner in ["NW", "NE", "SE", "SW"]:
+		var sx: float = -1.0 if corner == "NW" or corner == "SW" else 1.0
+		var sz: float = -1.0 if corner == "NW" or corner == "NE" else 1.0
+		var cx: float = sx * (size * 0.5 - chamfer * 0.5)
+		var cz: float = sz * (size * 0.5 - chamfer * 0.5)
+		# Tangent runs along the chamfer face — clockwise around the elevator.
+		var tan: Vector3
+		match corner:
+			"NW": tan = Vector3(1, 0, -1).normalized()
+			"NE": tan = Vector3(1, 0, 1).normalized()
+			"SE": tan = Vector3(-1, 0, 1).normalized()
+			"SW": tan = Vector3(-1, 0, -1).normalized()
+		corners[corner] = {
+			"centre": Vector3(cx, 0, cz),
+			"tangent": tan,
+			"normal": Vector3(sx, 0, sz).normalized(),
+		}
+
+	return {
+		"core": body,
+		"size": size,
+		"chamfer": chamfer,
+		"height": height,
+		"side_length": side_length,
+		"cardinals": cardinals,
+		"corners": corners,
+	}
 
 
 # --- Internal --------------------------------------------------------------
