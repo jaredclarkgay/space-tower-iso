@@ -122,3 +122,24 @@ var floor_1 := {
 		"cargo": false,
 	},
 }
+
+
+# Floor 3 (Arboretum) state. Phase 2 wires planting + growth; Phase 1
+# leaves these empty so the scaffold and elevator routing can land first.
+#   water_connected:    has the player connected the floor's irrigation
+#   sunlight_active:    has the player opened the Floor 4 skylight panel
+#   trees:              per-plot tree state, keyed by "x,z" plot coords.
+#                       Each entry: {variety, planted_at_msec, growth_t}
+#                       where growth_t is a cached 0..1 from now-planted_at.
+#                       Phase 1 stores nothing here; Floor 3/4 controllers
+#                       check that .is_empty() == true and skip tree rendering.
+var floor_3 := {
+	"water_connected": false,
+	"sunlight_active": false,
+	"trees": {},
+}
+
+# Floor 4 (Canopy deck) holds no independent state — it renders the same
+# trees Floor 3 owns. Phase 1 keeps a slot here in case Phase 2 wants per-
+# floor flags (e.g. skylight_open_t for the panel animation).
+var floor_4 := {}

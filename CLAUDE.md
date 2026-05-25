@@ -62,6 +62,8 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 | `class_name` with the `--headless --import` harness | `rules/gdscript_class_name_caveats.md` |
 | Building shared geometry across multiple floors / scenes | `rules/godot_shared_module_pattern.md` |
 | GDScript reload warnings about shadowed identifiers (`tan`, `scale`, etc.) | `rules/gdscript_builtin_shadow.md` |
+| Spiral staircase wrapping the elevator (Floor 3 ↔ Floor 4) | `scenes/shared/spiral_staircase.gd` |
+| Tiled slab with holes (elevator + staircase annulus + tree holes) | `scenes/floor_4/floor_4.gd` `_build_tiled_slab_with_holes` |
 
 For specialized work, dispatch to the `godot-iso-builder` subagent (defined in `.claude/agents/`) — it pre-loads project conventions and the rule index.
 

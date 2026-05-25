@@ -1158,15 +1158,23 @@ func _update_harvest_bar(progress: float) -> void:
 	_harvest_bar_fill_pivot.scale.x = clamp(progress, 0.0, 1.0)
 
 
-# Debug-only floor swap. Toggles between the Garden (iso_prototype) and
-# Floor 1 based on the currently-loaded scene's path. Replaces in M6 with
-# a real elevator interaction.
+# Debug-only floor swap. Cycles through all four floors in order so the
+# operator can reach any floor without round-tripping the elevator. The
+# elevator is the canonical path between any adjacent floors; this stays
+# as a power-user shortcut. Phase 1 cycle:
+#   Garden (Floor 2) → Floor 1 (Utility) → Floor 3 (Arboretum) → Floor 4 (Canopy) → Garden
 func _debug_swap_floor() -> void:
 	var current_path: String = ""
 	var cs := get_tree().current_scene
 	if cs:
 		current_path = cs.scene_file_path
-	var target := "res://scenes/floor_1/floor_1.tscn"
-	if not current_path.ends_with("iso_prototype.tscn"):
-		target = "res://scenes/iso_prototype/iso_prototype.tscn"
-	get_tree().change_scene_to_file(target)
+	var next_target := "res://scenes/iso_prototype/iso_prototype.tscn"
+	if current_path.ends_with("iso_prototype.tscn"):
+		next_target = "res://scenes/floor_1/floor_1.tscn"
+	elif current_path.ends_with("floor_1.tscn"):
+		next_target = "res://scenes/floor_3/floor_3.tscn"
+	elif current_path.ends_with("floor_3.tscn"):
+		next_target = "res://scenes/floor_4/floor_4.tscn"
+	elif current_path.ends_with("floor_4.tscn"):
+		next_target = "res://scenes/iso_prototype/iso_prototype.tscn"
+	get_tree().change_scene_to_file(next_target)

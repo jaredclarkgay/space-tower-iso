@@ -531,3 +531,54 @@ func plant_type_by_seed(seed_key: String) -> Dictionary:
 		if t.name == capitalized:
 			return t
 	return {}
+
+
+# --- Floor 3-4 (Arboretum) -------------------------------------------------
+# Floor 3 (Arboretum ground): edge-only plots, central elevator + spiral
+# staircase, water + sunlight sources. Floor 4 (Canopy deck): same footprint
+# with holes cut in the slab above every tree plot AND a full annular hole
+# for the staircase to emerge through. Trees grow continuously, height up to
+# two stories so the crown fills Floor 4. Phase 2 wires planting + growth.
+
+const ARBORETUM_HEADER_AMBER := Color(0.95, 0.86, 0.55, 0.95)
+const ARBORETUM_AMBIENT_TINT := Color(0.62, 0.72, 0.66, 1.0)   # green-tinted ambient
+const ARBORETUM_SKYLIGHT_COLOR := Color(1.0, 0.96, 0.84, 1.0)
+const ARBORETUM_SKY_BG := Color(0.06, 0.10, 0.08, 1.0)
+
+# Every-other-edge-cell pattern — every second plot in a 1-cell-deep ring
+# just inside the perimeter walls is a tree plot. With GARDEN_GRID_SIZE = 30
+# this yields ~52 plots (every second along each side, four corners trimmed
+# to avoid double-counting).
+const ARBORETUM_EDGE_INSET := 1                              # cells inside the wall
+const ARBORETUM_PLOT_STRIDE := 2                             # every-other-cell
+const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brown
+const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 4 holes
+const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — radius of slab hole on Floor 4
+
+# --- Spiral staircase (Floor 3 ↔ Floor 4) ----------------------------------
+# Wraps the elevator's outer octagon. One full 360° revolution lifts the
+# player FLOOR_3D_STORY_HEIGHT in height, then lands on Floor 4 at the same
+# angular position it started. Visible step risers stack on top of smooth
+# collision ramp segments — Godot's CharacterBody3D can't step up discrete
+# risers without manual logic, so the collider underneath is a smooth slope.
+const STAIRCASE_INNER_RADIUS := 2.3                          # outside the elevator chamfer corners
+const STAIRCASE_OUTER_RADIUS := 3.55                         # inner + 1.25 m tread depth
+const STAIRCASE_STEP_COUNT := 32                             # visible step risers per revolution
+const STAIRCASE_RAMP_SEGMENTS := 8                           # collision-ramp segments (45° each)
+const STAIRCASE_STEP_THICKNESS := 0.06                       # m — riser top plate thickness
+const STAIRCASE_HANDRAIL_RADIUS := 0.04                      # m — handrail bar radius
+const STAIRCASE_HANDRAIL_HEIGHT := 0.95                      # m — handrail height above tread
+const STAIRCASE_TREAD_COLOR := Color(0.40, 0.35, 0.28)       # warm wood-toned tread
+const STAIRCASE_RISER_COLOR := Color(0.18, 0.16, 0.14)       # dark riser between treads
+const STAIRCASE_HANDRAIL_COLOR := Color(0.28, 0.30, 0.34)    # cool grey-metallic
+
+# Floor 4 slab annular hole that the staircase passes through. Slab tiles
+# inside this radius band are skipped so the staircase emerges visibly.
+const STAIRCASE_HOLE_INNER_RADIUS := STAIRCASE_INNER_RADIUS - 0.15
+const STAIRCASE_HOLE_OUTER_RADIUS := STAIRCASE_OUTER_RADIUS + 0.15
+
+# --- Floor 4 slab tiling ---------------------------------------------------
+# Floor 4's slab is built tile-by-tile (vs. Floor 3's single BoxMesh) so the
+# tree holes + staircase annulus + central elevator footprint can all be
+# punched out. Tile is the GARDEN_PLOT_SIZE grid.
+const FLOOR_4_TILE_INSET_GAP := 0.02                         # m — gap between tiles for grid read

@@ -243,3 +243,46 @@ the facing yaw with `IsoPlayer.set_facing_yaw(...)`.
 If breaking one of these makes a floor *feel* obviously better, do it
 and document the deviation here. The default is conformance; the
 exception is reasoned and recorded.
+
+---
+
+## 11. Documented deviations
+
+### Floor 4 (Canopy) — no elevator stop, stairs-only access
+
+Floor 4 is reachable ONLY by walking up the spiral staircase from Floor 3
+(`scenes/shared/spiral_staircase.gd`). The elevator's geometry still
+passes through Floor 4's slab (the central square footprint is cut out)
+and the spine pipes still render so the architectural continuity reads,
+but no `ElevatorHandler` is instanced — there is no E-prompt or door
+animation. Intent: making the canopy private and unreachable by lift
+gives the floor a more elevated, contemplative feel, and turns the
+spiral staircase into a meaningful piece of architecture rather than
+redundant geometry.
+
+### Floor 4 — slab is tiled, not a single box
+
+Where every other floor uses `FloorChrome.build_slab` (single BoxMesh +
+collision), Floor 4 builds its slab tile-by-tile in `floor_4.gd` so it
+can punch holes in three regions:
+1. Central square ±`ELEVATOR_RADIUS` (elevator passes through).
+2. Annular ring `STAIRCASE_HOLE_INNER_RADIUS..STAIRCASE_HOLE_OUTER_RADIUS`
+   (staircase emerges from below).
+3. Edge tree-plot tiles (mature crowns emerge through; a dark torus
+   rim is rendered around each hole for visual read).
+
+This pattern is the right move whenever a floor's slab needs cutouts.
+Other floors (Garden, Floor 1) don't need any, so they stay on the
+single-box `build_slab` for speed.
+
+### Floors 3-4 (Arboretum) — edge-only growing plots
+
+The Arboretum uses every-other-cell along a 1-cell-deep ring inside the
+walls (`ARBORETUM_EDGE_INSET` and `ARBORETUM_PLOT_STRIDE`). With
+`GARDEN_GRID_SIZE = 30` this yields ~52 plots. The choice keeps the
+floor reading as a curated arboretum, not a hedge, and leaves the
+centre clear for the elevator + spiral staircase. Tree visuals span
+two floors: trunk + lower foliage on Floor 3, upper trunk + canopy
+on Floor 4. Floor 3 owns the tree state in `GameState.floor_3.trees`;
+Floor 4 reads the same dict and renders its slice (mirrors the
+`build_passive_spine_pipes` cross-floor render pattern from Floor 1).
