@@ -155,7 +155,10 @@ func _update_proximity_state(delta: float) -> void:
 	var pos: Vector3 = _player.global_position
 	var d: float = Vector2(pos.x, pos.z).length()
 	var in_range: bool = d <= INTERACT_RADIUS
+	# In PROXIMITY, show the "E" + "Travel to X" pair, hide the chooser.
 	_prompt_root.visible = in_range
+	_prompt_e.visible = in_range
+	_prompt_label.visible = in_range
 	if _chooser_label:
 		_chooser_label.visible = false
 	# Doors hover open while the player is in range whether or not there's
@@ -177,10 +180,13 @@ func _update_proximity_state(delta: float) -> void:
 			_state_t = 0.0
 
 
-# Player is parked at the elevator and the chooser is visible. Number keys
-# (1..N) pick a destination via _input; ESC returns to PROXIMITY; walking
-# away also cancels (the player's distance check fires the same way as in
-# PROXIMITY). Doors stay open while choosing.
+# Player is parked at the elevator and the chooser is visible. Picks are
+# polled via the existing `seed_select_N` InputMap actions (already bound
+# to KEY_1..KEY_6 in project.godot) AND via the _input fallback for keys
+# beyond 6. Polling works reliably regardless of input-event dispatch
+# quirks (some Mac keyboard layouts route number keys through unicode
+# rather than keycode, which broke the original _input-only handler).
+# ESC returns to PROXIMITY; walking out of range also cancels.
 func _update_choosing_state(delta: float) -> void:
 	var pos: Vector3 = _player.global_position
 	var d: float = Vector2(pos.x, pos.z).length()
@@ -188,9 +194,27 @@ func _update_choosing_state(delta: float) -> void:
 		_door_state = DOOR_STATE_PROXIMITY
 		_state_t = 0.0
 		return
+	# Hide the standard "E" + "Travel" pair, show only the chooser.
 	_prompt_root.visible = true
+	_prompt_e.visible = false
+	_prompt_label.visible = false
 	if _chooser_label:
 		_chooser_label.visible = true
+	# Polled fallback: seed_select_N is bound to KEY_N for N in 1..6. The
+	# action names are misleading here ("seed_select" inside the elevator
+	# doesn't make sense) — but rebinding would mean a new InputMap entry
+	# AND the same bindings, so reusing them is the pragmatic call. Phase 1
+	# never has more than 2 destinations per floor; this caps at 6.
+	for i in range(min(_dests.size(), 6)):
+		var action_name := StringName("seed_select_%d" % (i + 1))
+		if InputMap.has_action(action_name) and Input.is_action_just_pressed(action_name):
+			_chosen_dest = _dests[i]
+			_begin_departing()
+			return
+	if Input.is_action_just_pressed(&"ui_cancel"):
+		_door_state = DOOR_STATE_PROXIMITY
+		_state_t = 0.0
+		return
 	# Keep doors fully open and glow at baseline (no travel yet).
 	_doors_open_t = move_toward(_doors_open_t, 1.0, delta / _c.ELEVATOR_DOOR_OPEN_DURATION)
 	_glow_t = move_toward(_glow_t, 0.0, delta / 0.4)
@@ -257,8 +281,11 @@ func _begin_departing() -> void:
 	_gs.set("in_transit", true)
 
 
-# Number-key picker for the chooser. KEY_1..KEY_9 pick destinations 0..8;
-# ESC cancels. Listens only while in CHOOSING state.
+# Secondary number-key handler for >6-destination floors (Phase 1 caps at
+# 2 per floor, so the polled fallback in _update_choosing_state handles
+# everything; this is here as a belt-and-suspenders for future floors with
+# more options, and works regardless of which input-dispatch path the
+# host environment routes number keys through).
 func _input(event: InputEvent) -> void:
 	if _door_state != DOOR_STATE_CHOOSING:
 		return
@@ -267,15 +294,22 @@ func _input(event: InputEvent) -> void:
 	var key_event: InputEventKey = event
 	if not key_event.pressed or key_event.echo:
 		return
-	if key_event.keycode == KEY_ESCAPE:
-		_door_state = DOOR_STATE_PROXIMITY
-		_state_t = 0.0
-		return
-	# KEY_1 = 49, KEY_2 = 50, ..., KEY_9 = 57. Map to 0-based dest index.
-	var idx: int = int(key_event.keycode) - int(KEY_1)
+	# Try keycode (layout-aware), then physical_keycode (layout-independent).
+	var idx: int = _keycode_to_index(int(key_event.keycode))
+	if idx < 0:
+		idx = _keycode_to_index(int(key_event.physical_keycode))
 	if idx >= 0 and idx < _dests.size():
 		_chosen_dest = _dests[idx]
 		_begin_departing()
+		get_viewport().set_input_as_handled()
+
+
+# Maps a KEY_1..KEY_9 keycode to a 0..8 destination index. Returns -1 if
+# the keycode isn't a top-row number key.
+func _keycode_to_index(kc: int) -> int:
+	if kc >= int(KEY_1) and kc <= int(KEY_9):
+		return kc - int(KEY_1)
+	return -1
 
 
 func _apply_glow() -> void:
@@ -367,26 +401,31 @@ func _build_prompt() -> void:
 	_prompt_label.position = Vector3(0, 0.0, 0)
 	_prompt_root.add_child(_prompt_label)
 
-	# Chooser list — visible only during CHOOSING. One line per destination
-	# prefixed by the number key that picks it.
+	# Chooser list — visible only during CHOOSING. The standard "E" + "Travel"
+	# pair are hidden in that state, so the chooser owns the visual space
+	# above the elevator. Heading + one line per destination + ESC hint.
 	if _dests.size() > 1:
 		_chooser_label = Label3D.new()
 		var lines: PackedStringArray = PackedStringArray()
+		lines.append("TRAVEL TO")
+		lines.append("")
 		for i in range(_dests.size()):
 			var dest: Dictionary = _dests[i]
 			var arrow_d := "↑" if String(dest.get("direction", "up")) == "up" else "↓"
-			lines.append("%d  %s  %s" % [i + 1, arrow_d, dest.get("label", "")])
+			lines.append("[%d]   %s   %s" % [i + 1, arrow_d, dest.get("label", "")])
 		lines.append("")
-		lines.append("ESC  cancel")
+		lines.append("[ESC] cancel")
 		_chooser_label.text = "\n".join(lines)
-		_chooser_label.font_size = 44
-		_chooser_label.outline_size = 8
-		_chooser_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
-		_chooser_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+		_chooser_label.font_size = 64
+		_chooser_label.outline_size = 10
+		_chooser_label.modulate = Color(1.0, 0.92, 0.55, 1.0)
+		_chooser_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.95)
 		_chooser_label.pixel_size = 0.005
 		_chooser_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		_chooser_label.no_depth_test = true
-		_chooser_label.position = Vector3(0, -0.5, 0)
+		# Position centred at the same height as the standard E prompt
+		# (since the E + Travel labels are hidden in CHOOSING).
+		_chooser_label.position = Vector3(0, 0.0, 0)
 		_chooser_label.visible = false
 		_prompt_root.add_child(_chooser_label)
 
