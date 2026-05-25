@@ -555,22 +555,22 @@ const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brow
 const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 4 holes
 const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — radius of slab hole on Floor 4
 
-# --- Spiral staircase (Floor 3 ↔ Floor 4) ----------------------------------
+# --- Spiral ramp (Floor 3 ↔ Floor 4) ---------------------------------------
 # Wraps the elevator's outer octagon. One full 360° revolution lifts the
-# player FLOOR_3D_STORY_HEIGHT in height, then lands on Floor 4 at the same
-# angular position it started. Visible step risers stack on top of smooth
-# collision ramp segments — Godot's CharacterBody3D can't step up discrete
-# risers without manual logic, so the collider underneath is a smooth slope.
-const STAIRCASE_INNER_RADIUS := 2.3                          # outside the elevator chamfer corners
-const STAIRCASE_OUTER_RADIUS := 3.55                         # inner + 1.25 m tread depth
-const STAIRCASE_STEP_COUNT := 32                             # visible step risers per revolution
-const STAIRCASE_RAMP_SEGMENTS := 8                           # collision-ramp segments (45° each)
-const STAIRCASE_STEP_THICKNESS := 0.06                       # m — riser top plate thickness
-const STAIRCASE_HANDRAIL_RADIUS := 0.04                      # m — handrail bar radius
-const STAIRCASE_HANDRAIL_HEIGHT := 0.95                      # m — handrail height above tread
-const STAIRCASE_TREAD_COLOR := Color(0.40, 0.35, 0.28)       # warm wood-toned tread
-const STAIRCASE_RISER_COLOR := Color(0.18, 0.16, 0.14)       # dark riser between treads
-const STAIRCASE_HANDRAIL_COLOR := Color(0.28, 0.30, 0.34)    # cool grey-metallic
+# player FLOOR_3D_STORY_HEIGHT. Single clean ramp surface — no separate
+# step risers, no balusters, no handrail (earlier overcomplicated build
+# read as visual chaos and had collision gaps at the outer edge between
+# rotated segments). 32 overlapping tilted boxes form the continuous
+# surface; tangential overlap (40% of arc length) eliminates the angular
+# gaps that arise from rotating each box by 360/N degrees from its neighbour.
+# Inner radius set just outside the elevator chamfer corners (max chamfer
+# midpoint is at radius 2.33 m; 2.55 gives ~0.22 m clearance).
+const STAIRCASE_INNER_RADIUS := 2.55
+const STAIRCASE_OUTER_RADIUS := 3.60
+const STAIRCASE_RAMP_SEGMENTS := 32
+const STAIRCASE_TREAD_COLOR := Color(0.55, 0.42, 0.30)       # warm wood, brighter than v1
+const STAIRCASE_TREAD_EMISSION := Color(0.10, 0.07, 0.04)    # subtle warmth so it reads in dim rooms
+const STAIRCASE_EDGE_STRIPE_COLOR := Color(0.28, 0.20, 0.14) # dark inset stripe along inner edge
 
 # Floor 4 slab annular hole that the staircase passes through. Slab tiles
 # inside this radius band are skipped so the staircase emerges visibly.

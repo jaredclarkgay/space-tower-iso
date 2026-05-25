@@ -7,10 +7,10 @@
 
 [sub_resource type="Environment" id="Environment_floor4"]
 background_mode = 1
-background_color = Color(0.08, 0.12, 0.10, 1)
+background_color = Color(0.10, 0.15, 0.12, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.70, 0.78, 0.72, 1)
-ambient_light_energy = 1.0
+ambient_light_color = Color(0.82, 0.86, 0.74, 1)
+ambient_light_energy = 1.7
 
 [node name="Floor4" type="Node3D"]
 
@@ -37,7 +37,14 @@ spot_attenuation = 0.7
 [node name="EnvLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)
 light_color = Color(1, 0.96, 0.84, 1)
-light_energy = 1.0
+light_energy = 1.35
+
+[node name="CentreOverheadLamp" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.5, 0)
+light_color = Color(1, 0.94, 0.78, 1)
+light_energy = 1.5
+omni_range = 22.0
+omni_attenuation = 1.3
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_floor4")

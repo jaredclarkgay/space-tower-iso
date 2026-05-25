@@ -32,13 +32,13 @@ func _ready() -> void:
 	if not player_path.is_empty():
 		_player = get_node_or_null(player_path)
 
-	FloorChrome.build_slab(self, _c, Color(0.22, 0.26, 0.22))
+	FloorChrome.build_slab(self, _c, Color(0.34, 0.40, 0.32))
 	FloorChrome.build_walls(self, _c)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
 
-	# Spiral staircase wraps the elevator octagon, ascending to Floor 4.
+	# Spiral ramp wraps the elevator octagon, ascending to Floor 4.
 	# Starts at angle 0 (= +X axis); winds CCW; lands one story up.
 	SpiralStaircase.build(self, _c, _c.FLOOR_3D_TOP_Y, 0.0)
 
@@ -83,8 +83,13 @@ func _compute_edge_plots() -> void:
 func _render_edge_plot_markers() -> void:
 	var plot: float = float(_c.GARDEN_PLOT_SIZE)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = _c.ARBORETUM_PLOT_TINT
+	# Bumped tint contrast vs the slab so plots read clearly. The
+	# Phase-2 tilled-soil visuals will replace these.
+	mat.albedo_color = Color(0.20, 0.32, 0.18)
 	mat.roughness = 0.95
+	mat.emission_enabled = true
+	mat.emission = Color(0.06, 0.12, 0.05)
+	mat.emission_energy_multiplier = 0.5
 	for pos in _edge_plots:
 		var marker := MeshInstance3D.new()
 		var box := BoxMesh.new()

@@ -84,7 +84,7 @@ func _build_tiled_slab_with_holes() -> void:
 	var hole_outer_r: float = float(_c.STAIRCASE_HOLE_OUTER_RADIUS)
 	var tree_hole_r: float = float(_c.ARBORETUM_PLOT_HOLE_RADIUS)
 	var tile_inset: float = float(_c.FLOOR_4_TILE_INSET_GAP)
-	var slab_color: Color = Color(0.18, 0.18, 0.20)
+	var slab_color: Color = Color(0.32, 0.36, 0.30)
 	var tile_mat := StandardMaterial3D.new()
 	tile_mat.albedo_color = slab_color
 	tile_mat.roughness = 0.85
