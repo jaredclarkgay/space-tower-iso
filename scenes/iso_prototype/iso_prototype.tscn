@@ -77,9 +77,15 @@ script = ExtResource("12_tubes")
 
 [node name="ElevatorHandler" type="Node3D" parent="World" unique_id=1145421051]
 script = ExtResource("13_elev")
-target_scene_path = "res://scenes/floor_1/floor_1.tscn"
-target_label = "Utility"
-direction = "down"
+destinations = [{
+"scene": "res://scenes/floor_1/floor_1.tscn",
+"label": "Utility",
+"direction": "down",
+}, {
+"scene": "res://scenes/floor_3/floor_3.tscn",
+"label": "Arboretum",
+"direction": "up",
+}]
 player_path = NodePath("../IsoPlayer")
 floor_provider_path = NodePath("../IsoFloor")
 

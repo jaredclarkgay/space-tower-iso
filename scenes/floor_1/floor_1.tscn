@@ -29,9 +29,15 @@ camera_pivot_path = NodePath("../../CameraPivot")
 
 [node name="ElevatorHandler" type="Node3D" parent="World"]
 script = ExtResource("7_elev")
-target_scene_path = "res://scenes/iso_prototype/iso_prototype.tscn"
-target_label = "Garden"
-direction = "up"
+destinations = [{
+"scene": "res://scenes/iso_prototype/iso_prototype.tscn",
+"label": "Garden",
+"direction": "up",
+}, {
+"scene": "res://scenes/floor_3/floor_3.tscn",
+"label": "Arboretum",
+"direction": "up",
+}]
 player_path = NodePath("../IsoPlayer")
 floor_provider_path = NodePath("../FloorController")
 

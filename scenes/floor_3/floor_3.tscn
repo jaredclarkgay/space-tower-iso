@@ -23,9 +23,15 @@ player_path = NodePath("../IsoPlayer")
 
 [node name="ElevatorHandler" type="Node3D" parent="World"]
 script = ExtResource("5_elev")
-target_scene_path = "res://scenes/iso_prototype/iso_prototype.tscn"
-target_label = "Garden"
-direction = "down"
+destinations = [{
+"scene": "res://scenes/iso_prototype/iso_prototype.tscn",
+"label": "Garden",
+"direction": "down",
+}, {
+"scene": "res://scenes/floor_1/floor_1.tscn",
+"label": "Utility",
+"direction": "down",
+}]
 player_path = NodePath("../IsoPlayer")
 floor_provider_path = NodePath("../FloorController")
 

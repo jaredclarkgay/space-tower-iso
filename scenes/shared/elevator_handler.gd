@@ -22,6 +22,21 @@ extends Node3D
 # carries the inner-core material reference so the handler can drive the
 # yellow travel glow.
 @export var floor_provider_path: NodePath
+
+# Multi-destination elevator. Each entry is a Dictionary with keys:
+#   scene:     String — res://...tscn to switch to
+#   label:     String — human-readable destination ("Garden", "Utility")
+#   direction: String — "up" or "down"
+# When this array has 2+ entries, tapping E opens a chooser; the player
+# presses a number key (1..N) to pick a destination. When it has 0 entries
+# AND target_scene_path is set, the legacy single-destination fields are
+# used as a fallback (one synthesized entry). 1 entry behaves the same
+# as the legacy single-target wiring — no chooser, just go.
+@export var destinations: Array = []
+# Normalized at _ready from `destinations` (or synthesized from the
+# legacy target_* fields if destinations is empty). All runtime logic
+# reads this list — never the export directly.
+var _dests: Array = []
 var _player: Node3D
 var _floor_provider: Node
 
@@ -46,13 +61,22 @@ var _inner_mat_base_energy: float = 0.4
 var _glow_t := 0.0   # 0 baseline, 1 full travel glow
 
 # Travel state machine.
+#   PROXIMITY  — default: doors open/close with player distance, E shows prompt.
+#   CHOOSING   — E pressed with 2+ destinations: chooser visible, listening
+#                for number keys to pick. ESC returns to PROXIMITY.
+#   DEPARTING  — destination chosen: doors close, glow ramps, fade-to-black,
+#                change_scene_to_file.
+#   ARRIVING   — receiving scene: fade-in, hold, doors open + glow fades.
 const DOOR_STATE_PROXIMITY := 0
-const DOOR_STATE_DEPARTING := 1
-const DOOR_STATE_ARRIVING := 2
+const DOOR_STATE_CHOOSING := 1
+const DOOR_STATE_DEPARTING := 2
+const DOOR_STATE_ARRIVING := 3
 var _door_state: int = DOOR_STATE_PROXIMITY
 # Time elapsed in the current state, used to drive the multi-step
 # departure / arrival animations.
 var _state_t := 0.0
+# Destination index chosen during CHOOSING, consumed by DEPARTING.
+var _chosen_dest: Dictionary = {}
 
 # Travel timing — see _update_travel_state for what each segment owns.
 const DEPART_DOOR_CLOSE := 0.35
@@ -66,6 +90,9 @@ const ARRIVE_DOOR_OPEN := 0.40
 var _prompt_root: Node3D
 var _prompt_e: Label3D
 var _prompt_label: Label3D
+# Chooser label appears beneath the standard prompt during CHOOSING state,
+# listing all available destinations with their number-key prefixes.
+var _chooser_label: Label3D
 
 # Fade overlay — full-screen ColorRect on a CanvasLayer, alpha-tweened.
 var _fade_layer: CanvasLayer
@@ -83,6 +110,7 @@ func _ready() -> void:
 		var data: Dictionary = _floor_provider.get("_elevator_data") if _floor_provider else {}
 		if data and data.has("inner_mat"):
 			_inner_mat = data.inner_mat
+	_normalize_destinations()
 	_build_prompt()
 	_build_fade()
 	_build_doors()
@@ -113,6 +141,8 @@ func _process(delta: float) -> void:
 		return
 	if _door_state == DOOR_STATE_PROXIMITY:
 		_update_proximity_state(delta)
+	elif _door_state == DOOR_STATE_CHOOSING:
+		_update_choosing_state(delta)
 	elif _door_state == DOOR_STATE_DEPARTING:
 		_update_departing_state(delta)
 	elif _door_state == DOOR_STATE_ARRIVING:
@@ -126,13 +156,44 @@ func _update_proximity_state(delta: float) -> void:
 	var d: float = Vector2(pos.x, pos.z).length()
 	var in_range: bool = d <= INTERACT_RADIUS
 	_prompt_root.visible = in_range
+	if _chooser_label:
+		_chooser_label.visible = false
+	# Doors hover open while the player is in range whether or not there's
+	# a destination (lets the player walk into the elevator on every floor).
 	var target_door: float = 1.0 if in_range else 0.0
 	var rate: float = 1.0 / _c.ELEVATOR_DOOR_OPEN_DURATION
 	_doors_open_t = move_toward(_doors_open_t, target_door, rate * delta)
 	# Glow decays back to baseline.
 	_glow_t = move_toward(_glow_t, 0.0, delta / 0.4)
 	if in_range and Input.is_action_just_pressed(&"interact"):
-		_begin_departing()
+		# 0 destinations: nothing to do (defensive; should never ship live).
+		# 1 destination: skip the chooser, depart directly.
+		# 2+ destinations: enter CHOOSING and wait for a number-key pick.
+		if _dests.size() == 1:
+			_chosen_dest = _dests[0]
+			_begin_departing()
+		elif _dests.size() > 1:
+			_door_state = DOOR_STATE_CHOOSING
+			_state_t = 0.0
+
+
+# Player is parked at the elevator and the chooser is visible. Number keys
+# (1..N) pick a destination via _input; ESC returns to PROXIMITY; walking
+# away also cancels (the player's distance check fires the same way as in
+# PROXIMITY). Doors stay open while choosing.
+func _update_choosing_state(delta: float) -> void:
+	var pos: Vector3 = _player.global_position
+	var d: float = Vector2(pos.x, pos.z).length()
+	if d > INTERACT_RADIUS + 0.2:
+		_door_state = DOOR_STATE_PROXIMITY
+		_state_t = 0.0
+		return
+	_prompt_root.visible = true
+	if _chooser_label:
+		_chooser_label.visible = true
+	# Keep doors fully open and glow at baseline (no travel yet).
+	_doors_open_t = move_toward(_doors_open_t, 1.0, delta / _c.ELEVATOR_DOOR_OPEN_DURATION)
+	_glow_t = move_toward(_glow_t, 0.0, delta / 0.4)
 
 
 func _update_departing_state(delta: float) -> void:
@@ -196,6 +257,27 @@ func _begin_departing() -> void:
 	_gs.set("in_transit", true)
 
 
+# Number-key picker for the chooser. KEY_1..KEY_9 pick destinations 0..8;
+# ESC cancels. Listens only while in CHOOSING state.
+func _input(event: InputEvent) -> void:
+	if _door_state != DOOR_STATE_CHOOSING:
+		return
+	if not (event is InputEventKey):
+		return
+	var key_event: InputEventKey = event
+	if not key_event.pressed or key_event.echo:
+		return
+	if key_event.keycode == KEY_ESCAPE:
+		_door_state = DOOR_STATE_PROXIMITY
+		_state_t = 0.0
+		return
+	# KEY_1 = 49, KEY_2 = 50, ..., KEY_9 = 57. Map to 0-based dest index.
+	var idx: int = int(key_event.keycode) - int(KEY_1)
+	if idx >= 0 and idx < _dests.size():
+		_chosen_dest = _dests[idx]
+		_begin_departing()
+
+
 func _apply_glow() -> void:
 	if _inner_mat == null:
 		return
@@ -212,9 +294,36 @@ func _perform_swap() -> void:
 	# Final step of DEPARTING state — change_scene_to_file is deferred,
 	# so the new scene's _ready picks up GameState.in_transit and runs
 	# the inverse animation (fade-in → hold → doors open + glow fades).
-	if target_scene_path == "":
+	var path: String = String(_chosen_dest.get("scene", target_scene_path))
+	if path == "":
 		return
-	get_tree().change_scene_to_file(target_scene_path)
+	get_tree().change_scene_to_file(path)
+
+
+# Reads the destinations export + legacy single-target fields and writes
+# the normalized list to _dests. Always non-null after _ready. If both
+# inputs are empty, _dests stays empty and the elevator becomes a no-op
+# (defensive only; floors that need an elevator stop wire at least one
+# destination via the .tscn).
+func _normalize_destinations() -> void:
+	_dests.clear()
+	for entry in destinations:
+		if not (entry is Dictionary):
+			continue
+		var scene_path: String = String(entry.get("scene", ""))
+		if scene_path == "":
+			continue
+		_dests.append({
+			"scene": scene_path,
+			"label": String(entry.get("label", "")),
+			"direction": String(entry.get("direction", "up")),
+		})
+	if _dests.is_empty() and target_scene_path != "":
+		_dests.append({
+			"scene": target_scene_path,
+			"label": target_label,
+			"direction": direction,
+		})
 
 
 func _build_prompt() -> void:
@@ -237,8 +346,17 @@ func _build_prompt() -> void:
 	_prompt_root.add_child(_prompt_e)
 
 	_prompt_label = Label3D.new()
-	var arrow := "↑" if direction == "up" else "↓"
-	_prompt_label.text = "%s  Travel to %s" % [arrow, target_label]
+	# With multiple destinations, the top label reads "Travel" — the
+	# chooser label below it enumerates the options. With a single
+	# destination, the top label reads "↑ Travel to X" (legacy behaviour).
+	if _dests.size() > 1:
+		_prompt_label.text = "Travel"
+	elif _dests.size() == 1:
+		var only: Dictionary = _dests[0]
+		var arrow := "↑" if String(only.get("direction", "up")) == "up" else "↓"
+		_prompt_label.text = "%s  Travel to %s" % [arrow, only.get("label", "")]
+	else:
+		_prompt_label.text = "Travel"
 	_prompt_label.font_size = 56
 	_prompt_label.outline_size = 8
 	_prompt_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
@@ -248,6 +366,29 @@ func _build_prompt() -> void:
 	_prompt_label.no_depth_test = true
 	_prompt_label.position = Vector3(0, 0.0, 0)
 	_prompt_root.add_child(_prompt_label)
+
+	# Chooser list — visible only during CHOOSING. One line per destination
+	# prefixed by the number key that picks it.
+	if _dests.size() > 1:
+		_chooser_label = Label3D.new()
+		var lines: PackedStringArray = PackedStringArray()
+		for i in range(_dests.size()):
+			var dest: Dictionary = _dests[i]
+			var arrow_d := "↑" if String(dest.get("direction", "up")) == "up" else "↓"
+			lines.append("%d  %s  %s" % [i + 1, arrow_d, dest.get("label", "")])
+		lines.append("")
+		lines.append("ESC  cancel")
+		_chooser_label.text = "\n".join(lines)
+		_chooser_label.font_size = 44
+		_chooser_label.outline_size = 8
+		_chooser_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
+		_chooser_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+		_chooser_label.pixel_size = 0.005
+		_chooser_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_chooser_label.no_depth_test = true
+		_chooser_label.position = Vector3(0, -0.5, 0)
+		_chooser_label.visible = false
+		_prompt_root.add_child(_chooser_label)
 
 
 func _build_doors() -> void:
