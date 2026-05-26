@@ -19,6 +19,7 @@ extends Node3D
 # Phase 2.
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
+const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -29,6 +30,12 @@ var _player: Node3D
 # Edge plot world positions (where tree-holes go). Same algorithm as Floor 3
 # so the holes align perfectly with the tree positions one story below.
 var _tree_hole_positions: Array = []
+
+# Tree refs rendered on Floor 4 — keyed by plot_key. Floor 4 only shows a
+# tree once its growth_t crosses TREE_FLOOR_4_VISIBLE_THRESHOLD (i.e. the
+# trunk is tall enough to poke through the slab hole). Below that, the
+# tree is on Floor 3 only.
+var _tree_refs: Dictionary = {}
 
 
 func _ready() -> void:
@@ -44,6 +51,37 @@ func _ready() -> void:
 	# still render so the architectural continuity reads.
 	var elev_data: Dictionary = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, elev_data)
+
+
+# Each frame: lazily build tree visuals for any tree whose growth has
+# passed TREE_FLOOR_4_VISIBLE_THRESHOLD, and lerp existing trees.
+# Trees are positioned with their base offset down by STORY_HEIGHT so
+# the part above Floor 4's slab is exactly what's poking above Floor 3.
+func _process(_delta: float) -> void:
+	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
+	var threshold: float = float(_c.TREE_FLOOR_4_VISIBLE_THRESHOLD)
+	for key in _gs.floor_3.trees:
+		var tree: Dictionary = _gs.floor_3.trees[key]
+		var growth_t: float = ArboretumTree.growth_t_for(tree, _c)
+		if growth_t < threshold:
+			# Tree isn't tall enough yet — Floor 4 ignores it.
+			if _tree_refs.has(key):
+				# Edge case: player rewinds growth (not possible in v1 but
+				# defensive). Free + drop ref.
+				var stale: Dictionary = _tree_refs[key]
+				if stale.root:
+					stale.root.queue_free()
+				_tree_refs.erase(key)
+			continue
+		if not _tree_refs.has(key):
+			# Build the tree fresh, with base offset down one story so the
+			# visible portion above Floor 4's slab matches the upper part
+			# of the tree on Floor 3.
+			var variety: int = int(tree.get("variety", 0))
+			var world_pos: Vector3 = Vector3(tree.get("world_pos", Vector3.ZERO))
+			var offset_pos: Vector3 = world_pos + Vector3(0, -story, 0)
+			_tree_refs[key] = ArboretumTree.build(self, _c, variety, offset_pos)
+		ArboretumTree.update(_tree_refs[key], _c, growth_t)
 
 
 # Computes Floor-3-edge-plot positions (mirrors floor_3.gd._compute_edge_plots).

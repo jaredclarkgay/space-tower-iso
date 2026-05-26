@@ -124,19 +124,25 @@ var floor_1 := {
 }
 
 
-# Floor 3 (Arboretum) state. Phase 2 wires planting + growth; Phase 1
-# leaves these empty so the scaffold and elevator routing can land first.
+# Floor 3 (Arboretum) state.
 #   water_connected:    has the player connected the floor's irrigation
+#                       (Phase 2B — currently always treated as on; trees
+#                       grow as soon as planted).
 #   sunlight_active:    has the player opened the Floor 4 skylight panel
-#   trees:              per-plot tree state, keyed by "x,z" plot coords.
-#                       Each entry: {variety, planted_at_msec, growth_t}
-#                       where growth_t is a cached 0..1 from now-planted_at.
-#                       Phase 1 stores nothing here; Floor 3/4 controllers
-#                       check that .is_empty() == true and skip tree rendering.
+#                       (Phase 2B — same).
+#   trees:              per-plot tree state, keyed by "ix,iz" grid coords.
+#                       Each entry: {variety: 0|1, planted_at_msec: int,
+#                                    world_pos: Vector3}
+#                       Both Floor 3 and Floor 4 controllers read this dict
+#                       and render their slice (full tree on F3; canopy on F4
+#                       once growth_t > TREE_FLOOR_4_VISIBLE_THRESHOLD).
+#   next_variety:       0 or 1 — alternated on each plant so the mix reads
+#                       as deliberately varied, not random.
 var floor_3 := {
 	"water_connected": false,
 	"sunlight_active": false,
 	"trees": {},
+	"next_variety": 0,
 }
 
 # Floor 4 (Canopy deck) holds no independent state — it renders the same

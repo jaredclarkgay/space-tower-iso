@@ -1,17 +1,24 @@
 extends Node3D
 
 # Floor 3 — Arboretum (ground level). Edge-only tree plots, central elevator,
-# spiral staircase wrapping the elevator that ascends to Floor 4. Cody was
+# spiral ramp wrapping the elevator that ascends to Floor 4. Cody was
 # "built for floor-three operations" per his dialogue tree — this is his
 # native floor.
 #
-# Phase 1 (this commit): scaffold only. Footprint matches Floor 1/2 via
-# FloorChrome, elevator wires to Garden (down), staircase climbs to Floor 4.
-# Edge plot positions are computed and marked but no planting verb yet.
-# Trees, water source, and sunlight source land in Phase 2.
+# Phase 1 shipped the scaffold (floor + walls + elevator + stairs +
+# plot markers). Phase 2A adds:
+#   - Plant verb (P) — plant a sapling on the nearest empty edge plot
+#   - Two tree varieties (alternating per plant)
+#   - 60s continuous growth (no water/sunlight gating yet — Phase 2B)
+#   - Tree state persisted in GameState.floor_3.trees so visits to other
+#     floors don't reset growth
+#   - Cross-floor rendering pattern: both Floor 3 and Floor 4 read the
+#     same trees dict; F3 renders trunk-up-from-ground, F4 renders the
+#     crown (the part above the slab hole).
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const SpiralStaircase = preload("res://scenes/shared/spiral_staircase.gd")
+const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -23,9 +30,22 @@ var _player: Node3D
 # ElevatorHandler can read inner_mat for the travel glow.
 var _elevator_data: Dictionary = {}
 
-# Edge plot world positions, computed in _ready. Phase 2 reads these to
-# render saplings + tree growth. List of Vector3 (centre point per plot).
+# Edge plot entries — each is a Dictionary:
+#   {key: "ix,iz", world_pos: Vector3, marker: MeshInstance3D}
+# The marker is the dim square that fades out when a tree is planted.
 var _edge_plots: Array = []
+
+# Live tree refs, keyed by plot_key. Value = the dict ArboretumTree.build()
+# returns ({root, trunk, crown, variety}). Built on _ready for any trees
+# already in GameState (returning from another floor) and on plant.
+var _tree_refs: Dictionary = {}
+
+# Plant-verb prompt — single Label3D hopping to the nearest empty plot.
+var _plant_prompt_root: Node3D
+var _plant_prompt_p: Label3D
+var _plant_prompt_label: Label3D
+# Cached "currently in range" edge plot entry (or null).
+var _nearest_empty_plot: Variant = null
 
 
 func _ready() -> void:
@@ -44,11 +64,22 @@ func _ready() -> void:
 
 	_compute_edge_plots()
 	_render_edge_plot_markers()
+	_build_plant_prompt()
+	_restore_existing_trees()
+
+
+func _process(_delta: float) -> void:
+	if _player == null:
+		return
+	_update_plant_prompt()
+	_handle_plant_input()
+	_update_tree_geometry()
 
 
 # Identifies all edge plots — those exactly ARBORETUM_EDGE_INSET cells
 # inside the wall — selected at every-other-cell stride along each side.
-# Stores world-space centre Vector3s in _edge_plots for Phase 2 to consume.
+# Stores entries with {key, world_pos, marker=null} so plant/render code
+# can index by key.
 func _compute_edge_plots() -> void:
 	_edge_plots.clear()
 	var grid: int = int(_c.GARDEN_GRID_SIZE)
@@ -57,44 +88,155 @@ func _compute_edge_plots() -> void:
 	var stride: int = int(_c.ARBORETUM_PLOT_STRIDE)
 	var half: float = grid * plot * 0.5
 
-	# Side coords (grid cell indices: 0..grid-1). For each side, the
-	# perpendicular-axis cell index is fixed (= inset on the low side,
-	# grid-1-inset on the high side); the along-axis index walks the cells.
-	var side_indices := [inset, grid - 1 - inset]
-	# Cell -> world: world = -half + (cell + 0.5) * plot.
-	for perp in side_indices:
+	# Top + bottom sides (z fixed; walk x from inset to grid-1-inset).
+	for perp in [inset, grid - 1 - inset]:
 		var perp_world: float = -half + (perp + 0.5) * plot
-		# Top + bottom sides (z = perp_world, walk x from inset to grid-1-inset)
 		for x in range(inset, grid - inset, stride):
 			var x_world: float = -half + (x + 0.5) * plot
-			_edge_plots.append(Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world))
-	for perp2 in side_indices:
+			_edge_plots.append({
+				"key": "%d,%d" % [x, perp],
+				"world_pos": Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world),
+				"marker": null,
+			})
+	# Left + right sides (x fixed; walk z to avoid duplicating corner plots).
+	for perp2 in [inset, grid - 1 - inset]:
 		var perp_world2: float = -half + (perp2 + 0.5) * plot
-		# Left + right sides (x = perp_world2, walk z from inset+stride to grid-1-inset-stride
-		# to avoid duplicating the four corner plots already captured above)
 		for z in range(inset + stride, grid - inset - stride + 1, stride):
 			var z_world: float = -half + (z + 0.5) * plot
-			_edge_plots.append(Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world))
+			_edge_plots.append({
+				"key": "%d,%d" % [perp2, z],
+				"world_pos": Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world),
+				"marker": null,
+			})
 
 
-# Phase 1 visual marker — each edge plot gets a subtle darker square so
-# the player can see WHERE trees can be planted before the planting verb
-# ships in Phase 2. Replaced by tilled soil + sapling visuals in Phase 2.
+# Visual marker per edge plot — subtle darker square so the player can
+# read planting positions before any sapling is planted. Markers are
+# hidden once the corresponding plot gets a tree.
 func _render_edge_plot_markers() -> void:
 	var plot: float = float(_c.GARDEN_PLOT_SIZE)
 	var mat := StandardMaterial3D.new()
-	# Bumped tint contrast vs the slab so plots read clearly. The
-	# Phase-2 tilled-soil visuals will replace these.
 	mat.albedo_color = Color(0.20, 0.32, 0.18)
 	mat.roughness = 0.95
 	mat.emission_enabled = true
 	mat.emission = Color(0.06, 0.12, 0.05)
 	mat.emission_energy_multiplier = 0.5
-	for pos in _edge_plots:
+	for entry in _edge_plots:
 		var marker := MeshInstance3D.new()
 		var box := BoxMesh.new()
 		box.size = Vector3(plot * 0.85, 0.02, plot * 0.85)
 		marker.mesh = box
 		marker.material_override = mat
-		marker.position = pos + Vector3(0, 0.011, 0)
+		marker.position = entry.world_pos + Vector3(0, 0.011, 0)
 		add_child(marker)
+		entry.marker = marker
+
+
+# Builds the 3D "P / Plant" prompt hovering above whichever empty edge
+# plot the player is currently nearest. Same visual language as the
+# elevator and master-breaker prompts.
+func _build_plant_prompt() -> void:
+	_plant_prompt_root = Node3D.new()
+	_plant_prompt_root.name = "PlantPrompt"
+	_plant_prompt_root.visible = false
+	add_child(_plant_prompt_root)
+
+	_plant_prompt_p = Label3D.new()
+	_plant_prompt_p.text = "P"
+	_plant_prompt_p.font_size = 72
+	_plant_prompt_p.outline_size = 10
+	_plant_prompt_p.modulate = Color(0.78, 0.95, 0.62, 1.0)
+	_plant_prompt_p.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_plant_prompt_p.pixel_size = 0.005
+	_plant_prompt_p.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_plant_prompt_p.no_depth_test = true
+	_plant_prompt_p.position = Vector3(0, 0.6, 0)
+	_plant_prompt_root.add_child(_plant_prompt_p)
+
+	_plant_prompt_label = Label3D.new()
+	_plant_prompt_label.text = "Plant sapling"
+	_plant_prompt_label.font_size = 40
+	_plant_prompt_label.outline_size = 6
+	_plant_prompt_label.modulate = Color(0.92, 0.98, 0.85, 1.0)
+	_plant_prompt_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+	_plant_prompt_label.pixel_size = 0.005
+	_plant_prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_plant_prompt_label.no_depth_test = true
+	_plant_prompt_label.position = Vector3(0, 0.2, 0)
+	_plant_prompt_root.add_child(_plant_prompt_label)
+
+
+# Walks edge plots, picks the nearest unplanted one within
+# TREE_PLANT_INTERACT_RADIUS of the player. Updates the prompt's
+# position + visibility accordingly.
+func _update_plant_prompt() -> void:
+	_nearest_empty_plot = null
+	var player_pos: Vector3 = _player.global_position
+	var best_d2: float = float(_c.TREE_PLANT_INTERACT_RADIUS) ** 2
+	for entry in _edge_plots:
+		if _gs.floor_3.trees.has(entry.key):
+			continue
+		var d2: float = player_pos.distance_squared_to(entry.world_pos)
+		if d2 < best_d2:
+			best_d2 = d2
+			_nearest_empty_plot = entry
+	if _nearest_empty_plot != null:
+		_plant_prompt_root.global_position = _nearest_empty_plot.world_pos
+		_plant_prompt_root.visible = true
+	else:
+		_plant_prompt_root.visible = false
+
+
+# Handles the `plant` InputMap action (bound to P). Fires only when there's
+# a nearest empty plot in range. Picks variety from GameState.floor_3
+# .next_variety and alternates it.
+func _handle_plant_input() -> void:
+	if _nearest_empty_plot == null:
+		return
+	if not Input.is_action_just_pressed(&"plant"):
+		return
+	var entry: Dictionary = _nearest_empty_plot
+	var variety: int = int(_gs.floor_3.next_variety)
+	_gs.floor_3.trees[entry.key] = {
+		"variety": variety,
+		"planted_at_msec": Time.get_ticks_msec(),
+		"world_pos": entry.world_pos,
+	}
+	_gs.floor_3.next_variety = (variety + 1) % 2
+	# Hide the plot marker — it's now a tree.
+	if entry.marker:
+		entry.marker.visible = false
+	# Spawn the tree geometry immediately at growth_t = 0.
+	var refs: Dictionary = ArboretumTree.build(self, _c, variety, entry.world_pos)
+	_tree_refs[entry.key] = refs
+
+
+# Rebuilds tree geometry for every tree already in GameState (player came
+# back to Floor 3 after planting elsewhere). Each tree appears at its
+# current growth state — no replaying of growth.
+func _restore_existing_trees() -> void:
+	for key in _gs.floor_3.trees:
+		var tree: Dictionary = _gs.floor_3.trees[key]
+		var variety: int = int(tree.get("variety", 0))
+		var world_pos: Vector3 = Vector3(tree.get("world_pos", Vector3.ZERO))
+		var refs: Dictionary = ArboretumTree.build(self, _c, variety, world_pos)
+		_tree_refs[key] = refs
+		# Hide the matching plot marker so the marker doesn't double-render
+		# under the tree's trunk.
+		for entry in _edge_plots:
+			if entry.key == key:
+				if entry.marker:
+					entry.marker.visible = false
+				break
+
+
+# Lerps every live tree's geometry to its current growth_t. Called every
+# frame; the lerp is fast (60 fps × tiny per-frame delta) so growth reads
+# as smooth even though the underlying time math is integer milliseconds.
+func _update_tree_geometry() -> void:
+	for key in _tree_refs:
+		var tree: Dictionary = _gs.floor_3.trees.get(key, {})
+		if tree.is_empty():
+			continue
+		var growth_t: float = ArboretumTree.growth_t_for(tree, _c)
+		ArboretumTree.update(_tree_refs[key], _c, growth_t)

@@ -582,3 +582,27 @@ const STAIRCASE_HOLE_OUTER_RADIUS := STAIRCASE_OUTER_RADIUS + 0.15
 # tree holes + staircase annulus + central elevator footprint can all be
 # punched out. Tile is the GARDEN_PLOT_SIZE grid.
 const FLOOR_4_TILE_INSET_GAP := 0.02                         # m — gap between tiles for grid read
+
+# --- Arboretum trees -------------------------------------------------------
+# Trees plant on Floor 3 edge plots and grow continuously over
+# TREE_GROWTH_DURATION_MS to maturity. Two varieties (visual only, no
+# mechanical difference) alternate on plant so the floor reads as a mixed
+# arboretum. Mature trees span two stories — the trunk passes through the
+# Floor 4 slab hole and the crown emerges above. Phase 2A: plant + grow.
+# Phase 2B will add the water + sunlight gating that the user designed.
+const TREE_GROWTH_DURATION_MS := 60_000                      # 60 s, plant → mature
+const TREE_PLANT_INTERACT_RADIUS := 1.1                      # m — player → edge-plot distance
+const TREE_FLOOR_4_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F4
+
+# Trunk + crown waypoints. Tweened linearly between MIN and MAX from
+# growth_t = 0 → 1. Mature trunk height (4.5 m) is well above one
+# story (3 m), so the canopy sits cleanly above Floor 4's slab.
+const TREE_TRUNK_HEIGHT_MIN := 0.4
+const TREE_TRUNK_HEIGHT_MAX := 4.5
+const TREE_CROWN_DIAMETER_MIN := 0.25
+const TREE_CROWN_DIAMETER_MAX := 2.4
+const TREE_TRUNK_RADIUS_MIN := 0.045
+const TREE_TRUNK_RADIUS_MAX := 0.20
+
+# HUD-only stage names for the per-tree growth readout (Phase 2B HUD).
+const TREE_STAGE_NAMES := ["sapling", "young", "maturing", "mature"]
