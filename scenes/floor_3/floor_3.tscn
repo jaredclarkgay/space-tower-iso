@@ -1,9 +1,9 @@
 [gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" uid="uid://bqk7m8h15loaw" path="res://scenes/floor_3/floor_3.gd" id="1_floor3"]
-[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
-[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
-[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/floor_2/iso_camera.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/floor_2/camera_modes_hud.gd" id="4_cam"]
 [ext_resource type="Script" uid="uid://d4ct0cyvw06py" path="res://scenes/shared/elevator_handler.gd" id="5_elev"]
 
 [sub_resource type="Environment" id="Environment_floor3"]
@@ -24,7 +24,7 @@ player_path = NodePath("../IsoPlayer")
 [node name="ElevatorHandler" type="Node3D" parent="World"]
 script = ExtResource("5_elev")
 destinations = [{
-"scene": "res://scenes/iso_prototype/iso_prototype.tscn",
+"scene": "res://scenes/floor_2/floor_2.tscn",
 "label": "Garden",
 "direction": "down",
 }, {

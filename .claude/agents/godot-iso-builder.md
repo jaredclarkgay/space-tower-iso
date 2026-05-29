@@ -1,6 +1,6 @@
 ---
 name: godot-iso-builder
-description: Specialized agent for non-trivial Godot 4.4 GDScript work in the space-tower-iso prototype — animation, camera modes, gameplay systems, scene composition. Pre-loaded with the project's articulated body system, locomotion cycle, camera architecture, and seed-planting loop. Use this for anything substantial in `scenes/iso_prototype/` or `autoloads/`.
+description: Specialized agent for non-trivial Godot 4.4 GDScript work in the space-tower-iso prototype — animation, camera modes, gameplay systems, scene composition. Pre-loaded with the project's articulated body system, locomotion cycle, camera architecture, and seed-planting loop. Use this for anything substantial in `scenes/floor_2/` (the Garden) or `autoloads/`.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 ---

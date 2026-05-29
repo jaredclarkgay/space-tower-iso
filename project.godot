@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Space-Tower-Iso"
-run/main_scene="res://scenes/iso_prototype/iso_prototype.tscn"
+run/main_scene="res://scenes/floor_2/floor_2.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 

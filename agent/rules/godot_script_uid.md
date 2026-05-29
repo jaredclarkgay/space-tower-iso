@@ -35,7 +35,7 @@ because the bare `Node3D` doesn't error.
 godot --headless --path . --import 2>&1 | tail -5
 
 # Verify the .uid was generated:
-cat scenes/iso_prototype/foo.gd.uid
+cat scenes/floor_2/foo.gd.uid
 # → uid://b4b340og50t0n
 ```
 
@@ -44,7 +44,7 @@ stable even if paths shift later:
 
 ```
 [ext_resource type="Script" uid="uid://b4b340og50t0n"
-              path="res://scenes/iso_prototype/foo.gd"
+              path="res://scenes/floor_2/foo.gd"
               id="1_foo"]
 ```
 

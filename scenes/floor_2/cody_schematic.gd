@@ -12,7 +12,7 @@ extends Control
 # the dialogue panel uses, so the chat pop-up and the schematic show the
 # exact same robot.
 
-const _CODY_3D_VIEW := preload("res://scenes/iso_prototype/cody_3d_view.gd")
+const _CODY_3D_VIEW := preload("res://scenes/floor_2/cody_3d_view.gd")
 
 @onready var _gs: Node = get_node("/root/GameState")
 

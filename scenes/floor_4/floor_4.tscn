@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" uid="uid://hf0ffj0sg47q" path="res://scenes/floor_4/floor_4.gd" id="1_floor4"]
-[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
-[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
-[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/floor_2/iso_camera.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/floor_2/camera_modes_hud.gd" id="4_cam"]
 
 [sub_resource type="Environment" id="Environment_floor4"]
 background_mode = 1

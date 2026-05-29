@@ -5,7 +5,7 @@ extends RefCounted
 # + translucent glass + top trim), the extension grid blueprint past the
 # walls, and the central elevator/spine core.
 #
-# Used by floor_1 today; iso_prototype's iso_floor.gd will migrate over in a
+# Used by floor_1 today; floor_2's iso_floor.gd will migrate over in a
 # follow-up refactor (it currently has its own inline copies of these
 # functions). All builders take a parent Node3D + Constants autoload ref so
 # they don't need any scene-specific state.

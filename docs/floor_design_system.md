@@ -96,7 +96,7 @@ produce dropped through other floors' corner tubes.
 
 ## 4. Camera
 
-`scenes/iso_prototype/iso_camera.gd` is the canonical floor camera. Every
+`scenes/floor_2/iso_camera.gd` is the canonical floor camera. Every
 floor's `.tscn` has the same node structure:
 
 ```

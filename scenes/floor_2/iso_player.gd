@@ -20,7 +20,7 @@ extends CharacterBody3D
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-# Camera the player should be relative to. Set by iso_prototype.tscn.
+# Camera the player should be relative to. Set by floor_2.tscn.
 @export var camera_pivot_path: NodePath
 @export var iso_floor_path: NodePath
 @export var iso_robot_path: NodePath
@@ -249,7 +249,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	# Debug stop-gap until M6 wires the elevator: backslash swaps the
-	# current scene between Garden (iso_prototype) and Floor 1 (utility).
+	# current scene between Garden (floor_2) and Floor 1 (utility).
 	# GameState autoload preserves cross-scene state.
 	if Input.is_action_just_pressed(&"debug_floor_switch"):
 		_debug_swap_floor()
@@ -1168,13 +1168,13 @@ func _debug_swap_floor() -> void:
 	var cs := get_tree().current_scene
 	if cs:
 		current_path = cs.scene_file_path
-	var next_target := "res://scenes/iso_prototype/iso_prototype.tscn"
-	if current_path.ends_with("iso_prototype.tscn"):
+	var next_target := "res://scenes/floor_2/floor_2.tscn"
+	if current_path.ends_with("floor_2.tscn"):
 		next_target = "res://scenes/floor_1/floor_1.tscn"
 	elif current_path.ends_with("floor_1.tscn"):
 		next_target = "res://scenes/floor_3/floor_3.tscn"
 	elif current_path.ends_with("floor_3.tscn"):
 		next_target = "res://scenes/floor_4/floor_4.tscn"
 	elif current_path.ends_with("floor_4.tscn"):
-		next_target = "res://scenes/iso_prototype/iso_prototype.tscn"
+		next_target = "res://scenes/floor_2/floor_2.tscn"
 	get_tree().change_scene_to_file(next_target)

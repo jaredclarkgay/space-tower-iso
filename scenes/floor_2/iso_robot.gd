@@ -18,8 +18,8 @@ extends Node3D
 # state that consumes commands queued from elsewhere. The visual + harvest
 # loop stays unchanged.
 
-const _CODY_PORTRAIT := preload("res://scenes/iso_prototype/cody_portrait.gd")
-const _CODY_3D_VIEW := preload("res://scenes/iso_prototype/cody_3d_view.gd")
+const _CODY_PORTRAIT := preload("res://scenes/floor_2/cody_portrait.gd")
+const _CODY_3D_VIEW := preload("res://scenes/floor_2/cody_3d_view.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")

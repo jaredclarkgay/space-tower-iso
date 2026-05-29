@@ -1,9 +1,9 @@
 [gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" uid="uid://c6ydytqd24b7r" path="res://scenes/floor_1/floor_1.gd" id="1_floor1"]
-[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/iso_prototype/iso_player.gd" id="2_player"]
-[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/iso_prototype/iso_camera.gd" id="3_camera"]
-[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/iso_prototype/camera_modes_hud.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://bb11cti45smkq" path="res://scenes/floor_2/iso_camera.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/floor_2/camera_modes_hud.gd" id="4_cam"]
 [ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/floor_1/floor_1_systems_hud.gd" id="5_sys"]
 [ext_resource type="Script" uid="uid://bt7efp2pboajq" path="res://scenes/floor_1/floor_1_arrows_hud.gd" id="6_arrows"]
 [ext_resource type="Script" uid="uid://d4ct0cyvw06py" path="res://scenes/shared/elevator_handler.gd" id="7_elev"]
@@ -30,7 +30,7 @@ camera_pivot_path = NodePath("../../CameraPivot")
 [node name="ElevatorHandler" type="Node3D" parent="World"]
 script = ExtResource("7_elev")
 destinations = [{
-"scene": "res://scenes/iso_prototype/iso_prototype.tscn",
+"scene": "res://scenes/floor_2/floor_2.tscn",
 "label": "Garden",
 "direction": "up",
 }, {
