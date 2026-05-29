@@ -1,6 +1,6 @@
 {
-  "version": "1.3",
-  "last_updated": "2026-05-08",
+  "version": "1.4",
+  "last_updated": "2026-05-28",
   "domains": {
     "godot_isometric": {
       "confidence": "high",
@@ -9,16 +9,19 @@
         "Camera3D framing math (F-003): for a tilt of θ at distance d, the camera's local position must be (0, d·sin|θ|, d·cos|θ|) for the look ray to hit the pivot's origin.",
         "DirectionalLight3D direction = -basis_z (F-002). Hand-authoring transforms requires getting the basis right or the light shines the wrong way.",
         "Stacked-floor TileMapLayer pattern: parent YSortEnabled + per-layer position.y offset + matching y_sort_origin compensation + sides-only tile variants. Documented but not yet used (one floor for now).",
-        "Voronoi-based crop clustering with per-type seed_count tunes scarcity at the same time it produces natural patches."
+        "Voronoi-based crop clustering with per-type seed_count tunes scarcity at the same time it produces natural patches.",
+        "Label3D pixel_size must scale with camera.size when the camera is orthographic (F-017). scenes/shared/label_scaler.gd: per-frame `pixel_size = base × camera.size / default_ortho` keeps prompts at constant on-screen height across wheel-zoom."
       ],
       "rules_learned": [
         "Use 2:1 dimetric projection (ISO_TILE_W = 2 * ISO_TILE_H). The line `motion.y /= 2` makes WASD/arrow input feel correct on the iso plane.",
         "Camera3D orthographic on a 3D scene graph beats Camera2D + scene rotation when the design needs rotation, zoom, and stacking. Pixel-perfect 2D is the trade-off; for programmatic placeholders it's free.",
         "Snap 90° camera rotations with a ~0.2 s tween on a pivot, never the camera itself, so the X tilt stays locked.",
-        "Pan responds to camera-relative basis (pivot.basis.x and .z), not world axes, so 'screen-right' stays right after rotation."
+        "Pan responds to camera-relative basis (pivot.basis.x and .z), not world axes, so 'screen-right' stays right after rotation.",
+        "Camera-relative WASD input fights any geometry whose 'forward' direction continuously curves (spiral ramps, looping paths). For traversable curves the player would rather rotate around than along, prefer straight segments aligned to camera-axis cardinals (F-019)."
       ],
       "failure_patterns": [
-        "Hand-rolling 3D transform matrices without verifying the resulting basis vectors → wrong-direction lights, off-target cameras (F-002, F-003)."
+        "Hand-rolling 3D transform matrices without verifying the resulting basis vectors → wrong-direction lights, off-target cameras (F-002, F-003).",
+        "Authoring Label3D pixel_size as a constant tuned to one zoom level → labels invisible at any other zoom (F-017)."
       ],
       "needs_from_human": []
     },
@@ -131,9 +134,35 @@
       ],
       "failure_patterns": [
         "Wrapping a multi-faced collidable in a single box collision shape when the design has passable faces. F-016 — the elevator. Fix: per-face collision shapes only on the panels that should block.",
-        "Defining floor sizes as per-floor constants (FLOOR_1_SIZE, FLOOR_3D_SIZE) instead of a single shared constant. Diverges immediately when one floor's camera distance / ortho size doesn't match. Fix: collapse to one constant per design-system rule (footprint, wall height, etc.) and let the design doc enforce."
+        "Defining floor sizes as per-floor constants (FLOOR_1_SIZE, FLOOR_3D_SIZE) instead of a single shared constant. Diverges immediately when one floor's camera distance / ortho size doesn't match. Fix: collapse to one constant per design-system rule (footprint, wall height, etc.) and let the design doc enforce.",
+        "Approximating continuous-curve traversable geometry with N discrete collision boxes leaves wedge-shaped gaps at the outer arc that grow with R_outer (F-019). Bumping segment count + proportional overlap closes the gaps but the camera-relative WASD vs. continuously-curving heading mismatch remains. The cheaper fix is straight segments wherever the design allows."
       ],
       "needs_from_human": []
+    },
+    "arboretum_cross_floor_system": {
+      "confidence": "high",
+      "evidence": [
+        "Shipped Floors 3 + 4 (Arboretum ground + Canopy deck) and a multi-destination elevator chooser, plant verb, and 60 s tree growth in six commits.",
+        "Cross-floor entity rendering pattern: trees live in GameState.floor_3.trees (variety + planted_at_msec + world_pos). Floor 3 renders the full tree at its plot. Floor 4 lazily builds the SAME tree (with base offset = -FLOOR_3D_STORY_HEIGHT) only after growth_t crosses TREE_FLOOR_4_VISIBLE_THRESHOLD (0.55, ≈ 33 s into the 60 s growth). The same data drives both renderings; the trunk emerges through a slab hole pre-cut at the matching xz location on Floor 4. State persists across scene swaps; growth never replays.",
+        "Multi-destination elevator chooser: ElevatorHandler grew an @export destinations: Array; when len ≥ 2, tapping E opens a CHOOSING state above PROXIMITY/DEPARTING/ARRIVING. The chooser is a single Label3D listing '[1] ↓ Utility / [2] ↑ Arboretum / [ESC] cancel'. The E + Travel labels hide while CHOOSING so the chooser owns the prompt space. Backward-compatible: 0 destinations + legacy target_scene_path synthesizes one entry. 1 destination skips the chooser.",
+        "Stairs as a peer to the elevator for vertical traversal. scenes/shared/stairs.gd is a static-method module that builds a single inclined slab (5.5 m run × 3 m rise ≈ 28°). Polled trigger zones at the top point (Floor 3) and bottom point (Floor 4) call scene_change_to_file. GameState.arrived_via_stairs mirrors in_transit's role for the elevator, consumed by the receiving floor to position the player at the matching stair end.",
+        "Tile-loop slab with rectangular + circular holes (scenes/floor_4/floor_4.gd `_build_tiled_slab_with_holes`): tiles whose centres fall inside the elevator square, stairwell rectangle, or any tree-hole disc are skipped. Replaces FloorChrome.build_slab for floors that need apertures.",
+        "Floor 4 has no ElevatorHandler — stairs-only access, documented in docs/floor_design_system.md §11."
+      ],
+      "rules_learned": [
+        "Cross-floor entity visibility threshold: define a single growth_t value at which the entity becomes relevant on the upper floor (0.55 here). Below threshold, the upper floor ignores it. At or above, build it lazily (one-time, then update each frame). Avoids per-tree work on floors where they shouldn't appear yet.",
+        "When a verb (plant) exists on one floor but iso_player.gd polls the action globally, guard the player-side handler with a null check on a floor-specific reference. Here iso_player only plants when _iso_floor is set — on Floor 3 it's null, so floor_3.gd's handler runs alone and the same input doesn't double-fire.",
+        "For 2+ destinations from one elevator, the chooser state belongs ABOVE the proximity state in the same state machine — not a separate node. The E prompt becomes context-sensitive: 'tap E to travel' (1 dest) vs. 'tap E to choose' (N dests). Hide adjacent labels during CHOOSING so the chooser owns the screen space.",
+        "Two travel-flag patterns coexist cleanly: GameState.in_transit (elevator, with fade + arrival ceremony) and GameState.arrived_via_stairs (stairs, no fade, position-at-matching-end). Both follow the same shape — set on depart, consumed on arrive, cleared after positioning."
+      ],
+      "failure_patterns": [
+        "Trying to fit a continuously-curving traversal mechanic (spiral staircase) into a camera-relative WASD input system (F-019). The input keeps fighting the curve. Replace with straight segments aligned to camera-axis cardinals.",
+        "Authoring labels at a fixed pixel_size with an orthographic camera (F-017). At wide zooms the labels vanish.",
+        "Detecting number-key picks via `event.keycode` only — silently misses on macOS layouts where the event lands in physical_keycode instead (F-018)."
+      ],
+      "needs_from_human": [
+        "Phase 2B design call: water + sunlight gating for tree growth. Operator already designed the loop but Phase 2A grew trees immediately on plant so the geometry could be tuned first. Need confirmation on whether the gate becomes 'plant → connect water → activate skylight → growth begins' or some softer-gating variant."
+      ]
     },
     "dialogue_tree_design": {
       "confidence": "medium",

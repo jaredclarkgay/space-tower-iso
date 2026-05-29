@@ -216,6 +216,54 @@
       "files_touched": [
         "scenes/shared/floor_chrome.gd"
       ]
+    },
+    {
+      "id": "F-017",
+      "phase": "iteration",
+      "date": "2026-05-28",
+      "category": "godot_label3d_orthographic_zoom",
+      "summary": "Label3D prompts (E, P, Travel, chooser items) authored at pixel_size = 0.005 read at ~16 px on a 1080p display at the iso camera's default orthographic size, and shrink linearly as the operator wheel-zooms out. Effective on-screen height is `font_size × pixel_size × screen_h / camera.size`, so constant pixel_size = vanishing labels at wide framings.",
+      "trigger": "Operator: interaction labels disappeared whenever the camera was anywhere but max zoom. Confirmed by screenshot of the Arboretum showing the elevator E prompt rendered too small to read.",
+      "fix": "Built scenes/shared/label_scaler.gd as a static-method module. Each prompt-owning controller calls LabelScaler.update(label, base_px, camera, CAMERA_ORTHO_SIZE_DEFAULT) per frame; pixel_size is set to base_px × (camera.size / default_ortho). Tuned base values per use (LABEL_BASE_PX_BIG = 0.014 for primary letter prompts, _MID = 0.014 for body labels, _SMALL = 0.011 for hint lines). On-screen height now constant regardless of zoom.",
+      "rule_added": "rules/godot_label3d_orthographic_zoom.md",
+      "files_touched": [
+        "scenes/shared/label_scaler.gd",
+        "scenes/shared/elevator_handler.gd",
+        "scenes/floor_3/floor_3.gd",
+        "scenes/floor_4/floor_4.gd",
+        "autoloads/constants.gd"
+      ]
+    },
+    {
+      "id": "F-018",
+      "phase": "iteration",
+      "date": "2026-05-28",
+      "category": "godot_input_keycode_macos",
+      "summary": "Elevator chooser used `event.keycode` comparisons in `_input(InputEventKey)` to detect 1..N number-key picks. On the operator's macOS keyboard the events arrived with keycode = 0 and only physical_keycode populated, so no destination ever matched. The chooser appeared on screen but couldn't be advanced — a softlock.",
+      "trigger": "Operator: 'pressing 1/2 to pick the destination does nothing.' Reproduced by adding a print of keycode/physical_keycode/unicode on key press.",
+      "fix": "Two-layer fix. Primary path: polled `Input.is_action_just_pressed(seed_select_N)` each frame — InputMap actions consult all event sources (keycode, physical_keycode, unicode), so the polled action fires regardless of which field the OS populated. The seed_select_1..6 actions were already bound to KEY_1..KEY_6 in project.godot, so no new bindings were needed. Secondary path: `_input` event handler now checks BOTH event.keycode AND event.physical_keycode, and calls set_input_as_handled() to claim the event. ESC handling moved to ui_cancel polling for symmetry.",
+      "rule_added": "rules/godot_input_keynum_macos.md",
+      "files_touched": [
+        "scenes/shared/elevator_handler.gd"
+      ]
+    },
+    {
+      "id": "F-019",
+      "phase": "iteration",
+      "date": "2026-05-28",
+      "category": "discrete_collision_curve_approximation",
+      "summary": "Spiral staircase v1 approximated a 360° helix with 8 tilted BoxShape3D collision ramps, each spanning 45° of arc. Adjacent boxes met at their centre-line corners but their outer arcs diverged — the box's tangent direction is constant, so the outer arc opens away from the next box's outer arc, leaving a wedge-shaped gap of arc-length ≈ R_outer · (45° - arctan(tread_depth/R_outer)). The player kept walking into invisible voids at the outer edge. Separately, the camera-relative WASD input mapping fought the spiral's continuously curving heading — keeping the player on the ramp required micro-adjusting input every step.",
+      "trigger": "Operator: 'the stairs are hard to navigate AND nothing happens at the top.' Combined with no scene-swap trigger at the top — the spiral led to ramp-air where Floor 4 should be.",
+      "fix": "v2 attempted to close the gaps by bumping segment count 8 → 32 and using tangential overlap = 40% of arc length (instead of an absolute 0.04 m), inner radius 2.30 → 2.55 to clear the chamfer corners. Navigation improved but the curving-heading-vs-camera-input mismatch remained. v3 (shipped): delete the spiral entirely, replace with a single straight inclined ramp going south from the elevator (5.5 m run × 3 m rise ≈ 28° slope, 1.6 m wide). One StaticBody3D, one BoxMesh, no gaps possible. WASD now aligns with the staircase direction. Polled scene-swap triggers at the top point on Floor 3 and the bottom point on Floor 4 close the loop; GameState.arrived_via_stairs mirrors the elevator's in_transit flag.",
+      "rule_added": null,
+      "files_touched": [
+        "scenes/shared/spiral_staircase.gd",
+        "scenes/shared/stairs.gd",
+        "scenes/floor_3/floor_3.gd",
+        "scenes/floor_4/floor_4.gd",
+        "autoloads/constants.gd",
+        "autoloads/game_state.gd"
+      ]
     }
   ]
 }

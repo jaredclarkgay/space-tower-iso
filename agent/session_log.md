@@ -585,3 +585,150 @@ doc, and a rideable elevator that scene-swaps with full ceremony.
   charge, forward arc on jump), stairs/ladder alternate vertical travel
   per Cody's "stairs" dialogue branch.
 - Q-001 closed.
+
+---
+
+## Session 6 (2026-05-22 → 2026-05-28) — Arboretum (Floors 3 & 4) + multi-destination elevator + plant verb
+
+Worked off a Floors-3-4 brief: Arboretum ground + Canopy deck, edge-only
+tree plots, two-story trees that emerge through pre-cut Floor 4 slab
+holes, water + sunlight as future gating sources, stairs as a peer to
+the elevator. Shipped a runnable scaffold, then iterated the spiral
+staircase three times (over-engineered → patched → deleted), wired a
+multi-destination elevator chooser to reach any of three floors from
+any other, landed the plant verb + continuous 60 s tree growth across
+two floors, and fixed two operator-reported regressions (invisible
+labels at wide zoom, dead number keys in the chooser) by extracting
+two reusable shared modules.
+
+### What landed
+
+- **Floor 3 (Arboretum ground)** — `scenes/floor_3/{floor_3.gd,
+  floor_3.tscn}`. FloorChrome chrome, edge-only plots on a stride of 2
+  (~52 plots), spiral-then-straight stairs going south from the
+  elevator. Header amber, green-tinted ambient + warm overhead lamp.
+  ElevatorHandler wires down to Garden and Utility.
+- **Floor 4 (Canopy deck)** — `scenes/floor_4/{floor_4.gd,
+  floor_4.tscn}`. Slab built tile-by-tile (NOT FloorChrome.build_slab)
+  so three regions can be punched out: central elevator square,
+  rectangular stairwell, edge tree-hole discs. Thin TorusMesh rim
+  around each tree hole reads as a fitted aperture. NO ElevatorHandler
+  — stairs-only access (codified in `docs/floor_design_system.md` §11).
+- **Multi-destination elevator chooser** — `ElevatorHandler` grew an
+  `@export destinations: Array` of `{scene, label, direction}` dicts.
+  New `CHOOSING` state above PROXIMITY/DEPARTING/ARRIVING; opens when
+  E is tapped with 2+ destinations. Number-key picks via polled
+  InputMap actions (primary) + event-keycode-AND-physical_keycode
+  fallback (secondary) so macOS keyboard quirks don't softlock the
+  chooser (F-018). Backward-compatible: 0 destinations + legacy
+  target_scene_path synthesizes one entry.
+- **Plant verb + tree growth** — `scenes/shared/arboretum_tree.gd`
+  static-method module (per `rules/godot_shared_module_pattern.md`).
+  Two varieties (sphere-crown apple, cone-crown pine) alternate on
+  plant. growth_t in [0..1] over `TREE_GROWTH_DURATION_MS` (60 s)
+  drives trunk height + radius + crown diameter lerps. Floor 3
+  renders the full tree; Floor 4 lazily builds the SAME tree once
+  growth_t crosses `TREE_FLOOR_4_VISIBLE_THRESHOLD` (0.55) so trunk
+  emerges through the pre-cut slab hole.
+- **Straight stairs** — `scenes/shared/stairs.gd` static-method
+  module. Replaces the spiral entirely (see F-019). Single inclined
+  slab (5.5 m × 3 m, ~28°), step-riser visuals on top (no collision),
+  side rails. Polled trigger zones at top + bottom call
+  `scene_change_to_file`; `GameState.arrived_via_stairs` mirrors
+  `in_transit` for stair-side traversal.
+- **Label3D auto-scaling** — `scenes/shared/label_scaler.gd` (F-017).
+  Per-frame `pixel_size = base × camera.size / default_ortho` keeps
+  all 3D prompts at constant on-screen height across wheel zoom.
+  Applied to elevator E + Travel + chooser labels, plant prompt, and
+  the stairs-down marker.
+- **Lighting + slab colour pass on Floors 3 + 4** — ambient bumped
+  0.85 → 1.6 (F3), 1.0 → 1.7 (F4); directional 0.85 → 1.25 (F3),
+  1.0 → 1.35 (F4); new central overhead lamp at y=5.5; slab colours
+  lightened from inky to lived-in. Caught at the same time as the
+  spiral-stairs rewrite because the operator couldn't see the
+  geometry to navigate it.
+
+### Architecture observations
+
+- **Two flag families for vertical traversal.** The elevator uses
+  `GameState.in_transit` (fade + arrival ceremony). The stairs use
+  `GameState.arrived_via_stairs` (no fade; player just walks off the
+  matching end). Both follow the same shape — set on depart, consumed
+  by the receiving floor's `_ready`, cleared after positioning. Adding
+  a third travel mode in the future (ladder? lift?) would slot in the
+  same way.
+- **Cross-floor entity render via growth threshold.** Trees show on
+  Floor 4 only after growth_t passes a threshold; below it, Floor 4
+  doesn't even instantiate the geometry. State persists across scene
+  swaps via `GameState.floor_3.trees`. Pattern generalises: any
+  vertically-spanning entity (vine, pipe, tower) can be rendered
+  on whichever floors its current state is visible from.
+- **Iterating a flagship mechanic by deletion.** Spiral staircase v1
+  (over-engineered) → v2 (patched with more segments + proportional
+  overlap) → v3 (deleted, replaced with straight stairs). The fixes
+  in v2 worked technically but the input/camera mismatch with a
+  curving heading was always going to be a player-feel tax. Worth
+  ~30 minutes of patching to see the limit, then ~30 minutes deleting
+  to recover. Captured the full story in F-019.
+- **Operator screenshot-driven loop scales to integration bugs.**
+  Five rounds of "labels invisible," "labels too small," "labels
+  back," "chooser keys dead," "chooser cleaner please" landed in one
+  session. The operator's screenshots routed each round directly to
+  a specific surface to fix. The fixes coalesced into two reusable
+  modules (`label_scaler.gd`, the chooser pattern in
+  `elevator_handler.gd`) without explicit refactor passes.
+
+### Rules added
+
+- `rules/godot_label3d_orthographic_zoom.md` — pixel_size must scale
+  with `camera.size` when the camera is orthographic, or labels
+  collapse at wide zooms. Includes the LabelScaler usage shape and a
+  comparison vs. `fixed_size`.
+- `rules/godot_input_keynum_macos.md` — number-key input on macOS
+  is unreliable when handled via `event.keycode` only. Prefer
+  `InputMap` action polling as the primary path; keep `_input` as a
+  secondary path that checks both `keycode` and `physical_keycode`.
+
+### Failures captured
+
+- **F-017**: Label3D pixel_size at constant value invisible when
+  camera zooms out (orthographic). Fix: per-frame scale by
+  `camera.size / default_ortho`.
+- **F-018**: macOS chooser number keys dead when handled via
+  `event.keycode` comparison only. Fix: primary path via polled
+  InputMap actions; secondary path checks both keycode + physical.
+- **F-019**: Discrete spiral-collision approximation left wedge gaps
+  at the outer arc (8 tilted boxes, 45° each), AND camera-relative
+  WASD fought the curving heading. v2 bumped segments + overlap; v3
+  deleted the spiral and shipped straight stairs (a single inclined
+  slab with no possible gaps).
+
+### Confidence shifts
+
+- New domain `arboretum_cross_floor_system` — high confidence after
+  shipping Floors 3 + 4 + plant verb + cross-floor tree growth + the
+  multi-destination chooser. Includes the growth-threshold pattern
+  for cross-floor entity render and the two-flag pattern for
+  vertical traversal.
+- `godot_isometric` reinforced with the orthographic Label3D scaling
+  rule (failure pattern + LabelScaler evidence). Added a sub-rule:
+  camera-relative WASD fights continuously-curving heading geometry;
+  prefer straight segments where possible.
+- `multi_floor_architecture` extended with the discrete-collision
+  curve approximation failure (F-019) — informs future builds that
+  contain helical or rounded traversable geometry.
+
+### Next
+
+- **Phase 2B**: water + sunlight gating for tree growth. Operator
+  designed the gate; Phase 2A grew trees immediately so the geometry
+  could be tuned first. Need confirmation on whether the gate becomes
+  "plant → connect water → activate skylight → growth begins" or some
+  softer-gating variant.
+- Operator playthrough of the multi-destination elevator end-to-end
+  (Garden → Arboretum → Utility → Garden), and the plant + 60 s
+  growth on Floor 3 with the canopy emerging on Floor 4 at the
+  33 s mark.
+- Remaining open threads from prior sessions stand: Cody experience
+  counter, save/load, skill tree unlock logic, jump animation polish,
+  Cody's "stairs" dialogue branch can now point to actual stairs.
