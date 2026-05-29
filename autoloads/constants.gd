@@ -555,27 +555,38 @@ const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brow
 const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 4 holes
 const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — radius of slab hole on Floor 4
 
-# --- Spiral ramp (Floor 3 ↔ Floor 4) ---------------------------------------
-# Wraps the elevator's outer octagon. One full 360° revolution lifts the
-# player FLOOR_3D_STORY_HEIGHT. Single clean ramp surface — no separate
-# step risers, no balusters, no handrail (earlier overcomplicated build
-# read as visual chaos and had collision gaps at the outer edge between
-# rotated segments). 32 overlapping tilted boxes form the continuous
-# surface; tangential overlap (40% of arc length) eliminates the angular
-# gaps that arise from rotating each box by 360/N degrees from its neighbour.
-# Inner radius set just outside the elevator chamfer corners (max chamfer
-# midpoint is at radius 2.33 m; 2.55 gives ~0.22 m clearance).
-const STAIRCASE_INNER_RADIUS := 2.55
-const STAIRCASE_OUTER_RADIUS := 3.60
-const STAIRCASE_RAMP_SEGMENTS := 32
-const STAIRCASE_TREAD_COLOR := Color(0.55, 0.42, 0.30)       # warm wood, brighter than v1
-const STAIRCASE_TREAD_EMISSION := Color(0.10, 0.07, 0.04)    # subtle warmth so it reads in dim rooms
-const STAIRCASE_EDGE_STRIPE_COLOR := Color(0.28, 0.20, 0.14) # dark inset stripe along inner edge
+# --- Straight stairs (Floor 3 ↔ Floor 4) -----------------------------------
+# Simple straight inclined ramp going south from the elevator's south face,
+# climbing FLOOR_3D_STORY_HEIGHT (3 m) in STAIRCASE_RUN (5.5 m) — a ~28°
+# slope that the CharacterBody3D walks up smoothly. Replaces the v1/v2
+# spiral, which was over-engineered AND hard to navigate (rotating
+# segments left collision gaps + the camera-relative input mapping
+# disagreed with the spiral's curving heading).
+#
+# At the top of the stairs on Floor 3 sits an Area3D that scene-swaps to
+# Floor 4. Floor 4 has the matching bottom-of-stairs trigger zone — the
+# player walks "down" past it to scene-swap back.
+const STAIRCASE_RUN := 5.5                            # m — horizontal length
+const STAIRCASE_WIDTH := 1.6                          # m — walkable width
+const STAIRCASE_THICKNESS := 0.12                     # m — ramp slab thickness
+const STAIRCASE_BOTTOM_Z := 2.5                       # m — distance from world centre to ramp base (south of elevator)
+const STAIRCASE_STEP_COUNT := 14                      # visible step risers on top (no collision)
+const STAIRCASE_TREAD_COLOR := Color(0.55, 0.42, 0.30)
+const STAIRCASE_TREAD_EMISSION := Color(0.10, 0.07, 0.04)
+const STAIRCASE_RISER_COLOR := Color(0.22, 0.16, 0.12)
+const STAIRCASE_RAIL_COLOR := Color(0.32, 0.28, 0.22)
 
-# Floor 4 slab annular hole that the staircase passes through. Slab tiles
-# inside this radius band are skipped so the staircase emerges visibly.
-const STAIRCASE_HOLE_INNER_RADIUS := STAIRCASE_INNER_RADIUS - 0.15
-const STAIRCASE_HOLE_OUTER_RADIUS := STAIRCASE_OUTER_RADIUS + 0.15
+# Trigger zone radius around the top-of-stairs world point that fires the
+# scene swap. Player enters → scene_change_to_file.
+const STAIRCASE_TRIGGER_RADIUS := 1.2
+
+# Floor 4 slab rectangular hole where the straight staircase passes through.
+# Tiles whose centres fall inside (abs(x) <= W/2 + margin) AND
+# (FLOOR_4_STAIRWELL_Z_MIN <= z <= FLOOR_4_STAIRWELL_Z_MAX) are skipped so the
+# descending staircase is visible from Floor 4 as an open stairwell.
+const FLOOR_4_STAIRWELL_HALF_WIDTH := STAIRCASE_WIDTH * 0.5 + 0.1
+const FLOOR_4_STAIRWELL_Z_MIN := 3.2                          # just south of elevator
+const FLOOR_4_STAIRWELL_Z_MAX := STAIRCASE_BOTTOM_Z + STAIRCASE_RUN - 0.1  # cuts off before stair top so the player lands on solid slab
 
 # --- Floor 4 slab tiling ---------------------------------------------------
 # Floor 4's slab is built tile-by-tile (vs. Floor 3's single BoxMesh) so the
@@ -606,3 +617,15 @@ const TREE_TRUNK_RADIUS_MAX := 0.20
 
 # HUD-only stage names for the per-tree growth readout (Phase 2B HUD).
 const TREE_STAGE_NAMES := ["sapling", "young", "maturing", "mature"]
+
+# --- Label3D auto-scaling --------------------------------------------------
+# Base pixel_size values picked so labels read at consistent on-screen height
+# regardless of camera zoom. The LabelScaler module multiplies these by
+# (current ortho_size / CAMERA_ORTHO_SIZE_DEFAULT) each frame.
+#
+# Effective height on a 1080p display at default zoom:
+#   font_size × base_px × 1080 / CAMERA_ORTHO_SIZE_DEFAULT
+#   e.g. 96 × 0.014 × 1080 / 40 = ~36 px for the "E" prompt.
+const LABEL_BASE_PX_BIG := 0.014       # primary letter prompts (E, P)
+const LABEL_BASE_PX_MID := 0.014       # main label lines ("Travel to X", chooser items)
+const LABEL_BASE_PX_SMALL := 0.011     # hints like "[ESC] cancel"

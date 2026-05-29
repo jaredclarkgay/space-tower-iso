@@ -10,6 +10,8 @@ extends Node3D
 # Per-floor instances set both via @export from the .tscn. GameState.
 # in_transit coordinates the fade-in on the receiving scene's _ready.
 
+const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
+
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -149,6 +151,22 @@ func _process(delta: float) -> void:
 		_update_arriving_state(delta)
 	_apply_door_offsets()
 	_apply_glow()
+	_update_label_scale()
+
+
+# Keeps the elevator prompt + chooser labels at constant on-screen size
+# regardless of camera zoom. Per the LabelScaler helper.
+func _update_label_scale() -> void:
+	if _prompt_root == null or not _prompt_root.visible:
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
+	LabelScaler.update(_prompt_e, _c.LABEL_BASE_PX_BIG, cam, def)
+	LabelScaler.update(_prompt_label, _c.LABEL_BASE_PX_MID, cam, def)
+	if _chooser_label:
+		LabelScaler.update(_chooser_label, _c.LABEL_BASE_PX_MID, cam, def)
 
 
 func _update_proximity_state(delta: float) -> void:

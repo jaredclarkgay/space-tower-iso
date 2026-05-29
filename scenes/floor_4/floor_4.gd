@@ -20,6 +20,8 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
+const Stairs = preload("res://scenes/shared/stairs.gd")
+const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -52,6 +54,14 @@ func _ready() -> void:
 	var elev_data: Dictionary = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, elev_data)
 
+	# Stairs: same straight staircase, but offset down one story so its
+	# top sits exactly at Floor 4's floor level (where the player arrives
+	# coming up from Floor 3). The lower portion of the ramp is hidden
+	# under Floor 4's slab.
+	Stairs.build(self, _c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
+	_build_stairs_marker_and_trigger()
+	_apply_stairs_arrival()
+
 
 # Each frame: lazily build tree visuals for any tree whose growth has
 # passed TREE_FLOOR_4_VISIBLE_THRESHOLD, and lerp existing trees.
@@ -82,6 +92,98 @@ func _process(_delta: float) -> void:
 			var offset_pos: Vector3 = world_pos + Vector3(0, -story, 0)
 			_tree_refs[key] = ArboretumTree.build(self, _c, variety, offset_pos)
 		ArboretumTree.update(_tree_refs[key], _c, growth_t)
+
+	_update_label_scale()
+	_check_stairs_down_trigger()
+
+
+# Builds the "↓ STAIRS DOWN" 3D prompt at the top of the descending
+# staircase. Always visible — there's no interaction verb, just a wayfinding
+# label so the player understands what the stairwell is.
+var _stairs_down_label_root: Node3D
+var _stairs_down_arrow: Label3D
+var _stairs_down_label: Label3D
+func _build_stairs_marker_and_trigger() -> void:
+	_stairs_down_label_root = Node3D.new()
+	_stairs_down_label_root.name = "StairsDownMarker"
+	# Position above the stair top (where the player arrives if coming up).
+	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
+	_stairs_down_label_root.position = top + Vector3(0, 1.6, 0)
+	add_child(_stairs_down_label_root)
+
+	_stairs_down_arrow = Label3D.new()
+	_stairs_down_arrow.text = "↓"
+	_stairs_down_arrow.font_size = 96
+	_stairs_down_arrow.outline_size = 12
+	_stairs_down_arrow.modulate = Color(0.95, 0.82, 0.50, 1.0)
+	_stairs_down_arrow.outline_modulate = Color(0, 0, 0, 0.92)
+	_stairs_down_arrow.pixel_size = 0.014
+	_stairs_down_arrow.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_stairs_down_arrow.no_depth_test = true
+	_stairs_down_arrow.position = Vector3(0, 0.4, 0)
+	_stairs_down_label_root.add_child(_stairs_down_arrow)
+
+	_stairs_down_label = Label3D.new()
+	_stairs_down_label.text = "Stairs to Arboretum"
+	_stairs_down_label.font_size = 44
+	_stairs_down_label.outline_size = 8
+	_stairs_down_label.modulate = Color(0.96, 0.92, 0.78, 1.0)
+	_stairs_down_label.outline_modulate = Color(0, 0, 0, 0.92)
+	_stairs_down_label.pixel_size = 0.014
+	_stairs_down_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_stairs_down_label.no_depth_test = true
+	_stairs_down_label.position = Vector3(0, 0.0, 0)
+	_stairs_down_label_root.add_child(_stairs_down_label)
+
+
+# Polled trigger — fires when the player walks down the visible portion
+# of the staircase past the y threshold. Scene swap back to Floor 3 with
+# arrived_via_stairs set so Floor 3 puts the player at the matching
+# top-of-stairs spot.
+func _check_stairs_down_trigger() -> void:
+	if _player == null:
+		return
+	var pos: Vector3 = _player.global_position
+	# Must be within the stairwell footprint (x in [-W/2-margin, +W/2+margin],
+	# z in [stair_zmin, stair_zmax]).
+	var hw: float = float(_c.FLOOR_4_STAIRWELL_HALF_WIDTH)
+	var zmin: float = float(_c.FLOOR_4_STAIRWELL_Z_MIN)
+	var zmax: float = float(_c.FLOOR_4_STAIRWELL_Z_MAX) + 0.5
+	if abs(pos.x) > hw or pos.z < zmin or pos.z > zmax:
+		return
+	# AND descending past half-story below the Floor 4 surface.
+	if pos.y > _c.FLOOR_3D_TOP_Y - 1.0:
+		return
+	_gs.set("arrived_via_stairs", true)
+	get_tree().change_scene_to_file("res://scenes/floor_3/floor_3.tscn")
+
+
+# Spawns the player at the top of the staircase if they arrived via stairs
+# from Floor 3. Called from _ready.
+func _apply_stairs_arrival() -> void:
+	if not _gs.get("arrived_via_stairs"):
+		return
+	_gs.set("arrived_via_stairs", false)
+	if _player == null:
+		return
+	# Place the player just south of the stair top so they're cleanly on
+	# Floor 4's slab, facing north (back toward the stairwell).
+	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
+	_player.global_position = top + Vector3(0, 0.1, 0.6)
+	if _player.has_method("set_facing_yaw"):
+		_player.set_facing_yaw(PI)   # face north (toward smaller z)
+
+
+# Per-frame label scaling for the stairs-down marker.
+func _update_label_scale() -> void:
+	if _stairs_down_label_root == null:
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
+	LabelScaler.update(_stairs_down_arrow, _c.LABEL_BASE_PX_BIG, cam, def)
+	LabelScaler.update(_stairs_down_label, _c.LABEL_BASE_PX_MID, cam, def)
 
 
 # Computes Floor-3-edge-plot positions (mirrors floor_3.gd._compute_edge_plots).
@@ -118,8 +220,9 @@ func _build_tiled_slab_with_holes() -> void:
 	var half: float = grid * plot * 0.5
 	var slab_thickness: float = float(_c.FLOOR_3D_SLAB_THICKNESS)
 	var elev_radius_m: float = float(_c.ELEVATOR_RADIUS) * plot  # ±2 m
-	var hole_inner_r: float = float(_c.STAIRCASE_HOLE_INNER_RADIUS)
-	var hole_outer_r: float = float(_c.STAIRCASE_HOLE_OUTER_RADIUS)
+	var stair_hw: float = float(_c.FLOOR_4_STAIRWELL_HALF_WIDTH)
+	var stair_zmin: float = float(_c.FLOOR_4_STAIRWELL_Z_MIN)
+	var stair_zmax: float = float(_c.FLOOR_4_STAIRWELL_Z_MAX)
 	var tree_hole_r: float = float(_c.ARBORETUM_PLOT_HOLE_RADIUS)
 	var tile_inset: float = float(_c.FLOOR_4_TILE_INSET_GAP)
 	var slab_color: Color = Color(0.32, 0.36, 0.30)
@@ -141,9 +244,9 @@ func _build_tiled_slab_with_holes() -> void:
 			# Skip 1: central elevator footprint.
 			if abs(x_world) <= elev_radius_m and abs(z_world) <= elev_radius_m:
 				continue
-			# Skip 2: staircase annulus.
-			var r_tile: float = sqrt(x_world * x_world + z_world * z_world)
-			if r_tile >= hole_inner_r and r_tile <= hole_outer_r:
+			# Skip 2: stairwell rectangle (where the descending staircase
+			# is visible from above as an open stairwell).
+			if abs(x_world) <= stair_hw and z_world >= stair_zmin and z_world <= stair_zmax:
 				continue
 			# Skip 3: tree-hole tiles (each tree gets one missing tile).
 			var is_tree_tile: bool = false

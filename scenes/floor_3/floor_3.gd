@@ -17,8 +17,9 @@ extends Node3D
 #     crown (the part above the slab hole).
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
-const SpiralStaircase = preload("res://scenes/shared/spiral_staircase.gd")
+const Stairs = preload("res://scenes/shared/stairs.gd")
 const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
+const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -58,14 +59,17 @@ func _ready() -> void:
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
 
-	# Spiral ramp wraps the elevator octagon, ascending to Floor 4.
-	# Starts at angle 0 (= +X axis); winds CCW; lands one story up.
-	SpiralStaircase.build(self, _c, _c.FLOOR_3D_TOP_Y, 0.0)
+	# Straight stairs south of the elevator, climbing to Floor 4. The
+	# trigger zone at the top scene-swaps to Floor 4 when the player
+	# steps onto it.
+	Stairs.build(self, _c, _c.FLOOR_3D_TOP_Y)
 
 	_compute_edge_plots()
 	_render_edge_plot_markers()
 	_build_plant_prompt()
+	_build_stairs_up_trigger()
 	_restore_existing_trees()
+	_apply_stairs_arrival()
 
 
 func _process(_delta: float) -> void:
@@ -74,6 +78,8 @@ func _process(_delta: float) -> void:
 	_update_plant_prompt()
 	_handle_plant_input()
 	_update_tree_geometry()
+	_update_label_scale()
+	_check_stairs_up_trigger()
 
 
 # Identifies all edge plots — those exactly ARBORETUM_EDGE_INSET cells
@@ -240,3 +246,58 @@ func _update_tree_geometry() -> void:
 			continue
 		var growth_t: float = ArboretumTree.growth_t_for(tree, _c)
 		ArboretumTree.update(_tree_refs[key], _c, growth_t)
+
+
+# Builds an invisible trigger zone at the top of the stairs (south of
+# elevator, at Floor 4's floor height). When the player walks into it,
+# the scene swaps to Floor 4 with GameState.arrived_via_stairs set so
+# Floor 4's controller spawns the player at the matching bottom-of-
+# stairs position.
+var _stairs_top_world: Vector3
+func _build_stairs_up_trigger() -> void:
+	_stairs_top_world = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y)
+
+
+# Polled distance check (Area3D + body_entered would also work, but
+# polling keeps this consistent with the rest of the codebase's
+# interaction model and avoids signal lifetime concerns).
+func _check_stairs_up_trigger() -> void:
+	var d: float = _player.global_position.distance_to(_stairs_top_world)
+	if d > float(_c.STAIRCASE_TRIGGER_RADIUS):
+		return
+	# Also require the player's y position to be near the top — prevents
+	# false fires when the player is BELOW the staircase top point.
+	if _player.global_position.y < _stairs_top_world.y - 0.6:
+		return
+	_gs.set("arrived_via_stairs", true)
+	get_tree().change_scene_to_file("res://scenes/floor_4/floor_4.tscn")
+
+
+# Floor 4 → Floor 3 via stairs: positions the player at the top of the
+# stairs on Floor 3 so they can walk straight back down. Called from
+# _ready when GameState.arrived_via_stairs is set.
+func _apply_stairs_arrival() -> void:
+	if not _gs.get("arrived_via_stairs"):
+		return
+	_gs.set("arrived_via_stairs", false)
+	if _player == null:
+		return
+	# Place the player just south of the staircase top so they're
+	# clearly ABOVE the slope and walking south takes them down.
+	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y)
+	_player.global_position = top + Vector3(0, 0.1, 0.5)
+	if _player.has_method("set_facing_yaw"):
+		# Face south (down the stairs).
+		_player.set_facing_yaw(0.0)
+
+
+# Per-frame label scaling so prompts stay readable at any zoom.
+func _update_label_scale() -> void:
+	if _plant_prompt_root == null or not _plant_prompt_root.visible:
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
+	LabelScaler.update(_plant_prompt_p, _c.LABEL_BASE_PX_BIG, cam, def)
+	LabelScaler.update(_plant_prompt_label, _c.LABEL_BASE_PX_MID, cam, def)

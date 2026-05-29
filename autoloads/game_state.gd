@@ -98,6 +98,11 @@ var dispenser_stock := {
 # or skip it (fresh F5 into the project shouldn't fade in).
 var in_transit := false
 
+# True between a stairs trigger fire and the receiving floor's _ready.
+# Floor 3 and Floor 4 each spawn the player at the matching end of
+# their staircase when this flag is set, then reset it to false.
+var arrived_via_stairs := false
+
 
 # Floor 1 (utility) state. master_on flips when the player pulls the master
 # breaker; per-system `connected` and `pipe_active` track each system's
