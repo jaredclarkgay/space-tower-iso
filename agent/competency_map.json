@@ -1,6 +1,6 @@
 {
-  "version": "1.4",
-  "last_updated": "2026-05-28",
+  "version": "1.5",
+  "last_updated": "2026-05-31",
   "domains": {
     "godot_isometric": {
       "confidence": "high",
@@ -162,6 +162,29 @@
       ],
       "needs_from_human": [
         "Phase 2B design call: water + sunlight gating for tree growth. Operator already designed the loop but Phase 2A grew trees immediately on plant so the geometry could be tuned first. Need confirmation on whether the gate becomes 'plant → connect water → activate skylight → growth begins' or some softer-gating variant."
+      ]
+    },
+    "stacked_world_tower": {
+      "confidence": "high",
+      "evidence": [
+        "Collapsed the four scene-swap floors into ONE continuous world (scenes/tower/tower.tscn + tower_controller.gd, 6-commit refactor). Floors are offset child Node3Ds at y=(level-1)*FLOOR_3D_STORY_HEIGHT (story 6 m) under a single player/camera/HUD. Walk/fall/ride between floors — no scene swap.",
+        "Floors built in LOCAL space (slab top at local y=0); the controller sets node.position.y, so floor controllers / floor_chrome.gd need no base_y awareness. Geometry rides up with the node transform.",
+        "Visibility gating: tower_controller shows current-floor-and-below, hides above, and only re-evaluates which floor you're on when grounded (is_on_floor()). Jumps / ceiling-bonks never reveal the floor above or move the camera — you change floors by landing.",
+        "Ride-able elevator car (scenes/shared/elevator_platform.gd) in an open shaft cut through Floors 2 & 3 (optional shaft hole in FloorChrome.build_slab). On E opens a framed 2D chooser, then carries the player; while travelling the car owns the rider's transform (GameState.riding_elevator → iso_player skips its own physics). Serves Floors 1-3; Canopy is stairs-only.",
+        "Per-floor ambience eased from tower_controller (_preset_for / _drive_environment): ambient colour+energy, background, sun energy lerp toward the current floor's mood each frame."
+      ],
+      "rules_learned": [
+        "Scene-swap floors cannot model falling across a floor boundary — over an open shaft they loop forever (F-020). Continuous space is the only honest representation of vertical traversal; collapse to one world.",
+        "Build floor geometry in local space (slab top at y=0) and let a parent controller own the vertical offset. Floors stay portable and the story height is changeable in one constant.",
+        "One-way-up floor pass-through: regular slabs on collision layer 2, the solid ceiling on layer 1; the player drops layer 2 from its mask while rising (set_collision_mask_value(2, velocity.y <= 0.1)) and re-enables falling (F-021, rules/godot_one_way_collision_passthrough.md). Pair with grounded-only floor-change gating.",
+        "Decouple sim-clock animation from real-time animation in one shader: drive growth/state off a GameState sim clock (pausable, fast-forwardable) and wind/idle motion off TIME (always real). Same material, two clocks, no cross-talk."
+      ],
+      "failure_patterns": [
+        "Keeping a scene-swap-on-trigger model once floors share a vertical hole → infinite respawn loop (F-020).",
+        "Assuming all floor slabs should block collision uniformly → either head-bonks that prevent jump-up traversal or the player falling through the floor they stand on (F-021)."
+      ],
+      "needs_from_human": [
+        "Interactive play-test of the elevator ride feel — verified headless + windowed but the ride feel wants hands-on confirmation."
       ]
     },
     "dialogue_tree_design": {

@@ -264,6 +264,36 @@
         "autoloads/constants.gd",
         "autoloads/game_state.gd"
       ]
+    },
+    {
+      "id": "F-020",
+      "phase": "iteration",
+      "date": "2026-05-31",
+      "category": "godot_architecture",
+      "summary": "Scene-swap floors over an open elevator shaft hole caused an infinite respawn loop. The elevator/stairs used a polled trigger volume at a fixed point to swap scenes; with the central shaft cut open, the player falling through the hole would re-enter the receiving floor positioned over ITS hole and fall again, swapping back and forth forever. Separate-scene floors fundamentally can't model 'fall from floor N to floor N-1' — there is no continuous space between them.",
+      "trigger": "Cutting the elevator shaft open through Floors 2 & 3 so a physical car could travel it. The pre-existing scene-swap-on-trigger model couldn't represent a body crossing a floor boundary mid-air.",
+      "fix": "Collapse the four scene-swap floors into ONE stacked world (scenes/tower/tower.tscn + tower_controller.gd). Each floor is a child Node3D whose controller builds geometry in LOCAL space (slab top at local y=0); the controller sets node.position.y = (level-1)*FLOOR_3D_STORY_HEIGHT so floors need no base_y awareness. Gravity fall-through now carries the player floor-to-floor in continuous space — no swap, no respawn loop. Floor visibility is gated to current-floor-and-below and only re-evaluated when grounded. See F-021 for the one-way-up ceiling that the open shaft required.",
+      "rule_added": null,
+      "files_touched": [
+        "scenes/tower/tower.tscn",
+        "scenes/tower/tower_controller.gd",
+        "scenes/shared/floor_chrome.gd",
+        "scenes/shared/elevator_platform.gd"
+      ]
+    },
+    {
+      "id": "F-021",
+      "phase": "iteration",
+      "date": "2026-05-31",
+      "category": "godot_collision",
+      "summary": "In the stacked world, a solid slab on the floor above blocked upward jumps — the player bonked their head and could never jump up through an aperture ring to climb. But making ALL slabs non-blocking would drop the player through the floor they stand on, and the glass Canopy ceiling SHOULD block.",
+      "trigger": "Adding jump-up-through-a-ring traversal once floors coexisted in one world. Needed selective pass-through: rise through regular floors, land on them from above, but still hit the canopy ceiling.",
+      "fix": "Two collision layers + velocity-gated mask. Regular floor slabs on layer 2; the canopy ceiling on layer 1 (always solid). Player drops layer 2 from its mask while rising (set_collision_mask_value(2, velocity.y <= 0.1) each frame before move_and_slide), re-enables it falling so it lands on every floor from above. Pairs with grounded-only floor-change gating so a jump never reveals the floor above or moves the camera.",
+      "rule_added": "rules/godot_one_way_collision_passthrough.md",
+      "files_touched": [
+        "scenes/floor_2/iso_player.gd",
+        "scenes/tower/tower_controller.gd"
+      ]
     }
   ]
 }

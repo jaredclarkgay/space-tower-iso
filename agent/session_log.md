@@ -732,3 +732,77 @@ two reusable shared modules.
 - Remaining open threads from prior sessions stand: Cody experience
   counter, save/load, skill tree unlock logic, jump animation polish,
   Cody's "stairs" dialogue branch can now point to actual stairs.
+
+## Session 7 — 2026-05-31
+**Goal:** Collapse the four scene-swap floors into one continuous stacked
+world, ride-able through a physical elevator, and replace placeholder
+tree crowns with genome-driven trees.
+
+### What landed
+- **Unified stacked-world tower** (`scenes/tower/tower.tscn` +
+  `tower_controller.gd`). The four floors are now offset child Node3Ds at
+  `y=(level-1)*FLOOR_3D_STORY_HEIGHT` (story height **6 m**) under one
+  player / camera / HUD. Scene-swapping is gone; you walk, fall, and ride
+  between floors in continuous space. The dir rename `iso_prototype/ →
+  floor_2/` (fd68120) made the layout self-documenting first.
+- **Floors built in LOCAL space** (slab top at local y=0); the tower sets
+  each node's `position.y`, so floor controllers / `floor_chrome.gd` need
+  zero `base_y` awareness. Clean separation — geometry rides up with the
+  node transform.
+- **Ride-able elevator car** (`scenes/shared/elevator_platform.gd`): one
+  physical car in an open shaft (cut through Floors 2 & 3 via an optional
+  shaft hole in `FloorChrome.build_slab`). On E it opens a framed 2D
+  chooser, then carries the player floor-to-floor. While travelling the car
+  OWNS the rider's transform (`GameState.riding_elevator` → `iso_player`
+  skips its own physics), so visibility + camera follow naturally. Replaces
+  `elevator_handler.gd`'s scene-swap.
+- **Genome-driven trees** (`scenes/shared/arboretum_tree.gd`): 12-gene
+  genome + apple/pine archetypes over one shared gene space, recursive
+  SurfaceTool branch skeletons (merged to 2 meshes/tree) with CUSTOM0
+  baking each vertex's growth origin + birth time. A shared reveal+wind
+  shader unfolds growth trunk→limbs→foliage on a **GameState sim clock**
+  while wind sways on **real TIME** — decoupled so fast-forward doesn't
+  shimmy the wind.
+- **Per-floor ambience** eased from `tower_controller` (Utility dark/cool →
+  Garden warm-dim → Arboretum/Canopy bright green).
+
+### Key non-obvious patterns
+- **Scene-swap floors can't model falling across a floor boundary.** Once
+  the shaft was open, the swap-on-trigger model looped forever (F-020).
+  Continuous space is the only honest representation of vertical traversal.
+- **Floor change ONLY when grounded.** Jumping / ceiling-bonk never reveals
+  the floor above or moves the camera; you change floors by *landing*
+  (`tower_controller._update` gates on `is_on_floor()`).
+- **One-way-up via collision layers** (F-021, new rule): regular slabs on
+  layer 2, canopy ceiling on layer 1; player drops layer 2 from its mask
+  while rising. Lets jumps pass UP through a floor and land on it from
+  above, while the glass ceiling still blocks. Pairs with the grounded-gate.
+- **Decouple sim-clock animation from real-time animation in one shader.**
+  Growth on `GameState` sim time (pausable / fast-forwardable), wind on
+  `TIME` (always real) — same material, two clocks, no cross-talk.
+
+### Rules added
+- `rules/godot_one_way_collision_passthrough.md` — velocity-gated collision
+  mask for selective floor pass-through in a stacked world.
+
+### Failures captured
+- **F-020**: infinite respawn loop — scene-swap floors over an open shaft
+  hole. Fix: unified stacked world + gravity fall-through.
+- **F-021**: solid floor-above blocked upward jumps. Fix: two-layer
+  collision + velocity-gated player mask.
+
+### Confidence shifts
+- New domain `stacked_world_tower` (high) — one continuous multi-floor
+  world with local-space floors, grounded-gated visibility, ride-able
+  elevator car, and one-way-up traversal. Supersedes the prior
+  scene-swap `multi_floor_architecture` approach (kept for history).
+- `godot_isometric` reinforced: dual-clock shader (sim vs real TIME) for
+  growth + wind without cross-talk.
+
+### Next
+- **Phase 2B** still open: water + sunlight gating for tree growth.
+- Interactive play-test of the elevator ride feel (verified headless +
+  windowed, but ride feel wants hands-on).
+- CLAUDE.md now carries a top callout flagging the unified-tower
+  architecture; deeper sections still describe the old separate-scene
+  model and should be rewritten when touched.
