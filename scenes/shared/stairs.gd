@@ -75,10 +75,16 @@ static func build(parent: Node3D, c: Node, base_y: float) -> void:
 	ramp_mesh.material_override = ramp_mat
 	body.add_child(ramp_mesh)
 
+	# Collision is much thicker than the visual slab and shifted down along the
+	# ramp normal so its WALKABLE TOP stays flush with the visible ramp while a
+	# solid mass extends below — this buries the base lip under the floor slab
+	# so the player walks straight on instead of catching on a thin edge.
 	var col := CollisionShape3D.new()
 	var col_shape := BoxShape3D.new()
-	col_shape.size = Vector3(width, thickness, hypot)
+	var col_thickness: float = thickness * 5.0
+	col_shape.size = Vector3(width, col_thickness, hypot)
 	col.shape = col_shape
+	col.position.y = -(col_thickness - thickness) * 0.5   # local -Y = ramp underside
 	body.add_child(col)
 
 	# Position + tilt the slab. Centre of the slab sits at the midpoint

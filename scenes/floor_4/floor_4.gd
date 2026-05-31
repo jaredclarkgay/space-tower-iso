@@ -1,194 +1,117 @@
 extends Node3D
 
-# Floor 4 — Canopy deck. The upper half of the Arboretum. The slab is
-# built tile-by-tile so we can punch holes in three regions:
-#   1. Central square ±ELEVATOR_RADIUS — the elevator shaft passes through.
-#   2. Annular ring along STAIRCASE_HOLE_INNER_RADIUS..STAIRCASE_HOLE_OUTER_RADIUS
-#      — the spiral staircase emerges from below.
-#   3. Edge tree plots (every-other-cell at ARBORETUM_EDGE_INSET from each
-#      wall) — mature tree crowns rise through these in Phase 2.
+# Floor 4 — Canopy deck. The upper half of the Arboretum. Its slab is built
+# tile-by-tile with holes punched for the elevator shaft, the stairwell, and a
+# generous disc per edge tree plot (the Floor 3 trees grow up through these).
 #
-# Floor 4 has NO elevator stop. The elevator visually continues up through
-# this floor's hole but doesn't open here. The ONLY way to reach Floor 4
-# is to walk up the spiral stairs from Floor 3 (this is the architectural
-# meaning of the floor — a private, elevated space accessible only on foot).
+# In the stacked tower this node lives at world y = (4-1)*STORY_HEIGHT; geometry
+# is built in LOCAL space (slab top at local y=0). The trees + the staircase are
+# single physical objects owned by Floor 3 that pass up through here.
 #
-# Phase 1 (this commit): scaffold, slab with all holes pre-cut, walls and
-# extension grid match the floor below, passive elevator shaft + spine pipes
-# visible through the central hole. Trees, skylight panel, planting all
-# Phase 2.
+# Floor 4's pieces are split so the tower controller can treat the slab as a
+# GLASS CEILING from below:
+#   - _structure (walls / elevator / pipes / grid): hidden while the player is
+#     on a floor below — gated by set_structure_visible().
+#   - the slab (a StaticBody, collision ALWAYS on so you can bonk it from below)
+#     uses a glass material whose alpha the tower drives: invisible from below,
+#     a translucent "pulse" when you hit your head on it, frosted-glass floor
+#     while you stand on it.
+#   - the aperture rings use a faint glass material and stay visible always, so
+#     from below you can see where to aim a jump through them.
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
-const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
-const Stairs = preload("res://scenes/shared/stairs.gd")
-const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-@export var player_path: NodePath
-var _player: Node3D
-
-# Edge plot world positions (where tree-holes go). Same algorithm as Floor 3
-# so the holes align perfectly with the tree positions one story below.
+# Edge plot positions (where tree-holes go). Same algorithm as Floor 3 so the
+# holes align with the trunks one story below.
 var _tree_hole_positions: Array = []
 
-# Tree refs rendered on Floor 4 — keyed by plot_key. Floor 4 only shows a
-# tree once its growth_t crosses TREE_FLOOR_4_VISIBLE_THRESHOLD (i.e. the
-# trunk is tall enough to poke through the slab hole). Below that, the
-# tree is on Floor 3 only.
-var _tree_refs: Dictionary = {}
+# Gated structure (walls / elevator / spine pipes / extension grid).
+var _structure: Node3D
+# Shared glass material for the slab tiles — the tower drives its alpha.
+var _slab_mat: StandardMaterial3D
+# Slab tile MESHES live here so they can be hidden wholesale when the glass is
+# invisible (no transparent-pass overdraw); collision + rings stay live.
+var _tiles_node: Node3D
+# Localized "you bonked the ceiling here" glass glow — a disc moved to the hit
+# point and faded by the tower (only a radius around the impact lights up).
+var _ceiling_ping: MeshInstance3D
+var _ceiling_ping_mat: StandardMaterial3D
 
 
 func _ready() -> void:
-	if not player_path.is_empty():
-		_player = get_node_or_null(player_path)
-
 	_compute_tree_hole_positions()
+
+	_structure = Node3D.new()
+	_structure.name = "Structure"
+	add_child(_structure)
+	FloorChrome.build_walls(_structure, _c)
+	FloorChrome.build_extension_grid(_structure, _c)
+	var elev_data: Dictionary = FloorChrome.build_elevator_core(_structure, _c)
+	FloorChrome.build_passive_spine_pipes(_structure, _c, _gs, elev_data)
+
+	# The glass slab + aperture rings stay as direct (always-visible) children.
 	_build_tiled_slab_with_holes()
-	FloorChrome.build_walls(self, _c)
-	FloorChrome.build_extension_grid(self, _c)
-	# Elevator core is visible (passes through this floor's hole) but the
-	# handler is NOT instanced — Floor 4 has no elevator stop. The pipes
-	# still render so the architectural continuity reads.
-	var elev_data: Dictionary = FloorChrome.build_elevator_core(self, _c)
-	FloorChrome.build_passive_spine_pipes(self, _c, _gs, elev_data)
-
-	# Stairs: same straight staircase, but offset down one story so its
-	# top sits exactly at Floor 4's floor level (where the player arrives
-	# coming up from Floor 3). The lower portion of the ramp is hidden
-	# under Floor 4's slab.
-	Stairs.build(self, _c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
-	_build_stairs_marker_and_trigger()
-	_apply_stairs_arrival()
 
 
-# Each frame: lazily build tree visuals for any tree whose growth has
-# passed TREE_FLOOR_4_VISIBLE_THRESHOLD, and lerp existing trees.
-# Trees are positioned with their base offset down by STORY_HEIGHT so
-# the part above Floor 4's slab is exactly what's poking above Floor 3.
-func _process(_delta: float) -> void:
-	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
-	var threshold: float = float(_c.TREE_FLOOR_4_VISIBLE_THRESHOLD)
-	for key in _gs.floor_3.trees:
-		var tree: Dictionary = _gs.floor_3.trees[key]
-		var growth_t: float = ArboretumTree.growth_t_for(tree, _c)
-		if growth_t < threshold:
-			# Tree isn't tall enough yet — Floor 4 ignores it.
-			if _tree_refs.has(key):
-				# Edge case: player rewinds growth (not possible in v1 but
-				# defensive). Free + drop ref.
-				var stale: Dictionary = _tree_refs[key]
-				if stale.root:
-					stale.root.queue_free()
-				_tree_refs.erase(key)
-			continue
-		if not _tree_refs.has(key):
-			# Build the tree fresh, with base offset down one story so the
-			# visible portion above Floor 4's slab matches the upper part
-			# of the tree on Floor 3.
-			var variety: int = int(tree.get("variety", 0))
-			var world_pos: Vector3 = Vector3(tree.get("world_pos", Vector3.ZERO))
-			var offset_pos: Vector3 = world_pos + Vector3(0, -story, 0)
-			_tree_refs[key] = ArboretumTree.build(self, _c, variety, offset_pos)
-		ArboretumTree.update(_tree_refs[key], _c, growth_t)
-
-	_update_label_scale()
-	_check_stairs_down_trigger()
+# Hides/shows the walls + elevator structure (the slab + rings are handled
+# separately so they can read as a glass ceiling/aim-target from below).
+func set_structure_visible(v: bool) -> void:
+	if _structure:
+		_structure.visible = v
 
 
-# Builds the "↓ STAIRS DOWN" 3D prompt at the top of the descending
-# staircase. Always visible — there's no interaction verb, just a wayfinding
-# label so the player understands what the stairwell is.
-var _stairs_down_label_root: Node3D
-var _stairs_down_arrow: Label3D
-var _stairs_down_label: Label3D
-func _build_stairs_marker_and_trigger() -> void:
-	_stairs_down_label_root = Node3D.new()
-	_stairs_down_label_root.name = "StairsDownMarker"
-	# Position above the stair top (where the player arrives if coming up).
-	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
-	_stairs_down_label_root.position = top + Vector3(0, 1.6, 0)
-	add_child(_stairs_down_label_root)
-
-	_stairs_down_arrow = Label3D.new()
-	_stairs_down_arrow.text = "↓"
-	_stairs_down_arrow.font_size = 96
-	_stairs_down_arrow.outline_size = 12
-	_stairs_down_arrow.modulate = Color(0.95, 0.82, 0.50, 1.0)
-	_stairs_down_arrow.outline_modulate = Color(0, 0, 0, 0.92)
-	_stairs_down_arrow.pixel_size = 0.014
-	_stairs_down_arrow.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_stairs_down_arrow.no_depth_test = true
-	_stairs_down_arrow.position = Vector3(0, 0.4, 0)
-	_stairs_down_label_root.add_child(_stairs_down_arrow)
-
-	_stairs_down_label = Label3D.new()
-	_stairs_down_label.text = "Stairs to Arboretum"
-	_stairs_down_label.font_size = 44
-	_stairs_down_label.outline_size = 8
-	_stairs_down_label.modulate = Color(0.96, 0.92, 0.78, 1.0)
-	_stairs_down_label.outline_modulate = Color(0, 0, 0, 0.92)
-	_stairs_down_label.pixel_size = 0.014
-	_stairs_down_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_stairs_down_label.no_depth_test = true
-	_stairs_down_label.position = Vector3(0, 0.0, 0)
-	_stairs_down_label_root.add_child(_stairs_down_label)
+# Drives the slab glass opacity (0 = invisible ceiling, up to ~0.7 frosted
+# glass floor). Collision is unaffected — you always bonk it from below. When
+# fully invisible the tile meshes are hidden so they don't sit in the
+# transparent pass; the rings + collision stay live.
+func set_slab_alpha(a: float) -> void:
+	var alpha: float = clampf(a, 0.0, 1.0)
+	if _slab_mat:
+		_slab_mat.albedo_color.a = alpha
+	if _tiles_node:
+		_tiles_node.visible = alpha > 0.01
 
 
-# Polled trigger — fires when the player walks down the visible portion
-# of the staircase past the y threshold. Scene swap back to Floor 3 with
-# arrived_via_stairs set so Floor 3 puts the player at the matching
-# top-of-stairs spot.
-func _check_stairs_down_trigger() -> void:
-	if _player == null:
+# Shows a soft glass glow on the slab underside at `world_pos`, intensity 0..1
+# (0 hides it). Localized — only a radius around the bonk point lights up, so
+# hitting your head reads as a specific impact, not the whole floor flashing.
+func set_ceiling_ping(world_pos: Vector3, intensity: float) -> void:
+	if _ceiling_ping == null:
+		_build_ceiling_ping()
+	if intensity <= 0.01:
+		_ceiling_ping.visible = false
 		return
-	var pos: Vector3 = _player.global_position
-	# Must be within the stairwell footprint (x in [-W/2-margin, +W/2+margin],
-	# z in [stair_zmin, stair_zmax]).
-	var hw: float = float(_c.FLOOR_4_STAIRWELL_HALF_WIDTH)
-	var zmin: float = float(_c.FLOOR_4_STAIRWELL_Z_MIN)
-	var zmax: float = float(_c.FLOOR_4_STAIRWELL_Z_MAX) + 0.5
-	if abs(pos.x) > hw or pos.z < zmin or pos.z > zmax:
-		return
-	# AND descending past half-story below the Floor 4 surface.
-	if pos.y > _c.FLOOR_3D_TOP_Y - 1.0:
-		return
-	_gs.set("arrived_via_stairs", true)
-	get_tree().change_scene_to_file("res://scenes/floor_3/floor_3.tscn")
+	var lp: Vector3 = to_local(world_pos)
+	_ceiling_ping.position = Vector3(lp.x, -0.04, lp.z)
+	_ceiling_ping.visible = true
+	var glass: Color = _c.FLOOR_4_GLASS_COLOR
+	_ceiling_ping_mat.albedo_color = Color(glass.r, glass.g, glass.b, clampf(intensity, 0.0, 1.0))
+	_ceiling_ping_mat.emission_energy_multiplier = lerpf(0.4, 2.0, intensity)
+	var s: float = lerpf(0.7, 1.0, intensity)
+	_ceiling_ping.scale = Vector3(s, 1.0, s)
 
 
-# Spawns the player at the top of the staircase if they arrived via stairs
-# from Floor 3. Called from _ready.
-func _apply_stairs_arrival() -> void:
-	if not _gs.get("arrived_via_stairs"):
-		return
-	_gs.set("arrived_via_stairs", false)
-	if _player == null:
-		return
-	# Place the player just south of the stair top so they're cleanly on
-	# Floor 4's slab, facing north (back toward the stairwell).
-	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y - _c.FLOOR_3D_STORY_HEIGHT)
-	_player.global_position = top + Vector3(0, 0.1, 0.6)
-	if _player.has_method("set_facing_yaw"):
-		_player.set_facing_yaw(PI)   # face north (toward smaller z)
-
-
-# Per-frame label scaling for the stairs-down marker.
-func _update_label_scale() -> void:
-	if _stairs_down_label_root == null:
-		return
-	var cam: Camera3D = get_viewport().get_camera_3d()
-	if cam == null:
-		return
-	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
-	LabelScaler.update(_stairs_down_arrow, _c.LABEL_BASE_PX_BIG, cam, def)
-	LabelScaler.update(_stairs_down_label, _c.LABEL_BASE_PX_MID, cam, def)
+func _build_ceiling_ping() -> void:
+	_ceiling_ping = MeshInstance3D.new()
+	_ceiling_ping.name = "CeilingPing"
+	var disc := CylinderMesh.new()
+	disc.top_radius = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	disc.bottom_radius = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	disc.height = 0.03
+	_ceiling_ping.mesh = disc
+	_ceiling_ping_mat = StandardMaterial3D.new()
+	_ceiling_ping_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ceiling_ping_mat.emission_enabled = true
+	_ceiling_ping_mat.emission = _c.FLOOR_4_GLASS_COLOR
+	_ceiling_ping.material_override = _ceiling_ping_mat
+	_ceiling_ping.visible = false
+	add_child(_ceiling_ping)
 
 
 # Computes Floor-3-edge-plot positions (mirrors floor_3.gd._compute_edge_plots).
-# Stored so _build_tiled_slab_with_holes knows which tiles to skip so tree
-# crowns can emerge through. Must match the algorithm in floor_3.gd exactly.
 func _compute_tree_hole_positions() -> void:
 	_tree_hole_positions.clear()
 	var grid: int = int(_c.GARDEN_GRID_SIZE)
@@ -211,31 +134,43 @@ func _compute_tree_hole_positions() -> void:
 
 
 # Builds the slab as one StaticBody3D with N child tile collision shapes.
-# Tiles inside any of the three skip regions are omitted. A subtle dark rim
-# is drawn around each tree hole so the player can read where canopies
-# will emerge in Phase 2.
+# Tiles inside any skip region are omitted (player falls through onto Floor 3).
 func _build_tiled_slab_with_holes() -> void:
 	var grid: int = int(_c.GARDEN_GRID_SIZE)
 	var plot: float = float(_c.GARDEN_PLOT_SIZE)
 	var half: float = grid * plot * 0.5
 	var slab_thickness: float = float(_c.FLOOR_3D_SLAB_THICKNESS)
+	var vis_t: float = float(_c.FLOOR_4_SLAB_VISUAL_THICKNESS)   # thin tile MESH so edges read thin
 	var elev_radius_m: float = float(_c.ELEVATOR_RADIUS) * plot  # ±2 m
 	var stair_hw: float = float(_c.FLOOR_4_STAIRWELL_HALF_WIDTH)
 	var stair_zmin: float = float(_c.FLOOR_4_STAIRWELL_Z_MIN)
 	var stair_zmax: float = float(_c.FLOOR_4_STAIRWELL_Z_MAX)
-	var tree_hole_r: float = float(_c.ARBORETUM_PLOT_HOLE_RADIUS)
+	var tree_hole_r: float = float(_c.FLOOR_4_TREE_HOLE_RADIUS)
 	var tile_inset: float = float(_c.FLOOR_4_TILE_INSET_GAP)
-	var slab_color: Color = Color(0.32, 0.36, 0.30)
-	var tile_mat := StandardMaterial3D.new()
-	tile_mat.albedo_color = slab_color
-	tile_mat.roughness = 0.85
-	var rim_mat := StandardMaterial3D.new()
-	rim_mat.albedo_color = _c.ARBORETUM_PLOT_HOLE_TINT
-	rim_mat.roughness = 0.95
+
+	# Glass canopy slab — translucent; the tower drives the alpha. Starts
+	# invisible (it's a ceiling you only sense by bonking it / the rings).
+	var glass: Color = _c.FLOOR_4_GLASS_COLOR
+	_slab_mat = StandardMaterial3D.new()
+	_slab_mat.albedo_color = Color(glass.r, glass.g, glass.b, 0.0)
+	_slab_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_slab_mat.metallic = 0.0
+	_slab_mat.roughness = 0.15
+
+	# Aperture rings — faint glass, always visible so the player can aim jumps
+	# up through them from below.
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.albedo_color = Color(glass.r, glass.g, glass.b, float(_c.FLOOR_4_RING_ALPHA))
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_mat.metallic = 0.0
+	ring_mat.roughness = 0.1
 
 	var body := StaticBody3D.new()
 	body.name = "TiledSlabBody"
 	add_child(body)
+	_tiles_node = Node3D.new()
+	_tiles_node.name = "Tiles"
+	body.add_child(_tiles_node)
 
 	for ix in range(grid):
 		for iz in range(grid):
@@ -244,29 +179,26 @@ func _build_tiled_slab_with_holes() -> void:
 			# Skip 1: central elevator footprint.
 			if abs(x_world) <= elev_radius_m and abs(z_world) <= elev_radius_m:
 				continue
-			# Skip 2: stairwell rectangle (where the descending staircase
-			# is visible from above as an open stairwell).
+			# Skip 2: stairwell rectangle (where the staircase emerges).
 			if abs(x_world) <= stair_hw and z_world >= stair_zmin and z_world <= stair_zmax:
 				continue
-			# Skip 3: tree-hole tiles (each tree gets one missing tile).
-			var is_tree_tile: bool = false
+			# Skip 3: open a generous disc around each tree so the WHOLE crown
+			# clears the slab, not just the trunk. Aperture rims drawn after.
+			var is_tree_hole: bool = false
 			for hole_pos in _tree_hole_positions:
-				if abs(hole_pos.x - x_world) < 0.5 * plot and abs(hole_pos.z - z_world) < 0.5 * plot:
-					is_tree_tile = true
+				if Vector2(hole_pos.x - x_world, hole_pos.z - z_world).length() < tree_hole_r:
+					is_tree_hole = true
 					break
-			if is_tree_tile:
-				# Draw a thin dark rim mesh where the hole sits so the
-				# player can read where a tree canopy will emerge in Phase 2.
-				_build_tree_hole_rim(body, x_world, z_world, tree_hole_r, plot, rim_mat)
+			if is_tree_hole:
 				continue
 
 			var tile_mesh := MeshInstance3D.new()
 			var box := BoxMesh.new()
-			box.size = Vector3(plot - tile_inset, slab_thickness, plot - tile_inset)
+			box.size = Vector3(plot - tile_inset, vis_t, plot - tile_inset)
 			tile_mesh.mesh = box
-			tile_mesh.material_override = tile_mat
-			tile_mesh.position = Vector3(x_world, -slab_thickness * 0.5, z_world)
-			body.add_child(tile_mesh)
+			tile_mesh.material_override = _slab_mat
+			tile_mesh.position = Vector3(x_world, -vis_t * 0.5, z_world)
+			_tiles_node.add_child(tile_mesh)
 
 			var col := CollisionShape3D.new()
 			var col_shape := BoxShape3D.new()
@@ -275,16 +207,19 @@ func _build_tiled_slab_with_holes() -> void:
 			col.position = Vector3(x_world, -slab_thickness * 0.5, z_world)
 			body.add_child(col)
 
+	# One aperture rim per tree, ringing the opened hole.
+	for hole_pos in _tree_hole_positions:
+		_build_tree_hole_rim(body, hole_pos.x, hole_pos.z, tree_hole_r, ring_mat)
 
-# Builds a thin dark ring around a tree-hole position to read as a fitted
-# rim on the slab. Annulus from tree_hole_r to ~0.48 * plot (just inside
-# the missing tile's outer edge).
+
+# Builds a thin glass ring around a tree-hole position — an aim target visible
+# from below.
 func _build_tree_hole_rim(body: StaticBody3D, x_world: float, z_world: float,
-		inner_r: float, plot: float, mat: StandardMaterial3D) -> void:
+		inner_r: float, mat: StandardMaterial3D) -> void:
 	var rim := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = inner_r
-	torus.outer_radius = inner_r + 0.10
+	torus.outer_radius = inner_r + 0.12
 	torus.rings = 24
 	torus.ring_segments = 8
 	rim.mesh = torus

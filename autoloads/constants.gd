@@ -31,7 +31,7 @@ const GARDEN_PLOT_SIZE := 1.0            # metres per plot
 const ELEVATOR_RADIUS := 2               # plot cells from grid center on each axis
 const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
 const FLOOR_3D_SLAB_THICKNESS := 0.2
-const FLOOR_3D_STORY_HEIGHT := 3.0
+const FLOOR_3D_STORY_HEIGHT := 6.0    # tall floors — room for trees to grow their canopy up onto the floor above
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
 
 # --- Elevator core geometry ----------------------------------------------
@@ -48,13 +48,13 @@ const ELEVATOR_DOOR_OPEN_OFFSET := 1.05    # m each panel slides apart
 const ELEVATOR_DOOR_OPEN_DURATION := 0.35  # seconds — both directions
 
 # Walls — perimeter framing with translucent window panels.
-const WALL_HEIGHT := 2.6
+const WALL_HEIGHT := 5.2    # scaled with the doubled story height so walls/elevator keep their proportions
 const WALL_BASE_HEIGHT := 0.6
 const WALL_THICKNESS := 0.3
 const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
 # Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
-const PLAYER_FALL_RESPAWN_Y := -10.0
+const PLAYER_FALL_RESPAWN_Y := 9.0    # below Floor 3's surface (the Phase-1 lowest floor sits at y=12); Phase 2 lowers this under Floor 1
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
@@ -64,7 +64,7 @@ const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := -135.0
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 40.0 # initial size (smaller = zoomed in); fits 30×30 floor
+const CAMERA_ORTHO_SIZE_DEFAULT := 20.0 # initial size (smaller = zoomed in); ~2× closer than the full-floor framing
 const CAMERA_ORTHO_SIZE_MIN := 8.0
 const CAMERA_ORTHO_SIZE_MAX := 50.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
@@ -94,10 +94,10 @@ const CAMERA_PROFILE_SIZE := 8.0
 const CAMERA_PROFILE_HEIGHT_OFFSET := 1.0     # raise pivot to player's chest
 
 # OTS preset — over-the-shoulder, very close, tracks facing yaw.
-const CAMERA_OTS_TILT_DEG := -25.0
+const CAMERA_OTS_TILT_DEG := -8.0     # near-horizontal so you catch the character's own view, not a top-down angle
 const CAMERA_OTS_DISTANCE := 7.0
 const CAMERA_OTS_SIZE := 5.0
-const CAMERA_OTS_HEIGHT_OFFSET := 1.4
+const CAMERA_OTS_HEIGHT_OFFSET := 1.8     # a little above the head, looking out near-level
 const CAMERA_OTS_YAW_LERP_RATE := 6.0          # rad/s — how fast pivot yaw chases player facing
 
 # --- Player movement (3D) ---
@@ -105,7 +105,7 @@ const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
 const PLAYER_SPRINT_MULTIPLIER := 1.75  # held Shift → run at 1.75× walk speed
 const PLAYER_GRAVITY := 32.0            # m/s² downward — heavier feel, less floaty
 const PLAYER_JUMP_VELOCITY := 10.0      # m/s upward impulse on tap (~1.56 m peak)
-const PLAYER_JUMP_VELOCITY_MAX := 20.0  # m/s upward impulse at full charge (4× height)
+const PLAYER_JUMP_VELOCITY_MAX := 24.0  # m/s at full charge → ~9 m, comfortably clears the 6 m story to land through a ring on Floor 4
 const PLAYER_JUMP_CHARGE_DURATION := 1.0  # seconds of held Space to reach max
 const PLAYER_LAND_SQUASH_DURATION := 0.32 # seconds of squash on landing — longer
                                            # so the bounce reads as a real beat
@@ -549,11 +549,12 @@ const ARBORETUM_SKY_BG := Color(0.06, 0.10, 0.08, 1.0)
 # just inside the perimeter walls is a tree plot. With GARDEN_GRID_SIZE = 30
 # this yields ~52 plots (every second along each side, four corners trimmed
 # to avoid double-counting).
-const ARBORETUM_EDGE_INSET := 1                              # cells inside the wall
-const ARBORETUM_PLOT_STRIDE := 2                             # every-other-cell
+const ARBORETUM_EDGE_INSET := 2                              # cells inside the wall (offset from the glass so crowns clear it)
+const ARBORETUM_PLOT_STRIDE := 3                             # every third cell — room for crowns to spread without overlapping
 const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brown
 const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 4 holes
-const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — radius of slab hole on Floor 4
+const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — (legacy) small rim radius, superseded by FLOOR_4_TREE_HOLE_RADIUS
+const FLOOR_4_TREE_HOLE_RADIUS := 1.5                        # m — open radius per tree so the whole crown clears the slab
 
 # --- Straight stairs (Floor 3 ↔ Floor 4) -----------------------------------
 # Simple straight inclined ramp going south from the elevator's south face,
@@ -566,10 +567,10 @@ const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — radius of s
 # At the top of the stairs on Floor 3 sits an Area3D that scene-swaps to
 # Floor 4. Floor 4 has the matching bottom-of-stairs trigger zone — the
 # player walks "down" past it to scene-swap back.
-const STAIRCASE_RUN := 5.5                            # m — horizontal length
+const STAIRCASE_RUN := 10.0                           # m — horizontal length (longer to climb the 6 m story at a walkable ~31° slope)
 const STAIRCASE_WIDTH := 1.6                          # m — walkable width
 const STAIRCASE_THICKNESS := 0.12                     # m — ramp slab thickness
-const STAIRCASE_BOTTOM_Z := 2.5                       # m — distance from world centre to ramp base (south of elevator)
+const STAIRCASE_BOTTOM_Z := 3.8                       # m — ramp base, pushed south of the elevator so there's room to walk onto it
 const STAIRCASE_STEP_COUNT := 14                      # visible step risers on top (no collision)
 const STAIRCASE_TREAD_COLOR := Color(0.55, 0.42, 0.30)
 const STAIRCASE_TREAD_EMISSION := Color(0.10, 0.07, 0.04)
@@ -592,7 +593,18 @@ const FLOOR_4_STAIRWELL_Z_MAX := STAIRCASE_BOTTOM_Z + STAIRCASE_RUN - 0.1  # cut
 # Floor 4's slab is built tile-by-tile (vs. Floor 3's single BoxMesh) so the
 # tree holes + staircase annulus + central elevator footprint can all be
 # punched out. Tile is the GARDEN_PLOT_SIZE grid.
-const FLOOR_4_TILE_INSET_GAP := 0.02                         # m — gap between tiles for grid read
+const FLOOR_4_TILE_INSET_GAP := 0.006                        # m — thin gaps so the glass-floor grid is subtle, not distracting
+const FLOOR_4_SLAB_VISUAL_THICKNESS := 0.20                  # m — tile MESH depth (restored; the thin GAP, not thin tiles, keeps the grid subtle)
+
+# Canopy glass — the Floor 4 slab + aperture rings read as glass so the player
+# can (a) see the rings from below to aim jumps through them, and (b) get a
+# translucent "ceiling pulse" when they bonk their head on the slab from below.
+const FLOOR_4_GLASS_COLOR := Color(0.80, 0.86, 0.92)         # white-with-a-little-grey
+const FLOOR_4_RING_ALPHA := 0.28                             # rings always faintly visible from below (aim targets)
+const FLOOR_4_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 4
+const FLOOR_4_CEILING_PULSE_ALPHA := 0.45                    # peak slab glass when you hit the ceiling from below
+const FLOOR_4_CEILING_PULSE_DECAY := 2.5                     # per-second fade of the bonk pulse
+const FLOOR_4_CEILING_PING_RADIUS := 2.6                     # m — radius of the localized glass glow where you bonk the ceiling
 
 # --- Arboretum trees -------------------------------------------------------
 # Trees plant on Floor 3 edge plots and grow continuously over
@@ -601,19 +613,38 @@ const FLOOR_4_TILE_INSET_GAP := 0.02                         # m — gap between
 # arboretum. Mature trees span two stories — the trunk passes through the
 # Floor 4 slab hole and the crown emerges above. Phase 2A: plant + grow.
 # Phase 2B will add the water + sunlight gating that the user designed.
-const TREE_GROWTH_DURATION_MS := 60_000                      # 60 s, plant → mature
+const TREE_GROWTH_DURATION_MS := 120_000                     # 120 s, plant → mature (sim clock)
 const TREE_PLANT_INTERACT_RADIUS := 1.1                      # m — player → edge-plot distance
 const TREE_FLOOR_4_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F4
+
+# Developmental growth (Phase B). The reveal shader eases each vertex from its
+# baked growth-origin over `span` once `growth` passes the vertex's birth time.
+const TREE_REVEAL_SPAN := 0.24                               # reveal duration per element, in growth units
+const TREE_WIND_STRENGTH := 0.035                            # ambient sway amplitude (real-time, not sim-time)
+const TREE_SPROUT_STAGGER_MS := 1200                         # batch ripple offset between consecutive plantings
 
 # Trunk + crown waypoints. Tweened linearly between MIN and MAX from
 # growth_t = 0 → 1. Mature trunk height (4.5 m) is well above one
 # story (3 m), so the canopy sits cleanly above Floor 4's slab.
 const TREE_TRUNK_HEIGHT_MIN := 0.4
-const TREE_TRUNK_HEIGHT_MAX := 4.5
+const TREE_TRUNK_HEIGHT_MAX := 9.0    # tall enough that mature crowns clear the 6 m canopy floor
 const TREE_CROWN_DIAMETER_MIN := 0.25
 const TREE_CROWN_DIAMETER_MAX := 2.4
 const TREE_TRUNK_RADIUS_MIN := 0.045
-const TREE_TRUNK_RADIUS_MAX := 0.20
+const TREE_TRUNK_RADIUS_MAX := 0.28    # sturdier trunks to match the taller trees
+
+# Growth-curve shaping. Default = saturating exponential (fast early progress,
+# graceful plateau, fits the 60 s budget):
+#   growth = (1 - exp(-K*u)) / (1 - exp(-K))
+# The Gompertz constants below are the alternate establishment-lag (true
+# sigmoid) feel; ArboretumTree.growth_t_for() documents how to swap them in.
+const TREE_GROWTH_CURVE_K := 3.5
+const TREE_GOMPERTZ_B := 4.0
+const TREE_GOMPERTZ_C := 5.0
+
+# Max trunk/crown lean tilt (degrees) at lean gene = 1.0. Auto-clamped further
+# at runtime so a leaning trunk still clears the Floor 4 canopy hole.
+const TREE_LEAN_MAX_DEG := 12.0
 
 # HUD-only stage names for the per-tree growth readout (Phase 2B HUD).
 const TREE_STAGE_NAMES := ["sapling", "young", "maturing", "mature"]

@@ -50,6 +50,20 @@ var _iso_saved_pivot_yaw: float
 var _iso_saved_size: float
 var _iso_state_saved: bool = false
 
+# --- Free-look orbit -----------------------------------------------------
+# Middle-drag orbits the camera around the pivot in 360° (any mode); the offset
+# eases back to the mode's standard orientation once the player moves again.
+const ORBIT_YAW_SENS := 0.006
+const ORBIT_PITCH_SENS := 0.006
+const ORBIT_PITCH_MAX := 1.0          # rad (~57°) up/down from the base tilt
+const ORBIT_RETURN_RATE := 6.0
+var _orbiting := false
+var _orbit_yaw := 0.0
+var _orbit_pitch := 0.0
+# The active mode's base tilt + distance, so orbit composes on top of them.
+var _base_tilt_deg := 0.0
+var _base_distance := 0.0
+
 
 func _ready() -> void:
 	projection = PROJECTION_ORTHOGONAL
@@ -62,6 +76,8 @@ func _ready() -> void:
 	# (caught in F-003).
 	var tilt_rad: float = deg_to_rad(abs(_c.CAMERA_TILT_DEG))
 	var d: float = _c.CAMERA_DISTANCE
+	_base_tilt_deg = _c.CAMERA_TILT_DEG
+	_base_distance = d
 	position = Vector3(0.0, d * sin(tilt_rad), d * cos(tilt_rad))
 	near = 0.1
 	far = 200.0
@@ -107,6 +123,40 @@ func _process(delta: float) -> void:
 		_gs.camera.angle_step = _angle_step_from_pivot()
 	_gs.camera.ortho_size = size
 
+	# Free-look orbit: ease back to the mode's standard orientation as the player
+	# moves, then apply the offset. Skipped during dialogue (the focus tween owns
+	# the camera there).
+	if not dialogue_open:
+		if not _orbiting and (absf(_orbit_yaw) > 0.0001 or absf(_orbit_pitch) > 0.0001):
+			var mv := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
+			if mv.length() > 0.1:
+				var k: float = clampf(ORBIT_RETURN_RATE * delta, 0.0, 1.0)
+				_orbit_yaw = lerpf(_orbit_yaw, 0.0, k)
+				_orbit_pitch = lerpf(_orbit_pitch, 0.0, k)
+		_apply_orbit()
+
+
+# Orbits the camera around the pivot by the free-look offsets, always looking
+# back at the pivot origin. At zero offset this reproduces the mode's base pose
+# (tilt + distance), so it composes cleanly on top of every mode. Skipped while
+# a mode transition tween is animating the camera.
+func _apply_orbit() -> void:
+	if _mode_tween and _mode_tween.is_running():
+		return
+	var d: float = _base_distance
+	var tilt: float = deg_to_rad(_base_tilt_deg)
+	var base_pos := Vector3(0.0, -d * sin(tilt), d * cos(tilt))
+	var yawed := base_pos.rotated(Vector3.UP, _orbit_yaw)
+	var right := Vector3.UP.cross(yawed)
+	right = right.normalized() if right.length() > 0.001 else Vector3.RIGHT
+	var pos := yawed.rotated(right, _orbit_pitch)
+	# Look-at-origin basis: camera +Z points away from the pivot (it looks -Z).
+	var z := pos.normalized()
+	var x := Vector3.UP.cross(z)
+	x = x.normalized() if x.length() > 0.001 else Vector3.RIGHT
+	var y := z.cross(x).normalized()
+	transform = Transform3D(Basis(x, y, z), pos)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	# During dialogue, only the pan action is active — and it's repurposed
@@ -130,18 +180,26 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"camera_zoom_out"):
 		_apply_zoom(1.0 / _c.CAMERA_ZOOM_FACTOR)
 		return
+	# Free-look orbit — middle-drag in ANY mode to swing the camera around in
+	# 360°; it eases back to the mode's standard orientation once the player
+	# starts moving again (see _process).
+	if event.is_action_pressed(&"camera_pan"):
+		_orbiting = true
+		return
+	elif event.is_action_released(&"camera_pan"):
+		_orbiting = false
+		return
+	elif event is InputEventMouseMotion and _orbiting:
+		_orbit_yaw += -event.relative.x * ORBIT_YAW_SENS
+		_orbit_pitch = clampf(_orbit_pitch + event.relative.y * ORBIT_PITCH_SENS, -ORBIT_PITCH_MAX, ORBIT_PITCH_MAX)
+		return
+	# 90° snap rotation is iso-only.
 	if _mode != _c.CAMERA_MODE_ISO:
 		return
 	if event.is_action_pressed(&"camera_rotate_left"):
 		_rotate_pivot_by(-90.0)
 	elif event.is_action_pressed(&"camera_rotate_right"):
 		_rotate_pivot_by(90.0)
-	elif event.is_action_pressed(&"camera_pan"):
-		_panning = true
-	elif event.is_action_released(&"camera_pan"):
-		_panning = false
-	elif event is InputEventMouseMotion and _panning:
-		_apply_pan(event.relative)
 
 
 # --- Rotation (pivot yaw) ---------------------------------------------------
@@ -308,6 +366,10 @@ func _apply_mode_change(new_mode: String) -> void:
 				target_size = _c.CAMERA_ORTHO_SIZE_DEFAULT
 				target_pivot_pos = Vector3.ZERO
 				target_pivot_yaw = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
+
+	# Remember the mode's base pose so free-look orbit composes on top of it.
+	_base_tilt_deg = tilt_deg
+	_base_distance = distance
 
 	# Camera local position derived from tilt + distance (same math as
 	# _ready, kept consistent so the pivot origin stays the look-at).

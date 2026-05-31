@@ -136,8 +136,13 @@ var floor_1 := {
 #   sunlight_active:    has the player opened the Floor 4 skylight panel
 #                       (Phase 2B — same).
 #   trees:              per-plot tree state, keyed by "ix,iz" grid coords.
-#                       Each entry: {variety: 0|1, planted_at_msec: int,
-#                                    world_pos: Vector3}
+#                       Legacy keys (never repurposed): variety: 0|1,
+#                       planted_at_msec, world_pos. Genome-era additions
+#                       (see ArboretumTree): genome, rng_seed, generation,
+#                       parents, growth_start_msec, o2_rate, fertile,
+#                       last_seed_msec. planted_at/growth_start are SIM-clock
+#                       timestamps. ArboretumTree.ensure_genome() migrates any
+#                       entry missing the new keys.
 #                       Both Floor 3 and Floor 4 controllers read this dict
 #                       and render their slice (full tree on F3; canopy on F4
 #                       once growth_t > TREE_FLOOR_4_VISIBLE_THRESHOLD).
@@ -149,6 +154,17 @@ var floor_3 := {
 	"trees": {},
 	"next_variety": 0,
 }
+
+# SIM clock (milliseconds). Tree growth runs on THIS, not real engine time, so
+# a future "speed up growth" affordance can scale growth without making ambient
+# wind sway (which animates off the shader's real TIME) shimmy. Advanced every
+# frame in _process. Persists across floor swaps because it's autoload state.
+var sim_time_msec: float = 0.0
+var sim_speed: float = 1.0
+
+
+func _process(delta: float) -> void:
+	sim_time_msec += delta * 1000.0 * sim_speed
 
 # Floor 4 (Canopy deck) holds no independent state — it renders the same
 # trees Floor 3 owns. Phase 1 keeps a slot here in case Phase 2 wants per-

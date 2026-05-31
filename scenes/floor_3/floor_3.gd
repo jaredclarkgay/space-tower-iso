@@ -59,17 +59,16 @@ func _ready() -> void:
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
 
-	# Straight stairs south of the elevator, climbing to Floor 4. The
-	# trigger zone at the top scene-swaps to Floor 4 when the player
-	# steps onto it.
-	Stairs.build(self, _c, _c.FLOOR_3D_TOP_Y)
+	# The single physical staircase that spans Floor 3 → Floor 4. Built in
+	# Floor 3's frame at y=0 so its base sits FLUSH with the floor slab (no
+	# lip to catch on); its top reaches one story up, at Floor 4's surface.
+	# In the stacked tower the player just walks up/down it — no scene swap.
+	Stairs.build(self, _c, 0.0)
 
 	_compute_edge_plots()
 	_render_edge_plot_markers()
 	_build_plant_prompt()
-	_build_stairs_up_trigger()
 	_restore_existing_trees()
-	_apply_stairs_arrival()
 
 
 func _process(_delta: float) -> void:
@@ -79,7 +78,6 @@ func _process(_delta: float) -> void:
 	_handle_plant_input()
 	_update_tree_geometry()
 	_update_label_scale()
-	_check_stairs_up_trigger()
 
 
 # Identifies all edge plots — those exactly ARBORETUM_EDGE_INSET cells
@@ -177,20 +175,36 @@ func _build_plant_prompt() -> void:
 # position + visibility accordingly.
 func _update_plant_prompt() -> void:
 	_nearest_empty_plot = null
-	var player_pos: Vector3 = _player.global_position
+	# Only interact when the player is actually standing on this floor (not on
+	# a floor above it in the stacked tower). Work in this floor's LOCAL frame
+	# so the proximity math is agnostic to the floor's vertical offset.
+	if not _player_on_this_floor():
+		_plant_prompt_root.visible = false
+		return
+	var player_local: Vector3 = to_local(_player.global_position)
 	var best_d2: float = float(_c.TREE_PLANT_INTERACT_RADIUS) ** 2
 	for entry in _edge_plots:
 		if _gs.floor_3.trees.has(entry.key):
 			continue
-		var d2: float = player_pos.distance_squared_to(entry.world_pos)
+		var d2: float = player_local.distance_squared_to(entry.world_pos)
 		if d2 < best_d2:
 			best_d2 = d2
 			_nearest_empty_plot = entry
 	if _nearest_empty_plot != null:
-		_plant_prompt_root.global_position = _nearest_empty_plot.world_pos
+		_plant_prompt_root.position = _nearest_empty_plot.world_pos
 		_plant_prompt_root.visible = true
 	else:
 		_plant_prompt_root.visible = false
+
+
+# True when the player's feet are at this floor's surface level — not a floor
+# above or below it in the stacked tower. Guards ground interactions so a
+# Floor-4 player doesn't trigger Floor-3 prompts directly beneath them.
+func _player_on_this_floor() -> bool:
+	if _player == null:
+		return false
+	var surface_y: float = global_position.y + float(_c.FLOOR_3D_TOP_Y)
+	return absf(_player.global_position.y - surface_y) < 1.5
 
 
 # Handles the `plant` InputMap action (bound to P). Fires only when there's
@@ -203,18 +217,16 @@ func _handle_plant_input() -> void:
 		return
 	var entry: Dictionary = _nearest_empty_plot
 	var variety: int = int(_gs.floor_3.next_variety)
-	_gs.floor_3.trees[entry.key] = {
-		"variety": variety,
-		"planted_at_msec": Time.get_ticks_msec(),
-		"world_pos": entry.world_pos,
-	}
+	# Founder tree-state carries a genome + rng_seed (see ArboretumTree).
+	# Growth is timed off the sim clock; manual plants start immediately.
+	var tree: Dictionary = ArboretumTree.new_tree_state(variety, entry.world_pos, _gs.sim_time_msec)
+	_gs.floor_3.trees[entry.key] = tree
 	_gs.floor_3.next_variety = (variety + 1) % 2
 	# Hide the plot marker — it's now a tree.
 	if entry.marker:
 		entry.marker.visible = false
 	# Spawn the tree geometry immediately at growth_t = 0.
-	var refs: Dictionary = ArboretumTree.build(self, _c, variety, entry.world_pos)
-	_tree_refs[entry.key] = refs
+	_tree_refs[entry.key] = ArboretumTree.build(self, _c, tree, entry.world_pos)
 
 
 # Rebuilds tree geometry for every tree already in GameState (player came
@@ -223,10 +235,10 @@ func _handle_plant_input() -> void:
 func _restore_existing_trees() -> void:
 	for key in _gs.floor_3.trees:
 		var tree: Dictionary = _gs.floor_3.trees[key]
-		var variety: int = int(tree.get("variety", 0))
+		# Migrates any pre-genome tree in place before building.
+		ArboretumTree.ensure_genome(tree)
 		var world_pos: Vector3 = Vector3(tree.get("world_pos", Vector3.ZERO))
-		var refs: Dictionary = ArboretumTree.build(self, _c, variety, world_pos)
-		_tree_refs[key] = refs
+		_tree_refs[key] = ArboretumTree.build(self, _c, tree, world_pos)
 		# Hide the matching plot marker so the marker doesn't double-render
 		# under the tree's trunk.
 		for entry in _edge_plots:
@@ -244,51 +256,8 @@ func _update_tree_geometry() -> void:
 		var tree: Dictionary = _gs.floor_3.trees.get(key, {})
 		if tree.is_empty():
 			continue
-		var growth_t: float = ArboretumTree.growth_t_for(tree, _c)
-		ArboretumTree.update(_tree_refs[key], _c, growth_t)
-
-
-# Builds an invisible trigger zone at the top of the stairs (south of
-# elevator, at Floor 4's floor height). When the player walks into it,
-# the scene swaps to Floor 4 with GameState.arrived_via_stairs set so
-# Floor 4's controller spawns the player at the matching bottom-of-
-# stairs position.
-var _stairs_top_world: Vector3
-func _build_stairs_up_trigger() -> void:
-	_stairs_top_world = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y)
-
-
-# Polled distance check (Area3D + body_entered would also work, but
-# polling keeps this consistent with the rest of the codebase's
-# interaction model and avoids signal lifetime concerns).
-func _check_stairs_up_trigger() -> void:
-	var d: float = _player.global_position.distance_to(_stairs_top_world)
-	if d > float(_c.STAIRCASE_TRIGGER_RADIUS):
-		return
-	# Also require the player's y position to be near the top — prevents
-	# false fires when the player is BELOW the staircase top point.
-	if _player.global_position.y < _stairs_top_world.y - 0.6:
-		return
-	_gs.set("arrived_via_stairs", true)
-	get_tree().change_scene_to_file("res://scenes/floor_4/floor_4.tscn")
-
-
-# Floor 4 → Floor 3 via stairs: positions the player at the top of the
-# stairs on Floor 3 so they can walk straight back down. Called from
-# _ready when GameState.arrived_via_stairs is set.
-func _apply_stairs_arrival() -> void:
-	if not _gs.get("arrived_via_stairs"):
-		return
-	_gs.set("arrived_via_stairs", false)
-	if _player == null:
-		return
-	# Place the player just south of the staircase top so they're
-	# clearly ABOVE the slope and walking south takes them down.
-	var top: Vector3 = Stairs.top_world_position(_c, _c.FLOOR_3D_TOP_Y)
-	_player.global_position = top + Vector3(0, 0.1, 0.5)
-	if _player.has_method("set_facing_yaw"):
-		# Face south (down the stairs).
-		_player.set_facing_yaw(0.0)
+		var growth_t: float = ArboretumTree.growth_t_for(tree, _c, _gs.sim_time_msec)
+		ArboretumTree.update(_tree_refs[key], _c, tree, growth_t)
 
 
 # Per-frame label scaling so prompts stay readable at any zoom.

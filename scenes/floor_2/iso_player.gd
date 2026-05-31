@@ -175,6 +175,9 @@ const BACKPACK_FULL_SCALE := Vector3(1.05, 1.10, 0.85)
 var _backpack_full_floater_cooldown := 0.0
 
 
+var _spawn_position: Vector3 = Vector3.ZERO
+
+
 func _ready() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
@@ -245,6 +248,10 @@ func _ready() -> void:
 	_facing_yaw = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
 	if _visual:
 		_visual.rotation.y = _facing_yaw
+
+	# Capture the spawn pose for the out-of-bounds fall fail-safe (respawn here
+	# rather than to a hard-coded (0,1,0), which used to land on a shaft hole).
+	_spawn_position = global_position
 
 
 func _physics_process(delta: float) -> void:
@@ -653,10 +660,12 @@ func _physics_process(delta: float) -> void:
 	if input.length_squared() > 0.01:
 		_gs.player.facing = _facing_from_input(input)
 
-	# Fall fail-safe (F-005). Walls should keep us in, but if we ever escape,
-	# snap back to spawn rather than drop forever.
+	# Fall fail-safe (F-005). In the stacked tower the solid floor slabs catch
+	# any fall (you land on the floor below); this only fires if we somehow
+	# clip out of bounds entirely — snap back to the captured spawn, never to a
+	# fixed point that might sit over a shaft hole.
 	if global_position.y < _c.PLAYER_FALL_RESPAWN_Y:
-		global_position = Vector3(0, 1.0, 0)
+		global_position = _spawn_position
 		velocity = Vector3.ZERO
 
 	_update_backpack_visual(delta)
@@ -838,6 +847,16 @@ func _build_collision() -> void:
 	col.shape = col_shape
 	col.position = Vector3(0, 0.85, 0)
 	add_child(col)
+
+	# Floor/ramp walking config. Defaults leave the body catching on the
+	# staircase's base lip (it reads as a wall) — block_on_wall=false lets it
+	# mount the ramp, constant_speed keeps pace up the incline, and the
+	# generous max_angle + snap keep the 28° staircase firmly "floor".
+	floor_block_on_wall = false
+	floor_constant_speed = true
+	floor_max_angle = deg_to_rad(50.0)
+	floor_snap_length = 0.6
+	up_direction = Vector3.UP
 
 
 # Vertical charge gauge — sits above the head. Parented to self (not _visual)
@@ -1158,23 +1177,16 @@ func _update_harvest_bar(progress: float) -> void:
 	_harvest_bar_fill_pivot.scale.x = clamp(progress, 0.0, 1.0)
 
 
-# Debug-only floor swap. Cycles through all four floors in order so the
-# operator can reach any floor without round-tripping the elevator. The
-# elevator is the canonical path between any adjacent floors; this stays
-# as a power-user shortcut. Phase 1 cycle:
-#   Garden (Floor 2) → Floor 1 (Utility) → Floor 3 (Arboretum) → Floor 4 (Canopy) → Garden
+# Lets the tower anchor the respawn point after it positions the player at the
+# correct stacked-world spawn (the tower owns spawn placement, not the .tscn).
+func set_spawn_here() -> void:
+	_spawn_position = global_position
+
+
+# Debug-only reset. The old scene-swap cycle is gone in the stacked tower
+# world — floors coexist and you traverse them by stairs/elevator. Backslash
+# now just snaps the player back to the captured spawn (a safe reset if you
+# get stuck), without leaving the single world scene.
 func _debug_swap_floor() -> void:
-	var current_path: String = ""
-	var cs := get_tree().current_scene
-	if cs:
-		current_path = cs.scene_file_path
-	var next_target := "res://scenes/floor_2/floor_2.tscn"
-	if current_path.ends_with("floor_2.tscn"):
-		next_target = "res://scenes/floor_1/floor_1.tscn"
-	elif current_path.ends_with("floor_1.tscn"):
-		next_target = "res://scenes/floor_3/floor_3.tscn"
-	elif current_path.ends_with("floor_3.tscn"):
-		next_target = "res://scenes/floor_4/floor_4.tscn"
-	elif current_path.ends_with("floor_4.tscn"):
-		next_target = "res://scenes/floor_2/floor_2.tscn"
-	get_tree().change_scene_to_file(next_target)
+	global_position = _spawn_position
+	velocity = Vector3.ZERO
