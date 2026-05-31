@@ -1,5 +1,18 @@
 # CLAUDE.md — Space Tower Iso
 
+> **⚠️ Architecture update — this doc lags behind a major refactor.** The game is
+> now ONE stacked-world scene: `scenes/tower/tower.tscn` (the `run/main_scene`)
+> with a single player/camera/HUD and the four floors as offset child nodes
+> (`Floors/Floor1..4` at `y = (level-1) * FLOOR_3D_STORY_HEIGHT`, story height
+> now **6 m**), all driven by `scenes/tower/tower_controller.gd`. Floors no longer
+> scene-swap — you **walk / fall / ride** between them in one continuous world,
+> with visibility gated to the current floor + below. The elevator is a physical
+> car (`scenes/shared/elevator_platform.gd`); the 3↔4 stairs are physical
+> geometry. Trees are genome-driven with a developmental growth shader
+> (`scenes/shared/arboretum_tree.gd`). **Sections below that describe
+> separate-scene floors or a scene-swap elevator are historical** — trust
+> `scenes/tower/`, the git log, and `agent/session_log.md` for current truth.
+
 ## What this repo is
 
 A Godot 4 game built around a single **isometric** view: a controllable character, a pan/zoom/rotate orthographic camera, and a stack of building floors the player brings online and grows.
@@ -38,7 +51,7 @@ godot --path . --editor      # open in editor
 godot --path . --debug       # run main scene (after Phase 3 lands one)
 ```
 
-Main scene: `res://scenes/floor_2/floor_2.tscn` (the Garden), wired in `project.godot` as `run/main_scene`. From there the elevator/stairs reach the other floors.
+Main scene: `res://scenes/tower/tower.tscn` (the unified stacked world), wired in `project.godot` as `run/main_scene`. The per-floor `floor_*.tscn` scenes are now historical (geometry controllers only); the tower instances the floor controllers as offset child nodes. (See the architecture callout at the top.)
 
 The Godot editor app is installed at `/Applications/Godot.app`. The CLI (`godot`) may not be on `$PATH`; alias it or invoke via `/Applications/Godot.app/Contents/MacOS/Godot --path . ...` if needed.
 
