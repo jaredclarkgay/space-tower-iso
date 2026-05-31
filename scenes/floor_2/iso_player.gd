@@ -260,6 +260,11 @@ func _physics_process(delta: float) -> void:
 	# GameState autoload preserves cross-scene state.
 	# (Debug floor cycling is handled by the tower controller now.)
 
+	# While riding the elevator, the elevator car owns the player's transform —
+	# skip our own movement/physics entirely.
+	if _gs and _gs.get("riding_elevator"):
+		return
+
 	# When the Cody dialogue or the Schematics modal is open, lock the
 	# player in place — number-key shortcuts in the dialogue would
 	# otherwise move the body, and movement would also drift the camera

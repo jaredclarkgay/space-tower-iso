@@ -53,7 +53,8 @@ func _ready() -> void:
 	if not player_path.is_empty():
 		_player = get_node_or_null(player_path)
 
-	FloorChrome.build_slab(self, _c, Color(0.34, 0.40, 0.32))
+	FloorChrome.build_slab(self, _c, Color(0.34, 0.40, 0.32),
+			float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE))
 	FloorChrome.build_walls(self, _c)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)

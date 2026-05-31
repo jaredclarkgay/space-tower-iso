@@ -19,26 +19,47 @@ extends RefCounted
 # Builds the floor slab (StaticBody3D with collision) at y = 0. Mesh top
 # face sits at y = 0 so the player walks on it. Slab thickness extends
 # downward.
-static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18, 0.20)) -> void:
+# `shaft_half` > 0 cuts a central square hole (half-extent `shaft_half`) for the
+# elevator to travel through; the slab is then built as 4 rectangular pieces
+# around it. 0 = solid slab (one box), the default.
+static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18, 0.20),
+		shaft_half: float = 0.0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "SlabBody"
 	parent.add_child(body)
+	var mat := _flat_material(color)
+	var thick: float = c.FLOOR_3D_SLAB_THICKNESS
+	var full: float = c.FLOOR_3D_SIZE
+	var half: float = full * 0.5
+	var y: float = -thick * 0.5
 
-	var size := Vector3(c.FLOOR_3D_SIZE, c.FLOOR_3D_SLAB_THICKNESS, c.FLOOR_3D_SIZE)
+	if shaft_half <= 0.0:
+		_add_slab_piece(body, mat, Vector3(full, thick, full), Vector3(0, y, 0))
+		return
+
+	var s: float = shaft_half
+	var strip: float = half - s          # depth/width of each piece beyond the hole
+	# North + south strips run the full x width.
+	_add_slab_piece(body, mat, Vector3(full, thick, strip), Vector3(0, y, -(s + strip * 0.5)))
+	_add_slab_piece(body, mat, Vector3(full, thick, strip), Vector3(0, y, s + strip * 0.5))
+	# East + west strips fill only the hole's z band.
+	_add_slab_piece(body, mat, Vector3(strip, thick, 2.0 * s), Vector3(-(s + strip * 0.5), y, 0))
+	_add_slab_piece(body, mat, Vector3(strip, thick, 2.0 * s), Vector3(s + strip * 0.5, y, 0))
+
+
+static func _add_slab_piece(body: StaticBody3D, mat: Material, size: Vector3, pos: Vector3) -> void:
 	var mesh := MeshInstance3D.new()
-	mesh.name = "Slab"
 	var box := BoxMesh.new()
 	box.size = size
 	mesh.mesh = box
-	mesh.material_override = _flat_material(color)
-	mesh.position.y = -c.FLOOR_3D_SLAB_THICKNESS * 0.5
+	mesh.material_override = mat
+	mesh.position = pos
 	body.add_child(mesh)
-
 	var col := CollisionShape3D.new()
 	var col_shape := BoxShape3D.new()
 	col_shape.size = size
 	col.shape = col_shape
-	col.position.y = -c.FLOOR_3D_SLAB_THICKNESS * 0.5
+	col.position = pos
 	body.add_child(col)
 
 

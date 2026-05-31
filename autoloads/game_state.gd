@@ -44,6 +44,10 @@ var plants_harvested := 0
 # both freeze input/movement when this is set.
 var schematic_open := false
 
+# True while the player is riding the elevator car — the elevator owns the
+# player's transform, so iso_player skips its own movement/physics.
+var riding_elevator := false
+
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and
 # tweens back out when it clears.

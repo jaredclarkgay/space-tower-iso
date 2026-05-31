@@ -210,24 +210,9 @@ func _adapt_pixel_size(base_pixel_size: float) -> float:
 # --- Slab -------------------------------------------------------------------
 
 func _build_slab() -> void:
-	var body := StaticBody3D.new()
-	body.name = "SlabBody"
-	add_child(body)
-	var size := Vector3(_c.FLOOR_3D_SIZE, _c.FLOOR_3D_SLAB_THICKNESS, _c.FLOOR_3D_SIZE)
-	var mesh := MeshInstance3D.new()
-	mesh.name = "Slab"
-	var box := BoxMesh.new()
-	box.size = size
-	mesh.mesh = box
-	mesh.material_override = _make_material(Color(0.18, 0.18, 0.20))
-	mesh.position.y = -_c.FLOOR_3D_SLAB_THICKNESS * 0.5
-	body.add_child(mesh)
-	var col := CollisionShape3D.new()
-	var col_shape := BoxShape3D.new()
-	col_shape.size = size
-	col.shape = col_shape
-	col.position.y = -_c.FLOOR_3D_SLAB_THICKNESS * 0.5
-	body.add_child(col)
+	# Slab with the central elevator shaft cut out so the car can travel through.
+	FloorChrome.build_slab(self, _c, Color(0.18, 0.18, 0.20),
+			float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE))
 
 
 # --- Perimeter walls with vertical posts and translucent window panels ------
