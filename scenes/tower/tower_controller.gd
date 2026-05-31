@@ -19,18 +19,25 @@ extends Node3D
 @export var player_path: NodePath
 @export var camera_pivot_path: NodePath
 @export var header_label_path: NodePath
+@export var world_environment_path: NodePath
+@export var env_light_path: NodePath
 
 # Floors present in the tower. `node` is relative to this controller, `level`
 # is 1=bottom, `name` is the HUD header text. Append Floors 1 & 2 in Phase 2.
 const _FLOORS := [
+	{"node": "Floors/Floor1", "level": 1, "name": "FLOOR 1 / UTILITY"},
+	{"node": "Floors/Floor2", "level": 2, "name": "FLOOR 2 / GARDEN"},
 	{"node": "Floors/Floor3", "level": 3, "name": "FLOOR 3 / ARBORETUM"},
 	{"node": "Floors/Floor4", "level": 4, "name": "FLOOR 4 / CANOPY"},
 ]
+const _SPAWN_LEVEL := 2   # the player starts on the Garden (home floor)
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
 
 var _player: Node3D
 var _pivot: Node3D
 var _header: Label
+var _world_env: WorldEnvironment
+var _env_light: DirectionalLight3D
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
@@ -45,6 +52,8 @@ func _ready() -> void:
 	_player = get_node_or_null(player_path)
 	_pivot = get_node_or_null(camera_pivot_path)
 	_header = get_node_or_null(header_label_path)
+	_world_env = get_node_or_null(world_environment_path)
+	_env_light = get_node_or_null(env_light_path)
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
 	for f in _FLOORS:
@@ -57,7 +66,7 @@ func _ready() -> void:
 	# The tower owns the player spawn (derived from the floor heights), not the
 	# .tscn — keeps it correct if the story height changes.
 	if _player and not _floors.is_empty():
-		var spawn_y: float = float(_floors[0].base_y) + float(_c.FLOOR_3D_TOP_Y)
+		var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
 		_player.global_position = Vector3(0.0, spawn_y, -6.0)
 		if _player.has_method("set_spawn_here"):
 			_player.set_spawn_here()
@@ -65,6 +74,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Debug: backslash cycles the player up through the floors (wraps at the
+	# top). Temporary traversal aid until the elevator platform lands (2b).
+	if Input.is_action_just_pressed(&"debug_floor_switch"):
+		_debug_cycle_floor()
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -107,10 +120,47 @@ func _update(snap: bool) -> void:
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")):
 		var target_y: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
+	# Ambience eases to the current floor's mood (Utility dark, Garden warm,
+	# Arboretum/Canopy bright green).
+	_drive_environment(snap)
+
+
+# Per-floor environment preset: ambient colour/energy, background, sun energy.
+func _preset_for(level: int) -> Dictionary:
+	match level:
+		1: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}
+		2: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}
+		3: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}
+		_: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}
+
+
+func _drive_environment(snap: bool) -> void:
+	if _world_env == null or _world_env.environment == null:
+		return
+	var p := _preset_for(_current_level)
+	var env := _world_env.environment
+	var k: float = 1.0 if snap else 0.06
+	env.ambient_light_color = env.ambient_light_color.lerp(p.amb, k)
+	env.ambient_light_energy = lerpf(env.ambient_light_energy, float(p.energy), k)
+	env.background_color = env.background_color.lerp(p.bg, k)
+	if _env_light:
+		_env_light.light_energy = lerpf(_env_light.light_energy, float(p.sun), k)
 
 
 # Highest floor whose surface is at or just below the player. The reveal margin
 # lets the floor above appear while the player is still climbing toward it.
+func _debug_cycle_floor() -> void:
+	if _player == null or _floors.is_empty():
+		return
+	var top_level: int = int(_floors[_floors.size() - 1].level)
+	var next: int = _current_level + 1
+	if next > top_level:
+		next = int(_floors[0].level)
+	_player.global_position = Vector3(0.0, _base_y_for_level(next) + float(_c.FLOOR_3D_TOP_Y) + 0.1, -6.0)
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+
+
 func _level_for_y(py: float) -> int:
 	var top_y: float = float(_c.FLOOR_3D_TOP_Y)
 	var level: int = int(_floors[0].level)

@@ -54,7 +54,7 @@ const WALL_THICKNESS := 0.3
 const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
 # Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
-const PLAYER_FALL_RESPAWN_Y := 9.0    # below Floor 3's surface (the Phase-1 lowest floor sits at y=12); Phase 2 lowers this under Floor 1
+const PLAYER_FALL_RESPAWN_Y := -3.0   # below Floor 1 (the bottom floor sits at y=0); only fires if you clip out of the building entirely
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor

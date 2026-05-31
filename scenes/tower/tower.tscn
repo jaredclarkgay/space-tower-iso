@@ -6,6 +6,8 @@
 [ext_resource type="Script" uid="uid://bfi0qubk4rrrh" path="res://scenes/floor_2/camera_modes_hud.gd" id="4_cam"]
 [ext_resource type="Script" uid="uid://bqk7m8h15loaw" path="res://scenes/floor_3/floor_3.gd" id="5_floor3"]
 [ext_resource type="Script" uid="uid://hf0ffj0sg47q" path="res://scenes/floor_4/floor_4.gd" id="6_floor4"]
+[ext_resource type="Script" uid="uid://c6ydytqd24b7r" path="res://scenes/floor_1/floor_1.gd" id="7_floor1"]
+[ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/floor_2/iso_floor.gd" id="8_floor2"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -19,6 +21,8 @@ script = ExtResource("1_tower")
 player_path = NodePath("Player")
 camera_pivot_path = NodePath("CameraPivot")
 header_label_path = NodePath("HUD/HeaderLabel")
+world_environment_path = NodePath("WorldEnvironment")
+env_light_path = NodePath("EnvLight")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.2, -6)
@@ -82,6 +86,14 @@ mouse_filter = 1
 script = ExtResource("4_cam")
 
 [node name="Floors" type="Node3D" parent="."]
+
+[node name="Floor1" type="Node3D" parent="Floors"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+script = ExtResource("7_floor1")
+
+[node name="Floor2" type="Node3D" parent="Floors"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+script = ExtResource("8_floor2")
 
 [node name="Floor3" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 0)

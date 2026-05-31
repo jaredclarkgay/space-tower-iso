@@ -258,9 +258,7 @@ func _physics_process(delta: float) -> void:
 	# Debug stop-gap until M6 wires the elevator: backslash swaps the
 	# current scene between Garden (floor_2) and Floor 1 (utility).
 	# GameState autoload preserves cross-scene state.
-	if Input.is_action_just_pressed(&"debug_floor_switch"):
-		_debug_swap_floor()
-		return
+	# (Debug floor cycling is handled by the tower controller now.)
 
 	# When the Cody dialogue or the Schematics modal is open, lock the
 	# player in place — number-key shortcuts in the dialogue would
@@ -1183,10 +1181,3 @@ func set_spawn_here() -> void:
 	_spawn_position = global_position
 
 
-# Debug-only reset. The old scene-swap cycle is gone in the stacked tower
-# world — floors coexist and you traverse them by stairs/elevator. Backslash
-# now just snaps the player back to the captured spawn (a safe reset if you
-# get stuck), without leaving the single world scene.
-func _debug_swap_floor() -> void:
-	global_position = _spawn_position
-	velocity = Vector3.ZERO

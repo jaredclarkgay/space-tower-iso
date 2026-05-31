@@ -24,3 +24,8 @@ export.cfg
 # Local dev rig for capturing animation frames via --write-movie. Re-create
 # from `tools/anim_capture.gd` if needed; not part of the shipping game.
 /tools/
+
+# Throwaway windowed-screenshot rig (used to verify gameplay remotely) + its
+# output. Re-create the harness anytime; not part of the game.
+/_shot_harness.*
+/_shots/
