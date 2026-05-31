@@ -39,6 +39,9 @@ var _tiles_node: Node3D
 # point and faded by the tower (only a radius around the impact lights up).
 var _ceiling_ping: MeshInstance3D
 var _ceiling_ping_mat: StandardMaterial3D
+# Aperture rings — only shown from the floor directly below (aim targets) or on
+# the Canopy itself; hidden from further down so they don't float overhead.
+var _rings_node: Node3D
 
 
 func _ready() -> void:
@@ -207,14 +210,17 @@ func _build_tiled_slab_with_holes() -> void:
 			col.position = Vector3(x_world, -slab_thickness * 0.5, z_world)
 			body.add_child(col)
 
-	# One aperture rim per tree, ringing the opened hole.
+	# Aperture rims live under a toggleable node (see set_apertures_visible).
+	_rings_node = Node3D.new()
+	_rings_node.name = "Rings"
+	body.add_child(_rings_node)
 	for hole_pos in _tree_hole_positions:
-		_build_tree_hole_rim(body, hole_pos.x, hole_pos.z, tree_hole_r, ring_mat)
+		_build_tree_hole_rim(_rings_node, hole_pos.x, hole_pos.z, tree_hole_r, ring_mat)
 
 
 # Builds a thin glass ring around a tree-hole position — an aim target visible
 # from below.
-func _build_tree_hole_rim(body: StaticBody3D, x_world: float, z_world: float,
+func _build_tree_hole_rim(parent: Node3D, x_world: float, z_world: float,
 		inner_r: float, mat: StandardMaterial3D) -> void:
 	var rim := MeshInstance3D.new()
 	var torus := TorusMesh.new()
@@ -226,4 +232,11 @@ func _build_tree_hole_rim(body: StaticBody3D, x_world: float, z_world: float,
 	rim.material_override = mat
 	rim.position = Vector3(x_world, 0.015, z_world)
 	# TorusMesh lies flat on XZ by default — no rotation needed.
-	body.add_child(rim)
+	parent.add_child(rim)
+
+
+# Rings show only from the floor directly below (jump-aim targets) or when on
+# the Canopy — not from further down, where they'd float overhead.
+func set_apertures_visible(v: bool) -> void:
+	if _rings_node:
+		_rings_node.visible = v

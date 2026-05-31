@@ -39,7 +39,9 @@ var _rider_offset := Vector3.ZERO  # rider XZ offset on the platform
 var _prompt_root: Node3D
 var _prompt_e: Label3D
 var _prompt_label: Label3D
-var _chooser_label: Label3D
+# Chooser is a framed 2D overlay (not floating 3D text).
+var _chooser_layer: CanvasLayer
+var _chooser_text: Label
 
 
 func _story() -> float:
@@ -93,11 +95,12 @@ func _update_idle(delta: float) -> void:
 	_prompt_root.visible = near_shaft
 	_prompt_e.visible = near_shaft
 	_prompt_label.visible = near_shaft
-	_chooser_label.visible = false
+	_show_chooser(false)
 	if near_shaft:
 		_prompt_label.text = "Ride elevator" if near_car else "Call elevator"
 	if near_shaft and Input.is_action_just_pressed(&"interact"):
 		if near_car:
+			_set_chooser_text()
 			_state = State.CHOOSING
 		else:
 			# Call the empty car to the player's floor.
@@ -108,22 +111,23 @@ func _update_idle(delta: float) -> void:
 
 func _update_choosing(delta: float) -> void:
 	if not _player_on_car():
+		_show_chooser(false)
 		_state = State.IDLE
 		return
 	_door_open_t = move_toward(_door_open_t, 1.0, delta * 3.0)
 	_glow_t = move_toward(_glow_t, 0.0, delta * 2.0)
-	_prompt_root.visible = true
-	_prompt_e.visible = false
-	_prompt_label.visible = false
-	_chooser_label.visible = true
+	_prompt_root.visible = false
+	_show_chooser(true)
 	var here: int = _car_floor_level()
 	for lvl in SERVED:
 		if lvl == here:
 			continue
 		if Input.is_action_just_pressed(StringName("seed_select_%d" % lvl)):
+			_show_chooser(false)
 			_begin_ride(lvl)
 			return
 	if Input.is_action_just_pressed(&"ui_cancel"):
+		_show_chooser(false)
 		_state = State.IDLE
 
 
@@ -196,8 +200,10 @@ func _apply_car_y() -> void:
 		_car.position.y = _car_y
 
 func _apply_doors() -> void:
+	var solid: bool = _door_open_t < 0.85   # impenetrable until fully lowered
 	for d in _doors:
 		d.pivot.position.y = float(d.base_y) - _door_open_t * DOOR_HEIGHT
+		d.col.disabled = not solid
 
 func _apply_glow() -> void:
 	if _glow_mat == null:
@@ -263,13 +269,23 @@ func _build_doors() -> void:
 		pivot.position = faces[i] + Vector3(0, DOOR_HEIGHT * 0.5, 0)
 		pivot.rotation.y = yaws[i]
 		_car.add_child(pivot)
+		# The panel is a body with collision so you can't walk through it until
+		# it's fully lowered (see _apply_doors).
+		var sb := StaticBody3D.new()
+		pivot.add_child(sb)
+		var dsize := Vector3(CAR_HALF * 2.0 * 0.96, DOOR_HEIGHT, 0.08)
 		var panel := MeshInstance3D.new()
 		var pm := BoxMesh.new()
-		pm.size = Vector3(CAR_HALF * 2.0 * 0.96, DOOR_HEIGHT, 0.08)
+		pm.size = dsize
 		panel.mesh = pm
 		panel.material_override = door_mat
-		pivot.add_child(panel)
-		_doors.append({"pivot": pivot, "base_y": DOOR_HEIGHT * 0.5})
+		sb.add_child(panel)
+		var col := CollisionShape3D.new()
+		var cs := BoxShape3D.new()
+		cs.size = dsize
+		col.shape = cs
+		sb.add_child(col)
+		_doors.append({"pivot": pivot, "base_y": DOOR_HEIGHT * 0.5, "col": col})
 
 func _build_prompt() -> void:
 	_prompt_root = Node3D.new()
@@ -301,23 +317,56 @@ func _build_prompt() -> void:
 	_prompt_label.position = Vector3(0, 2.85, 0)
 	_prompt_root.add_child(_prompt_label)
 
-	_chooser_label = Label3D.new()
-	var lines := PackedStringArray(["TRAVEL TO", ""])
+	_build_chooser_ui()
+
+
+# Framed, semi-transparent floor chooser shown centred on screen while aboard.
+func _build_chooser_ui() -> void:
+	_chooser_layer = CanvasLayer.new()
+	_chooser_layer.layer = 50
+	_chooser_layer.visible = false
+	add_child(_chooser_layer)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chooser_layer.add_child(center)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.06, 0.08, 0.82)
+	sb.border_color = Color(0.82, 0.58, 0.30, 0.7)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.set_content_margin_all(24)
+	sb.shadow_color = Color(0, 0, 0, 0.5)
+	sb.shadow_size = 14
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(panel)
+	_chooser_text = Label.new()
+	_chooser_text.add_theme_font_size_override("font_size", 26)
+	_chooser_text.add_theme_color_override("font_color", Color(0.96, 0.92, 0.78, 0.98))
+	_chooser_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(_chooser_text)
+
+
+# Lists only the floors you can travel to (omits the one you're on).
+func _set_chooser_text() -> void:
+	if _chooser_text == null:
+		return
+	var here: int = _car_floor_level()
+	var lines := PackedStringArray(["·  TRAVEL TO  ·", ""])
 	for lvl in SERVED:
-		lines.append("[%d]   %s" % [lvl, NAMES[lvl]])
+		if lvl == here:
+			continue
+		lines.append("[ %d ]   %s" % [lvl, NAMES[lvl]])
 	lines.append("")
-	lines.append("[ESC] cancel")
-	_chooser_label.text = "\n".join(lines)
-	_chooser_label.font_size = 64
-	_chooser_label.outline_size = 10
-	_chooser_label.modulate = Color(1.0, 0.92, 0.55, 1.0)
-	_chooser_label.outline_modulate = Color(0, 0, 0, 0.95)
-	_chooser_label.pixel_size = 0.005
-	_chooser_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_chooser_label.no_depth_test = true
-	_chooser_label.position = Vector3(0, 3.0, 0)
-	_chooser_label.visible = false
-	_prompt_root.add_child(_chooser_label)
+	lines.append("[ ESC ]  cancel")
+	_chooser_text.text = "\n".join(lines)
+
+
+func _show_chooser(b: bool) -> void:
+	if _chooser_layer:
+		_chooser_layer.visible = b
 
 func _update_label_scale() -> void:
 	if _prompt_root == null or not _prompt_root.visible:
@@ -328,4 +377,3 @@ func _update_label_scale() -> void:
 	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
 	LabelScaler.update(_prompt_e, _c.LABEL_BASE_PX_BIG, cam, def)
 	LabelScaler.update(_prompt_label, _c.LABEL_BASE_PX_MID, cam, def)
-	LabelScaler.update(_chooser_label, _c.LABEL_BASE_PX_MID, cam, def)

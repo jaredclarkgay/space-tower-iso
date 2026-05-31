@@ -106,6 +106,9 @@ func _update(snap: bool) -> void:
 			# jump-through aim targets, and a bonk lights a localized glow.
 			node.set_structure_visible(at_or_below)
 			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if at_or_below else 0.0)
+			# Rings (aim targets) only from the floor directly below or on it.
+			if node.has_method("set_apertures_visible"):
+				node.set_apertures_visible(_current_level >= int(f.level) - 1)
 			if node.has_method("set_ceiling_ping"):
 				var ping: float = _ceiling_pulse if int(f.level) == _current_level + 1 else 0.0
 				node.set_ceiling_ping(_bonk_pos, ping)

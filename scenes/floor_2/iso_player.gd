@@ -506,6 +506,10 @@ func _physics_process(delta: float) -> void:
 		_flip_pivot.rotation.x = 0.0
 		_flip_airtime_elapsed = 0.0
 
+	# One-way-up: while rising, ignore regular floor slabs (layer 2) so the jump
+	# passes UP through them; the Canopy ceiling (layer 1) still blocks. Falling
+	# re-enables them so we land on every floor from above.
+	set_collision_mask_value(2, velocity.y <= 0.1)
 	move_and_slide()
 
 	# Visual facing: smoothly rotate visual root toward movement direction.
@@ -860,6 +864,9 @@ func _build_collision() -> void:
 	floor_max_angle = deg_to_rad(50.0)
 	floor_snap_length = 0.6
 	up_direction = Vector3.UP
+	# Collide with regular floor slabs (layer 2) by default; _physics_process
+	# drops this while rising so jumps pass UP through to the floor above.
+	set_collision_mask_value(2, true)
 
 
 # Vertical charge gauge — sits above the head. Parented to self (not _visual)

@@ -26,6 +26,10 @@ static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18,
 		shaft_half: float = 0.0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "SlabBody"
+	# Layer 2 = "regular floor": the player drops this from its mask while
+	# rising, so it can jump UP through to the floor above (no ceiling bonk).
+	# The Canopy slab stays on layer 1 (a solid glass ceiling).
+	body.collision_layer = 2
 	parent.add_child(body)
 	var mat := _flat_material(color)
 	var thick: float = c.FLOOR_3D_SLAB_THICKNESS
