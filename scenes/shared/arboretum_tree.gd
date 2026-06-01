@@ -12,7 +12,7 @@ extends RefCounted
 # All per-tree randomness (lean direction, branch placement, asymmetry axis)
 # is seeded from the tree's `rng_seed`, so a tree looks IDENTICAL across floor
 # swaps and save/load. The genome itself is generated once and stored in
-# GameState.floor_3.trees, so it never drifts.
+# GameState.arboretum.trees, so it never drifts.
 #
 # Floor 3 renders trees with their base at FLOOR_3D_TOP_Y (~0.2 m). Floor 4
 # renders the SAME trees offset by -FLOOR_3D_STORY_HEIGHT (-3 m) so the visible

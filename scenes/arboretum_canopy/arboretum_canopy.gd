@@ -119,7 +119,7 @@ func _build_ceiling_ping() -> void:
 	add_child(_ceiling_ping)
 
 
-# Computes Floor-3-edge-plot positions (mirrors floor_3.gd._compute_edge_plots).
+# Computes Floor-3-edge-plot positions (mirrors arboretum_ground.gd._compute_edge_plots).
 func _compute_tree_hole_positions() -> void:
 	_tree_hole_positions.clear()
 	var grid: int = int(_c.GARDEN_GRID_SIZE)

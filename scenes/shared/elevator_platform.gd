@@ -3,7 +3,7 @@ extends Node3D
 # Physical ride-able elevator for the stacked tower. A single car travels the
 # open shaft; the player walks onto the platform, presses E to open a floor
 # chooser, picks a floor, and physically rides there — no scene swap. Serves
-# Floors 1-3 (Floor 4 is stairs-only). While travelling, the car owns the
+# Floors 0-2 (the Canopy is stairs-only, the Roof tube-only). While travelling, the car owns the
 # rider's transform (GameState.riding_elevator), so the tower's visibility +
 # camera follow naturally as the floors pass.
 
@@ -12,8 +12,8 @@ extends Node3D
 
 @export var player_path: NodePath
 
-const SERVED := [1, 2, 3]          # served floor levels (Canopy omitted on purpose)
-const NAMES := {1: "Utility", 2: "Garden", 3: "Arboretum"}
+const SERVED := [0, 1, 2]          # served floor levels (Canopy omitted on purpose)
+const NAMES := {0: "Utility", 1: "Garden", 2: "Arboretum"}
 const CAR_HALF := 1.7              # platform half-extent (fits inside the ±2 shaft)
 const DOOR_HEIGHT := 2.8
 const PROMPT_ANCHOR_Y := 2.7       # prompt-stack height above the player's feet
@@ -47,14 +47,14 @@ func _story() -> float:
 	return float(_c.FLOOR_3D_STORY_HEIGHT)
 
 func _floor_y(level: int) -> float:
-	return float(level - 1) * _story()
+	return float(level) * _story()
 
 
 func _ready() -> void:
 	_player = get_node_or_null(player_path)
 	_build_car()
 	_build_prompt()
-	_car_y = _floor_y(2)           # start at the Garden (the spawn floor)
+	_car_y = _floor_y(1)           # start at the Garden (the spawn floor)
 	_apply_car_y()
 	_apply_doors()
 	_apply_glow()

@@ -10,7 +10,7 @@ extends Node3D
 #   - Plant verb (P) — plant a sapling on the nearest empty edge plot
 #   - Two tree varieties (alternating per plant)
 #   - 60s continuous growth (no water/sunlight gating yet — Phase 2B)
-#   - Tree state persisted in GameState.floor_3.trees so visits to other
+#   - Tree state persisted in GameState.arboretum.trees so visits to other
 #     floors don't reset growth
 #   - Cross-floor rendering pattern: both Floor 3 and Floor 4 read the
 #     same trees dict; F3 renders trunk-up-from-ground, F4 renders the
@@ -197,7 +197,7 @@ func _update_plant_prompt() -> void:
 	var player_local: Vector3 = to_local(_player.global_position)
 	var best_d2: float = float(_c.TREE_PLANT_INTERACT_RADIUS) ** 2
 	for entry in _edge_plots:
-		if _gs.floor_3.trees.has(entry.key):
+		if _gs.arboretum.trees.has(entry.key):
 			continue
 		var d2: float = player_local.distance_squared_to(entry.world_pos)
 		if d2 < best_d2:
@@ -221,7 +221,7 @@ func _player_on_this_floor() -> bool:
 
 
 # Handles the `plant` InputMap action (bound to P). Fires only when there's
-# a nearest empty plot in range. Picks variety from GameState.floor_3
+# a nearest empty plot in range. Picks variety from GameState.arboretum
 # .next_variety and alternates it.
 func _handle_plant_input() -> void:
 	if _nearest_empty_plot == null:
@@ -229,12 +229,12 @@ func _handle_plant_input() -> void:
 	if not Input.is_action_just_pressed(&"plant"):
 		return
 	var entry: Dictionary = _nearest_empty_plot
-	var variety: int = int(_gs.floor_3.next_variety)
+	var variety: int = int(_gs.arboretum.next_variety)
 	# Founder tree-state carries a genome + rng_seed (see ArboretumTree).
 	# Growth is timed off the sim clock; manual plants start immediately.
 	var tree: Dictionary = ArboretumTree.new_tree_state(variety, entry.world_pos, _gs.sim_time_msec)
-	_gs.floor_3.trees[entry.key] = tree
-	_gs.floor_3.next_variety = (variety + 1) % 2
+	_gs.arboretum.trees[entry.key] = tree
+	_gs.arboretum.next_variety = (variety + 1) % 2
 	# Hide the plot marker — it's now a tree.
 	if entry.marker:
 		entry.marker.visible = false
@@ -246,8 +246,8 @@ func _handle_plant_input() -> void:
 # back to Floor 3 after planting elsewhere). Each tree appears at its
 # current growth state — no replaying of growth.
 func _restore_existing_trees() -> void:
-	for key in _gs.floor_3.trees:
-		var tree: Dictionary = _gs.floor_3.trees[key]
+	for key in _gs.arboretum.trees:
+		var tree: Dictionary = _gs.arboretum.trees[key]
 		# Migrates any pre-genome tree in place before building.
 		ArboretumTree.ensure_genome(tree)
 		var world_pos: Vector3 = Vector3(tree.get("world_pos", Vector3.ZERO))
@@ -266,7 +266,7 @@ func _restore_existing_trees() -> void:
 # as smooth even though the underlying time math is integer milliseconds.
 func _update_tree_geometry() -> void:
 	for key in _tree_refs:
-		var tree: Dictionary = _gs.floor_3.trees.get(key, {})
+		var tree: Dictionary = _gs.arboretum.trees.get(key, {})
 		if tree.is_empty():
 			continue
 		var growth_t: float = ArboretumTree.growth_t_for(tree, _c, _gs.sim_time_msec)

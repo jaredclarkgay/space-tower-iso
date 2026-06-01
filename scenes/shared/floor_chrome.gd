@@ -5,7 +5,7 @@ extends RefCounted
 # + translucent glass + top trim), the extension grid blueprint past the
 # walls, and the central elevator/spine core.
 #
-# Used by floor_1 today; floor_2's iso_floor.gd will migrate over in a
+# Used by utility today; the garden's iso_floor.gd will migrate over in a
 # follow-up refactor (it currently has its own inline copies of these
 # functions). All builders take a parent Node3D + Constants autoload ref so
 # they don't need any scene-specific state.
@@ -343,7 +343,7 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 
 
 # Passive spine pipes — visual-only renderer used by floors that don't own
-# the connect/activate flow. Reads GameState.floor_1 to determine each
+# the connect/activate flow. Reads GameState.utility to determine each
 # pipe's state at scene-load time. Cold pipes are always present; the
 # emissive fill cylinder is drawn only when pipe_active[id] is true,
 # already at full height. No tweens, no per-frame state.
@@ -368,7 +368,7 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		var slot_pos: float = 0.0 if count == 1 else (slot_offset if slot == 1 else -slot_offset)
 		var pipe_pos: Vector3 = centre + tangent * slot_pos + normal * outboard
 		var base_col: Color = sys.base_color
-		var active: bool = bool(gs.floor_1.pipe_active.get(sys.id, false))
+		var active: bool = bool(gs.utility.pipe_active.get(sys.id, false))
 
 		var cold := MeshInstance3D.new()
 		cold.name = "PassivePipe_" + sys.id
@@ -391,7 +391,7 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		# never climbed past Floor 1. Instead we build it for every system and
 		# toggle visibility live: it joins the "passive_spine_fill" group tagged
 		# with its system id, and tower_controller drives `visible` from
-		# GameState.floor_1.pipe_active each frame, so activating a utility lights
+		# GameState.utility.pipe_active each frame, so activating a utility lights
 		# its riser continuously all the way up the shaft.
 		var fill := MeshInstance3D.new()
 		fill.name = "PassiveFill_" + sys.id

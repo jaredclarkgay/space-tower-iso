@@ -9,7 +9,7 @@ extends Control
 #
 # Mirrors the Garden's ResourcesPanel style so the top-right slot reads
 # as the canonical "what's the state of this floor" panel across floors.
-# Polls GameState.floor_1.connected / pipe_active each frame; per-row
+# Polls GameState.utility.connected / pipe_active each frame; per-row
 # refs live in _rows so updates touch only the dot + status text.
 
 @onready var _c: Node = get_node("/root/Constants")
@@ -111,8 +111,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	for id in _rows.keys():
 		var info: Dictionary = _rows[id]
-		var connected: bool = bool(_gs.floor_1.connected.get(id, false))
-		var active: bool = bool(_gs.floor_1.pipe_active.get(id, false))
+		var connected: bool = bool(_gs.utility.connected.get(id, false))
+		var active: bool = bool(_gs.utility.pipe_active.get(id, false))
 		var dot: Label = info.dot
 		var status: Label = info.status
 		if active:

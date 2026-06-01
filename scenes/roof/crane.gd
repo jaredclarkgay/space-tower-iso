@@ -5,7 +5,7 @@ extends Node3D
 # the player), and E gets you back out. While you're driving, GameState.driving_crane
 # is set so the player skips its own physics and rides the cab.
 #
-# Built procedurally by floor_5.gd, which hands it the player + camera-pivot refs.
+# Built procedurally by roof.gd, which hands it the player + camera-pivot refs.
 
 var _c: Node
 var _gs: Node

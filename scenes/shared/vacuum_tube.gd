@@ -12,7 +12,7 @@ extends RefCounted
 #   VacuumTube.build_corner_tubes(self, _c)
 #
 # The behaviour layered on top of this geometry lives elsewhere:
-#   - scenes/floor_2/iso_tubes.gd     — Garden sell interaction (keeps the glow
+#   - scenes/garden/iso_tubes.gd     — Garden sell interaction (keeps the glow
 #                                        mats returned here to drive its whoosh)
 #   - scenes/shared/vacuum_lift.gd    — item transit + the player ±1-floor hop
 

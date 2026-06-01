@@ -13,7 +13,7 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
-const Crane = preload("res://scenes/floor_5/crane.gd")
+const Crane = preload("res://scenes/roof/crane.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")

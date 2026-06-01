@@ -54,7 +54,7 @@ func _story() -> float:
 
 # Player-feet (slab-top) world Y for a floor level — matches the tower's spawn math.
 func _surface_y(level: int) -> float:
-	return float(level - 1) * _story() + float(_c.FLOOR_3D_TOP_Y)
+	return float(level) * _story() + float(_c.FLOOR_3D_TOP_Y)
 
 
 func _ready() -> void:
@@ -179,12 +179,26 @@ func _player_level() -> int:
 
 # Finds the glow material of the tube at corner `idx` on the given floor so the
 # hop can pulse it. Tube nodes live under the floor node; we match by XZ anchor.
+# The floor node is found by world-Y (level*story), not by name, so renaming the
+# Floors children to content names (Utility/Garden/…) doesn't break this.
 func _glow_mat_for_corner_on_floor(idx: int, level: int) -> StandardMaterial3D:
-	var floor_node: Node = get_node_or_null(NodePath("../Floors/Floor%d" % level))
+	var floor_node: Node = _floor_node_for_level(level)
 	if floor_node == null:
 		return null
 	var anchor: Vector3 = _anchors[idx]
 	return _find_tube_glow(floor_node, anchor)
+
+
+# The Floors child sitting at this level's stacked height (name-independent).
+func _floor_node_for_level(level: int) -> Node:
+	var floors: Node = get_node_or_null(NodePath("../Floors"))
+	if floors == null:
+		return null
+	var want_y: float = float(level) * _story()
+	for child in floors.get_children():
+		if child is Node3D and absf((child as Node3D).position.y - want_y) < 0.5:
+			return child
+	return null
 
 
 func _find_tube_glow(node: Node, anchor: Vector3) -> StandardMaterial3D:

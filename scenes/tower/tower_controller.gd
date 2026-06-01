@@ -23,15 +23,16 @@ extends Node3D
 @export var env_light_path: NodePath
 
 # Floors present in the tower. `node` is relative to this controller, `level`
-# is 1=bottom, `name` is the HUD header text. Append Floors 1 & 2 in Phase 2.
+# is 0=basement (Utility) and counts UP; `name` is the HUD header text (the part
+# before "/" is the eyebrow). The Roof has no floor number — it shows "ROOF".
 const _FLOORS := [
-	{"node": "Floors/Floor1", "level": 1, "name": "FLOOR 1 / UTILITY"},
-	{"node": "Floors/Floor2", "level": 2, "name": "FLOOR 2 / GARDEN"},
-	{"node": "Floors/Floor3", "level": 3, "name": "FLOOR 3 / ARBORETUM"},
-	{"node": "Floors/Floor4", "level": 4, "name": "FLOOR 4 / CANOPY"},
-	{"node": "Floors/Floor5", "level": 5, "name": "FLOOR 5 / VISTA — UNDER CONSTRUCTION"},
+	{"node": "Floors/Utility", "level": 0, "name": "FLOOR 0 / UTILITY"},
+	{"node": "Floors/Garden", "level": 1, "name": "FLOOR 1 / GARDEN"},
+	{"node": "Floors/ArboretumGround", "level": 2, "name": "FLOOR 2 / ARBORETUM"},
+	{"node": "Floors/ArboretumCanopy", "level": 3, "name": "FLOOR 3 / CANOPY"},
+	{"node": "Floors/Roof", "level": 4, "name": "ROOF / VISTA — UNDER CONSTRUCTION"},
 ]
-const _SPAWN_LEVEL := 2   # the player starts on the Garden (home floor)
+const _SPAWN_LEVEL := 1   # the player starts on the Garden (home floor)
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
 # Fraction of the player's height-above-floor the pivot follows on a jump, so a
 # big jump stays in frame without the camera feeling glued to the body.
@@ -66,7 +67,7 @@ func _ready() -> void:
 		var node: Node3D = get_node_or_null(NodePath(f.node))
 		if node == null:
 			continue
-		var base_y: float = float(int(f.level) - 1) * story
+		var base_y: float = float(int(f.level)) * story
 		node.position.y = base_y          # geometry (built local) rides up with the node
 		# Regular floors build their slab as a StaticBody3D named "SlabBody"
 		# (FloorChrome.build_slab). We toggle its collision per current floor so
@@ -181,11 +182,11 @@ func _update(snap: bool) -> void:
 # Per-floor environment preset: ambient colour/energy, background, sun energy.
 func _preset_for(level: int) -> Dictionary:
 	match level:
-		1: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}
-		2: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}
-		3: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}
-		4: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}
-		# Vista (top): open to the sky — bright, cool, airy, with a pale horizon.
+		0: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}  # Utility (basement)
+		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}  # Garden
+		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}  # Arboretum (ground)
+		3: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}  # Canopy
+		# Roof / Vista (top): open to the sky — bright, cool, airy, with a pale horizon.
 		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55}
 
 
@@ -194,7 +195,7 @@ func _preset_for(level: int) -> Dictionary:
 # of stopping at the floor they were built on. Floor 1 builds its own animated
 # pipes separately; these are the cross-floor copies.
 func _update_spine_pipe_fills() -> void:
-	var active: Dictionary = _gs.floor_1.get("pipe_active", {})
+	var active: Dictionary = _gs.utility.get("pipe_active", {})
 	for fill in get_tree().get_nodes_in_group("passive_spine_fill"):
 		var id: String = String(fill.get_meta("sys_id", ""))
 		fill.visible = bool(active.get(id, false))

@@ -37,10 +37,10 @@ const SCHEM_UNLOCK := 10
 # Per-floor wayfinding: the verbs that matter where you're standing. The
 # global movement keys live on their own line above these.
 const WAYFIND := {
-	1: "[E]  pull the master breaker, then connect + activate the six systems",
-	2: "[1–6]  pick a seed     [P]  plant     [E]  harvest · sell at a tube · talk to Cody",
-	3: "[P]  plant a sapling     ·     take the south stairs up to the Canopy",
-	4: "take the stairs back down     ·     the glass floor frames the grove below",
+	0: "[E]  pull the master breaker, then connect + activate the six systems",
+	1: "[1–6]  pick a seed     [P]  plant     [E]  harvest · sell at a tube · talk to Cody",
+	2: "[P]  plant a sapling     ·     take the south stairs up to the Canopy",
+	3: "take the stairs back down     ·     the glass floor frames the grove below",
 }
 const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [Tab] survey   [E] ride elevator"
 
@@ -90,11 +90,11 @@ func set_floor(level: int, display_name: String) -> void:
 		_title.text = display_name.to_upper()
 	_here_label.text = _format_hint(String(WAYFIND.get(level, "")))
 	if _garden_group:
-		_garden_group.visible = (level == 2)
+		_garden_group.visible = (level == 1)
 	if _utility_group:
-		_utility_group.visible = (level == 1)
+		_utility_group.visible = (level == 0)
 	if _res_panel:
-		_res_panel.visible = (level == 2)
+		_res_panel.visible = (level == 1)
 
 
 func _process(delta: float) -> void:
@@ -178,7 +178,7 @@ func _build_wayfinding() -> void:
 	vbox.add_child(rule)
 
 	_here_label = _hint_label()
-	_here_label.text = _format_hint(WAYFIND.get(2, ""))
+	_here_label.text = _format_hint(WAYFIND.get(1, ""))
 	vbox.add_child(_here_label)
 
 

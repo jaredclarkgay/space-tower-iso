@@ -141,7 +141,7 @@ var dispenser_stock := {
 # breaker; per-system `connected` and `pipe_active` track each system's
 # state. Survives floor switches so a return trip restores the lit room
 # and primed/active sources without re-playing the intro.
-var floor_1 := {
+var utility := {
 	"master_on": false,
 	"connected": {
 		"water": false,
@@ -181,7 +181,7 @@ var floor_1 := {
 #                       once growth_t > TREE_FLOOR_4_VISIBLE_THRESHOLD).
 #   next_variety:       0 or 1 — alternated on each plant so the mix reads
 #                       as deliberately varied, not random.
-var floor_3 := {
+var arboretum := {
 	"water_connected": false,
 	"sunlight_active": false,
 	"trees": {},
@@ -202,4 +202,4 @@ func _process(delta: float) -> void:
 # Floor 4 (Canopy deck) holds no independent state — it renders the same
 # trees Floor 3 owns. Phase 1 keeps a slot here in case Phase 2 wants per-
 # floor flags (e.g. skylight_open_t for the panel animation).
-var floor_4 := {}
+var canopy := {}

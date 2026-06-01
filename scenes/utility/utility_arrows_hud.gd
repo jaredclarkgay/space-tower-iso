@@ -62,8 +62,8 @@ func _draw() -> void:
 	# Per-source CONNECT / ACTIVATE arrows.
 	for sys in _c.FLOOR_1_SYSTEMS:
 		var id: String = String(sys.id)
-		var connected: bool = bool(_gs.floor_1.connected.get(id, false))
-		var active: bool = bool(_gs.floor_1.pipe_active.get(id, false))
+		var connected: bool = bool(_gs.utility.connected.get(id, false))
+		var active: bool = bool(_gs.utility.pipe_active.get(id, false))
 		if active:
 			continue
 		var pos: Vector3 = sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.55, 0)

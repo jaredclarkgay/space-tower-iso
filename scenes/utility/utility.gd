@@ -128,9 +128,9 @@ func _ready() -> void:
 	if camera_pivot_path:
 		_camera_pivot = get_node(camera_pivot_path)
 
-	# Persist master_on across re-entry — GameState.floor_1 is the source of
+	# Persist master_on across re-entry — GameState.utility is the source of
 	# truth, declared as a typed dict on the autoload.
-	if _gs.floor_1.master_on:
+	if _gs.utility.master_on:
 		_master_on = true
 		_target_brightness = 1.0
 		_room_brightness = 1.0
@@ -320,8 +320,8 @@ func _build_sources() -> void:
 		st["connect_t"] = 0.0
 		st["activate_t"] = 0.0
 		st["fill_t"] = 0.0
-		st["connected"] = bool(_gs.floor_1.connected.get(sys.id, false))
-		st["active"] = bool(_gs.floor_1.pipe_active.get(sys.id, false))
+		st["connected"] = bool(_gs.utility.connected.get(sys.id, false))
+		st["active"] = bool(_gs.utility.pipe_active.get(sys.id, false))
 		_source_state[sys.id] = st
 
 
@@ -840,7 +840,7 @@ func _pull_master_breaker() -> void:
 	_master_on = true
 	_master_anim_t = 0.0
 	_target_brightness = 1.0
-	_gs.floor_1.master_on = true
+	_gs.utility.master_on = true
 	# Kick off the screen flash + camera shake — they decay each frame
 	# in _process and self-clear when t reaches zero.
 	_flash_t = 1.0
@@ -1023,7 +1023,7 @@ func _advance_source_tweens(delta: float) -> void:
 			st["connect_t"] = ct
 			if ct >= 1.0:
 				st["connected"] = true
-				_gs.floor_1.connected[id] = true
+				_gs.utility.connected[id] = true
 		var at: float = float(st.get("activate_t", 0.0))
 		if at > 0.0 and at < 1.0:
 			at = min(1.0, at + delta / _c.SOURCE_ACTIVATE_DURATION)
@@ -1036,7 +1036,7 @@ func _advance_source_tweens(delta: float) -> void:
 			st["fill_t"] = ft
 			if ft >= 1.0:
 				st["active"] = true
-				_gs.floor_1.pipe_active[id] = true
+				_gs.utility.pipe_active[id] = true
 				var wave: Node3D = st.get("spine_wave")
 				if wave:
 					wave.visible = false

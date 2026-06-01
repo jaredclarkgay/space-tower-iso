@@ -20,7 +20,7 @@ extends CharacterBody3D
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-# Camera the player should be relative to. Set by floor_2.tscn.
+# Camera the player should be relative to. Set in tower.tscn.
 @export var camera_pivot_path: NodePath
 @export var iso_floor_path: NodePath
 @export var iso_robot_path: NodePath
@@ -261,7 +261,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	# Debug stop-gap until M6 wires the elevator: backslash swaps the
-	# current scene between Garden (floor_2) and Floor 1 (utility).
+	# world between the Garden and the Utility floor.
 	# GameState autoload preserves cross-scene state.
 	# (Debug floor cycling is handled by the tower controller now.)
 
