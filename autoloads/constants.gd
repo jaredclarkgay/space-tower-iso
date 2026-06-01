@@ -64,10 +64,50 @@ const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
 const CAMERA_YAW_DEG_INITIAL := -135.0
 const CAMERA_ROTATE_DURATION := 0.2     # seconds per 90° snap
 const CAMERA_DISTANCE := 20.0           # camera→pivot distance along its local frame
-const CAMERA_ORTHO_SIZE_DEFAULT := 20.0 # initial size (smaller = zoomed in); ~2× closer than the full-floor framing
+const CAMERA_ORTHO_SIZE_DEFAULT := 16.0 # initial size (smaller = zoomed in); operator: "a bit closer than now" (was 20)
 const CAMERA_ORTHO_SIZE_MIN := 8.0
 const CAMERA_ORTHO_SIZE_MAX := 50.0
 const CAMERA_ZOOM_FACTOR := 0.9         # mouse wheel multiplier per tick
+
+# --- Living iso camera (follow + juice + survey + traversal reveal) ---------
+# The iso camera no longer sits dead at the origin: it softly follows the player,
+# leads their motion, reacts to sprint + landings, and pulls back to a diorama on
+# arrival / a held survey key or to reveal the floors during vertical travel.
+# All magnitudes are tunable knobs so the operator can dial the feel.
+
+# Gentle horizontal follow. The pivot eases toward the player once they drift
+# past CAMERA_FOLLOW_DEADZONE from frame centre, leading slightly in their
+# direction of travel so you see where you're going. Manual orbit composes on
+# top (it rotates around the moving pivot).
+const CAMERA_FOLLOW_DEADZONE := 2.0     # m — free movement before the camera starts following
+const CAMERA_FOLLOW_RATE := 5.0         # ease rate toward the follow target
+const CAMERA_FOLLOW_LEAD_TIME := 0.30   # s of velocity look-ahead (leads the player)
+const CAMERA_FOLLOW_LEAD_MAX := 3.5     # m — clamp on the look-ahead offset
+
+# Sprint pull-back — a touch wider while running so speed reads. Additive on top
+# of the player's chosen zoom, so manual zoom still wins as the baseline.
+const CAMERA_SPRINT_ZOOM_ADD := 2.2     # ortho size added while sprint-moving
+const CAMERA_SPRINT_ZOOM_RATE := 3.0
+
+# Landing dip — a quick camera drop on a hard landing for impact. Magnitude
+# scales with fall speed; decays fast.
+const CAMERA_LAND_KICK_PER_SPEED := 0.022  # m of dip per m/s of downward landing speed
+const CAMERA_LAND_KICK_MAX := 0.55         # m — cap on the dip
+const CAMERA_LAND_KICK_DECAY := 7.0        # per-second decay of the dip
+
+# Survey / diorama — pull back + flatten to read the whole floor as an object.
+# Auto-pulses briefly on floor arrival; held continuously while the survey key
+# is down (admire / plan).
+const CAMERA_SURVEY_SIZE := 34.0
+const CAMERA_SURVEY_TILT_DEG := -25.0
+const CAMERA_SURVEY_RATE := 4.0          # ease rate in/out of survey
+const CAMERA_ARRIVAL_SURVEY_HOLD := 0.65 # s of auto-survey when you change floors
+
+# Vertical-traversal reveal — widen + lower the angle during a tube hop or an
+# elevator ride so you see the floors passing. Between play and survey.
+const CAMERA_REVEAL_SIZE := 24.0
+const CAMERA_REVEAL_TILT_DEG := -21.0
+const CAMERA_REVEAL_RATE := 3.5
 
 # Dialogue close-up: when the Cody chat panel opens, the camera tweens to
 # look at the midpoint between player and Cody at this tight ortho size.

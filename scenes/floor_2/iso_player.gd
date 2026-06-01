@@ -124,6 +124,7 @@ const FACING_TURN_SPEED := 14.0   # rad/s — snappy but not jittery
 var _charge_time := 0.0
 var _land_squash_t := 0.0
 var _was_in_air := false
+var _air_vy := 0.0          # vertical speed while airborne — read by the landing-dip camera kick
 var _is_flipping := false   # true between a charged takeoff and the next landing
 # Flip duration is computed from the jump's expected airtime so the rotation
 # completes exactly TUCK_FLIP_ROTATIONS turns by the time the player lands.
@@ -469,6 +470,11 @@ func _physics_process(delta: float) -> void:
 	var just_landed := on_floor and _was_in_air
 	if just_landed:
 		_land_squash_t = _c.PLAYER_LAND_SQUASH_DURATION
+		# Hand the camera the impact speed so it can dip on a hard landing. Only
+		# real drops (above a gentle settle) register; the camera scales + caps it.
+		var impact: float = absf(_air_vy)
+		if impact > 8.0 and _gs:
+			_gs.camera_land_kick = maxf(float(_gs.get("camera_land_kick")), impact)
 	_was_in_air = not on_floor
 	if _land_squash_t > 0.0:
 		_land_squash_t = max(0.0, _land_squash_t - delta)
@@ -517,6 +523,11 @@ func _physics_process(delta: float) -> void:
 		_is_flipping = false
 		_flip_pivot.rotation.x = 0.0
 		_flip_airtime_elapsed = 0.0
+
+	# Remember the airborne vertical speed so the NEXT frame's just_landed can
+	# read the impact velocity (move_and_slide zeroes it on contact).
+	if not on_floor:
+		_air_vy = velocity.y
 
 	# Jumps are unobstructed by ceilings but never land you on the floor above.
 	# The tower (tower_controller.gd) gates each floor's slab collision by the

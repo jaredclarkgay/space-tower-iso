@@ -44,6 +44,7 @@ var _env_light: DirectionalLight3D
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
+var _pulse_level: int = 0       # last level the camera-arrival pulse saw
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -117,6 +118,11 @@ func _update(snap: bool) -> void:
 	var hopping: bool = bool(_gs.get("tube_hopping"))
 	if snap or grounded or riding or hopping:
 		_current_level = _level_for_y(_player.global_position.y)
+	# Tell the camera to pulse a brief survey of the new floor on arrival (not on
+	# the initial spawn snap).
+	if not snap and _current_level != _pulse_level and _pulse_level != 0:
+		_gs.set("camera_arrival_pulse", true)
+	_pulse_level = _current_level
 	for f in _floors:
 		var node: Node3D = f.node
 		var at_or_below: bool = (int(f.level) <= _current_level)

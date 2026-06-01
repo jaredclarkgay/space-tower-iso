@@ -59,6 +59,14 @@ var tube_hopping := false
 # its normal jump/charge for the vacuum hop (the lift handles the jump press).
 var in_tube_mouth := false
 
+# Camera juice signals (one-shot, producer sets / camera consumes):
+#   camera_arrival_pulse — set by tower_controller when the player changes
+#     floors, so iso_camera briefly pulls back to a survey of the new floor.
+#   camera_land_kick — set by iso_player to the downward landing speed of a hard
+#     landing, so iso_camera applies a quick dip. Camera zeroes it on read.
+var camera_arrival_pulse := false
+var camera_land_kick := 0.0
+
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and
 # tweens back out when it clears.

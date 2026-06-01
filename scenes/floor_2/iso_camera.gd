@@ -64,6 +64,16 @@ var _orbit_pitch := 0.0
 var _base_tilt_deg := 0.0
 var _base_distance := 0.0
 
+# --- Living iso camera state ------------------------------------------------
+# _size_base is the player's chosen zoom; the displayed `size` eases toward it
+# plus any transient (sprint pull-back / survey / reveal). Manual zoom edits the
+# base, so transients never get "stuck".
+var _size_base := 0.0
+# Seconds remaining on the brief auto-survey pulled when the player changes floor.
+var _arrival_survey_t := 0.0
+# Decaying camera dip applied on a hard landing (metres of downward nudge).
+var _land_kick := 0.0
+
 
 func _ready() -> void:
 	projection = PROJECTION_ORTHOGONAL
@@ -82,6 +92,7 @@ func _ready() -> void:
 	near = 0.1
 	far = 200.0
 	size = _c.CAMERA_ORTHO_SIZE_DEFAULT
+	_size_base = size
 	if pivot_path:
 		_pivot = get_node(pivot_path)
 		_pivot.rotation_degrees.y = _c.CAMERA_YAW_DEG_INITIAL
@@ -116,6 +127,10 @@ func _process(delta: float) -> void:
 		if requested_mode != _mode:
 			_apply_mode_change(requested_mode)
 		_update_follow_mode(delta)
+		# Iso's living-camera behaviours (follow + lead + sprint/survey/reveal
+		# framing + landing dip). The follow modes do their own thing above.
+		if _mode == _c.CAMERA_MODE_ISO and not (_mode_tween and _mode_tween.is_running()):
+			_update_iso(delta)
 
 	# Mirror our state into GameState every frame as the single source of truth.
 	if _pivot:
@@ -155,7 +170,79 @@ func _apply_orbit() -> void:
 	var x := Vector3.UP.cross(z)
 	x = x.normalized() if x.length() > 0.001 else Vector3.RIGHT
 	var y := z.cross(x).normalized()
-	transform = Transform3D(Basis(x, y, z), pos)
+	# Landing dip: a transient downward nudge to the camera (keeps the look basis,
+	# so the world jolts up in frame on a hard landing). Decayed in _update_iso.
+	transform = Transform3D(Basis(x, y, z), pos + Vector3(0.0, -_land_kick, 0.0))
+
+
+# Iso living-camera update: gentle follow + look-ahead lead on the pivot's XZ,
+# state-driven framing (sprint pull-back / survey diorama / traversal reveal),
+# and the decaying landing dip. The tower owns pivot.y (floor + jump follow); we
+# only touch XZ here so the two never fight.
+func _update_iso(delta: float) -> void:
+	if _pivot == null or _iso_player == null:
+		return
+
+	# One-shot floor-arrival pulse → a brief survey of the floor you arrive on.
+	if bool(_gs.get("camera_arrival_pulse")):
+		_gs.set("camera_arrival_pulse", false)
+		_arrival_survey_t = _c.CAMERA_ARRIVAL_SURVEY_HOLD
+	_arrival_survey_t = maxf(0.0, _arrival_survey_t - delta)
+
+	# Landing dip: consume the player's impact speed, decay what's there.
+	var kick_in: float = float(_gs.get("camera_land_kick"))
+	if kick_in > 0.0:
+		_gs.set("camera_land_kick", 0.0)
+		_land_kick = minf(_land_kick + kick_in * _c.CAMERA_LAND_KICK_PER_SPEED, _c.CAMERA_LAND_KICK_MAX)
+	_land_kick = lerpf(_land_kick, 0.0, clampf(_c.CAMERA_LAND_KICK_DECAY * delta, 0.0, 1.0))
+	if _land_kick < 0.001:
+		_land_kick = 0.0
+
+	var vel := Vector3.ZERO
+	if _iso_player is CharacterBody3D:
+		vel = (_iso_player as CharacterBody3D).velocity
+	var planar_speed: float = Vector2(vel.x, vel.z).length()
+
+	# --- Gentle horizontal follow: ease the pivot toward the player once they
+	# drift past the deadzone, leading slightly in their direction of travel. ---
+	var lead: Vector3 = Vector3(vel.x, 0.0, vel.z) * float(_c.CAMERA_FOLLOW_LEAD_TIME)
+	if lead.length() > _c.CAMERA_FOLLOW_LEAD_MAX:
+		lead = lead.normalized() * float(_c.CAMERA_FOLLOW_LEAD_MAX)
+	var p: Vector3 = _iso_player.global_position
+	var target := Vector2(p.x + lead.x, p.z + lead.z)
+	var cur := Vector2(_pivot.global_position.x, _pivot.global_position.z)
+	var off := target - cur
+	var d := off.length()
+	if d > _c.CAMERA_FOLLOW_DEADZONE:
+		var k: float = clampf(float(_c.CAMERA_FOLLOW_RATE) * delta, 0.0, 1.0)
+		var np: Vector2 = cur + off.normalized() * (d - float(_c.CAMERA_FOLLOW_DEADZONE)) * k
+		_pivot.global_position.x = np.x
+		_pivot.global_position.z = np.y
+
+	# --- State-driven framing: survey (admire / arrival) > traversal reveal >
+	# normal play (with a sprint pull-back). Ease size + tilt toward the target;
+	# _apply_orbit reads _base_tilt_deg, so tilt animates the whole pose. ---
+	var survey: bool = Input.is_action_pressed(&"survey") or _arrival_survey_t > 0.0
+	var reveal: bool = bool(_gs.get("riding_elevator")) or bool(_gs.get("tube_hopping"))
+	var sprinting: bool = Input.is_action_pressed(&"sprint") and planar_speed > 0.5
+	var target_size: float
+	var target_tilt: float
+	var rate: float
+	if survey:
+		target_size = _c.CAMERA_SURVEY_SIZE
+		target_tilt = _c.CAMERA_SURVEY_TILT_DEG
+		rate = _c.CAMERA_SURVEY_RATE
+	elif reveal:
+		target_size = _c.CAMERA_REVEAL_SIZE
+		target_tilt = _c.CAMERA_REVEAL_TILT_DEG
+		rate = _c.CAMERA_REVEAL_RATE
+	else:
+		target_size = _size_base + (_c.CAMERA_SPRINT_ZOOM_ADD if sprinting else 0.0)
+		target_tilt = _c.CAMERA_TILT_DEG
+		rate = _c.CAMERA_SPRINT_ZOOM_RATE
+	var ks := clampf(rate * delta, 0.0, 1.0)
+	size = lerpf(size, target_size, ks)
+	_base_tilt_deg = lerpf(_base_tilt_deg, target_tilt, ks)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -225,7 +312,13 @@ func _angle_step_from_pivot() -> int:
 # --- Zoom -------------------------------------------------------------------
 
 func _apply_zoom(factor: float) -> void:
-	size = clamp(size * factor, _c.CAMERA_ORTHO_SIZE_MIN, _c.CAMERA_ORTHO_SIZE_MAX)
+	# In iso the displayed size eases toward _size_base (so sprint/survey/reveal
+	# transients compose cleanly), so zoom edits the base. Follow modes set size
+	# directly, so zoom edits it directly there.
+	if _mode == _c.CAMERA_MODE_ISO:
+		_size_base = clamp(_size_base * factor, _c.CAMERA_ORTHO_SIZE_MIN, _c.CAMERA_ORTHO_SIZE_MAX)
+	else:
+		size = clamp(size * factor, _c.CAMERA_ORTHO_SIZE_MIN, _c.CAMERA_ORTHO_SIZE_MAX)
 
 
 # --- Pan (target on XZ plane, basis-relative to pivot yaw) ------------------
@@ -323,7 +416,7 @@ func _apply_mode_change(new_mode: String) -> void:
 	if _mode == _c.CAMERA_MODE_ISO and new_mode != _c.CAMERA_MODE_ISO:
 		_iso_saved_pivot_pos = _pivot.global_position
 		_iso_saved_pivot_yaw = _pivot.rotation.y
-		_iso_saved_size = size
+		_iso_saved_size = _size_base
 		_iso_state_saved = true
 
 	# Cancel any in-flight mode tween before starting a new one.
@@ -366,6 +459,8 @@ func _apply_mode_change(new_mode: String) -> void:
 				target_size = _c.CAMERA_ORTHO_SIZE_DEFAULT
 				target_pivot_pos = Vector3.ZERO
 				target_pivot_yaw = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
+			# Returning to iso: the eased size should settle at this baseline.
+			_size_base = target_size
 
 	# Remember the mode's base pose so free-look orbit composes on top of it.
 	_base_tilt_deg = tilt_deg
