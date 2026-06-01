@@ -125,13 +125,13 @@ func _process(delta: float) -> void:
 
 func _build_title() -> void:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", -2)
-	box.position = Vector2(24, 14)
+	box.add_theme_constant_override("separation", -4)
+	box.position = Vector2(24, 12)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(box)
 
 	_eyebrow = Label.new()
-	_eyebrow.add_theme_font_size_override("font_size", 14)
+	_eyebrow.add_theme_font_size_override("font_size", 19)
 	_eyebrow.add_theme_color_override("font_color", AMBER_DIM)
 	_eyebrow.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	_eyebrow.add_theme_constant_override("outline_size", 4)
@@ -139,10 +139,10 @@ func _build_title() -> void:
 	box.add_child(_eyebrow)
 
 	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 34)
+	_title.add_theme_font_size_override("font_size", 54)
 	_title.add_theme_color_override("font_color", TITLE)
 	_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	_title.add_theme_constant_override("outline_size", 6)
+	_title.add_theme_constant_override("outline_size", 7)
 	_title.text = "GARDEN"
 	box.add_child(_title)
 
@@ -152,7 +152,7 @@ func _build_title() -> void:
 func _build_wayfinding() -> void:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _panel_style())
-	panel.position = Vector2(24, 74)
+	panel.position = Vector2(24, 96)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 
