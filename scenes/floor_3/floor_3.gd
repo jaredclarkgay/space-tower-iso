@@ -19,7 +19,6 @@ extends Node3D
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const Stairs = preload("res://scenes/shared/stairs.gd")
 const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
-const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -152,10 +151,10 @@ func _build_plant_prompt() -> void:
 	_plant_prompt_p.outline_size = 10
 	_plant_prompt_p.modulate = Color(0.78, 0.95, 0.62, 1.0)
 	_plant_prompt_p.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
-	_plant_prompt_p.pixel_size = 0.005
+	_plant_prompt_p.pixel_size = 0.008
 	_plant_prompt_p.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_plant_prompt_p.no_depth_test = true
-	_plant_prompt_p.position = Vector3(0, 0.6, 0)
+	_plant_prompt_p.position = Vector3(0, 0.78, 0)
 	_plant_prompt_root.add_child(_plant_prompt_p)
 
 	_plant_prompt_label = Label3D.new()
@@ -164,10 +163,10 @@ func _build_plant_prompt() -> void:
 	_plant_prompt_label.outline_size = 6
 	_plant_prompt_label.modulate = Color(0.92, 0.98, 0.85, 1.0)
 	_plant_prompt_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
-	_plant_prompt_label.pixel_size = 0.005
+	_plant_prompt_label.pixel_size = 0.008
 	_plant_prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_plant_prompt_label.no_depth_test = true
-	_plant_prompt_label.position = Vector3(0, 0.2, 0)
+	_plant_prompt_label.position = Vector3(0, 0.12, 0)
 	_plant_prompt_root.add_child(_plant_prompt_label)
 
 
@@ -268,6 +267,9 @@ func _update_label_scale() -> void:
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam == null:
 		return
+	# Scale the whole prompt group as one (matches the player + elevator prompts)
+	# so "P" and "Plant sapling" keep their spacing at any zoom — scaling the two
+	# labels' pixel_size independently at fixed positions made them overlap when
+	# zoomed out.
 	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
-	LabelScaler.update(_plant_prompt_p, _c.LABEL_BASE_PX_BIG, cam, def)
-	LabelScaler.update(_plant_prompt_label, _c.LABEL_BASE_PX_MID, cam, def)
+	_plant_prompt_root.scale = Vector3.ONE * clampf(cam.size / def, 0.18, 1.0)
