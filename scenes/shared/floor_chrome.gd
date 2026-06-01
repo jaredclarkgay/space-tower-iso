@@ -26,10 +26,12 @@ static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18,
 		shaft_half: float = 0.0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "SlabBody"
-	# Layer 2 = "regular floor": the player drops this from its mask while
-	# rising, so it can jump UP through to the floor above (no ceiling bonk).
-	# The Canopy slab stays on layer 1 (a solid glass ceiling).
-	body.collision_layer = 2
+	# Layer 2 = "regular floor". The tower (tower_controller.gd) toggles this
+	# body's collision_layer per the player's current floor: floors ABOVE you
+	# are switched off so a jump arcs straight up through the ceiling and falls
+	# back to the SAME floor (you never land on the floor above — vertical
+	# travel is stairs + elevator). The Canopy slab is built separately on
+	# layer 1 and is never toggled, so it stays a solid glass ceiling. See F-023.
 	parent.add_child(body)
 	var mat := _flat_material(color)
 	var thick: float = c.FLOOR_3D_SLAB_THICKNESS
@@ -165,7 +167,12 @@ static func build_extension_grid(parent: Node3D, c: Node) -> void:
 static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	var size: float = float(c.ELEVATOR_RADIUS) * 2.0 * c.GARDEN_PLOT_SIZE
 	var chamfer: float = c.ELEVATOR_CHAMFER
-	var height: float = c.WALL_HEIGHT * c.ELEVATOR_HEIGHT_MULT
+	# One story tall so each floor's core TILES seamlessly into a single
+	# continuous shaft in the stacked tower. (It used to be WALL_HEIGHT *
+	# ELEVATOR_HEIGHT_MULT ≈ 7.5 m — taller than the 6 m story — so the core
+	# poked ~1.5 m up into the floor above and its cap landed at head height;
+	# the player's hat clipped it when standing on the car. See F-022.)
+	var height: float = float(c.FLOOR_3D_STORY_HEIGHT)
 	var side_length: float = size - 2.0 * chamfer
 
 	var body := StaticBody3D.new()
@@ -180,22 +187,12 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	cap_mat.roughness = 0.55
 	cap_mat.metallic = 0.4
 
-	# Outer "halo ring" at the top, matching the chamfered footprint.
-	var top := MeshInstance3D.new()
-	top.name = "TopCap"
-	var top_mesh := CylinderMesh.new()
-	top_mesh.top_radius = size * 0.5 * 0.92
-	top_mesh.bottom_radius = size * 0.5 * 0.92
-	top_mesh.height = 0.2
-	top_mesh.radial_segments = 8
-	top.mesh = top_mesh
-	top.material_override = cap_mat
-	top.position.y = height + 0.1
-	top.rotation.y = PI * 0.125  # rotate to align flat sides with N/S/E/W
-	body.add_child(top)
+	# No top "halo ring" cap: in the stacked tower the cores tile into one
+	# continuous shaft, so a per-floor cap would sit mid-shaft (and the
+	# floor-below's cap used to land at head height — see F-022).
 
-	# Inner translucent core column — taller than wall height so it pokes
-	# above the ceiling, suggesting it continues to other floors.
+	# Inner translucent core column — spans the full story so stacked floors'
+	# columns meet flush, reading as one continuous shaft top to bottom.
 	var inner := MeshInstance3D.new()
 	inner.name = "InnerCore"
 	var inner_mesh := CylinderMesh.new()

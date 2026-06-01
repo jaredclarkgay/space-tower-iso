@@ -7,7 +7,7 @@
       "category": "gdscript_parse",
       "summary": "GDScript :=  walrus inference fails on expressions involving autoload property accesses, because @onready var _c: Node = get_node(\"/root/Constants\") types autoload property reads as Variant.",
       "trigger": "First headless --import after writing iso_floor.gd. Four parse errors at lines 57, 59, 75, 76: `Cannot infer the type of <var> because the value doesn't have a set type.`",
-      "fix": "Change `var x := _c.SOMETHING * 0.5` → `var x: float = _c.SOMETHING * 0.5`. Explicit annotation when reading autoload-derived numeric values.",
+      "fix": "Change `var x := _c.SOMETHING * 0.5` \u2192 `var x: float = _c.SOMETHING * 0.5`. Explicit annotation when reading autoload-derived numeric values.",
       "rule_added": "rules/gdscript_autoload_typing.md (TODO)",
       "files_touched": [
         "scenes/iso_prototype/iso_floor.gd"
@@ -20,7 +20,7 @@
       "category": "godot_3d_transform",
       "summary": "DirectionalLight3D transform matrix authored by hand pointed the light direction the wrong way. In Godot, the cast direction is `-basis_z`, not `+basis_z`. The initial transform had basis_z with a positive Y component, which made the light shine up at the ceiling.",
       "trigger": "Internal review while writing iso_prototype.tscn. Caught before the operator opened the scene.",
-      "fix": "Replaced with a simple Rx(-60°) rotation matrix: `Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)`. Light direction is now (0, -0.866, -0.5) — mostly down with a slight forward tilt.",
+      "fix": "Replaced with a simple Rx(-60\u00b0) rotation matrix: `Transform3D(1, 0, 0, 0, 0.5, -0.866, 0, 0.866, 0.5, 0, 8, 0)`. Light direction is now (0, -0.866, -0.5) \u2014 mostly down with a slight forward tilt.",
       "rule_added": "rules/godot_directional_light.md (TODO)",
       "files_touched": [
         "scenes/iso_prototype/iso_prototype.tscn"
@@ -31,9 +31,9 @@
       "phase": 3,
       "date": "2026-04-26",
       "category": "godot_3d_camera_framing",
-      "summary": "Camera was placed at pivot-local (0, 0, 20) and tilted -30° on X. With that tilt, the look ray from (0, 0, 20) toward the camera's -Z misses the pivot origin entirely — the ray reaches the y=0 plane at point (0, 0, 17.32) in pivot-local frame, which after the pivot's 45° Y rotation puts the look target at world (12.25, 0, 12.25), well off the floor. Result: floor crowded into the upper-left of the viewport, mostly black space.",
+      "summary": "Camera was placed at pivot-local (0, 0, 20) and tilted -30\u00b0 on X. With that tilt, the look ray from (0, 0, 20) toward the camera's -Z misses the pivot origin entirely \u2014 the ray reaches the y=0 plane at point (0, 0, 17.32) in pivot-local frame, which after the pivot's 45\u00b0 Y rotation puts the look target at world (12.25, 0, 12.25), well off the floor. Result: floor crowded into the upper-left of the viewport, mostly black space.",
       "trigger": "Operator reported the game showing only a sliver of the scene in the upper-left after pressing F5 in Godot.app. Confirmed by reviewing screenshot.",
-      "fix": "Compute camera local position from the tilt angle and a CAMERA_DISTANCE constant: position = (0, d·sin|θ|, d·cos|θ|). For θ=-30°, d=20 → (0, 10, 17.32). With that position, the camera's -30° tilt makes its look ray pass exactly through the pivot's origin. Also bumped CAMERA_ORTHO_SIZE_DEFAULT from 14 to 18 for more breathing room around the 24 m floor. Logic now lives in iso_camera.gd `_ready()`, computed from constants so future tilt changes don't require manual position re-derivation. Updated the .tscn camera transform to match for editor-preview consistency.",
+      "fix": "Compute camera local position from the tilt angle and a CAMERA_DISTANCE constant: position = (0, d\u00b7sin|\u03b8|, d\u00b7cos|\u03b8|). For \u03b8=-30\u00b0, d=20 \u2192 (0, 10, 17.32). With that position, the camera's -30\u00b0 tilt makes its look ray pass exactly through the pivot's origin. Also bumped CAMERA_ORTHO_SIZE_DEFAULT from 14 to 18 for more breathing room around the 24 m floor. Logic now lives in iso_camera.gd `_ready()`, computed from constants so future tilt changes don't require manual position re-derivation. Updated the .tscn camera transform to match for editor-preview consistency.",
       "rule_added": "rules/godot_camera_framing.md (TODO)",
       "files_touched": [
         "autoloads/constants.gd",
@@ -87,7 +87,7 @@
       "phase": "iteration",
       "date": "2026-04-29",
       "category": "godot_tween_property_3d",
-      "summary": "Tween targeted `modulate:a` on a MeshInstance3D (the Cody arrival light column). MeshInstance3D doesn't have `modulate` — that's a CanvasItem (2D) property. Result: a runtime error per Cody arrival.",
+      "summary": "Tween targeted `modulate:a` on a MeshInstance3D (the Cody arrival light column). MeshInstance3D doesn't have `modulate` \u2014 that's a CanvasItem (2D) property. Result: a runtime error per Cody arrival.",
       "trigger": "Operator screenshot showed `iso_robot.gd:180 @ _spawn_arrival_light(): The tweened property \"modulate:a\" does not exist in object \"ArrivalLight:<MeshInstance3D#...>\"`.",
       "fix": "Fade 3D meshes by tweening the StandardMaterial3D's albedo_color:a and emission_energy_multiplier directly. Keep a reference to the material so the tween can hit it.",
       "rule_added": "rules/godot_3d_fade.md",
@@ -101,8 +101,8 @@
       "date": "2026-04-30",
       "category": "godot_button_focus_default",
       "summary": "Button.focus_mode defaults to FOCUS_ALL, so any Button can grab keyboard focus. Godot's built-in `ui_accept` action is bound to Space and Enter; this project also binds Space to `jump`. Pressing Space in-game globally fires ui_accept, and any focused Button activates its `pressed` signal. The first Space the operator pressed for jump was opening the Schematics modal.",
-      "trigger": "Operator screenshots showed CodySchematic modal open at game start despite a `visible = false` baseline. Headless quit-after runs were silent — only happened in editor sessions where the player pressed Space.",
-      "fix": "focus_mode = 0 (FOCUS_NONE) on the SchematicsButton in the .tscn. Mouse-only — Space/Enter can never activate it. Compounded with stale Godot editor cache (see F-009) which made the diagnosis take a few rounds.",
+      "trigger": "Operator screenshots showed CodySchematic modal open at game start despite a `visible = false` baseline. Headless quit-after runs were silent \u2014 only happened in editor sessions where the player pressed Space.",
+      "fix": "focus_mode = 0 (FOCUS_NONE) on the SchematicsButton in the .tscn. Mouse-only \u2014 Space/Enter can never activate it. Compounded with stale Godot editor cache (see F-009) which made the diagnosis take a few rounds.",
       "rule_added": "rules/godot_button_focus.md",
       "files_touched": [
         "scenes/iso_prototype/iso_prototype.tscn"
@@ -114,7 +114,7 @@
       "date": "2026-04-30",
       "category": "godot_editor_cache",
       "summary": "Godot's editor caches scene state in .godot/ (imports, script class registry, scene metadata). After multiple .tscn edits + the editor staying open, the running game used a stale in-memory state of the scene that diverged from disk. Disk had `visible = false` on CodySchematic; running game opened it anyway because cache held an older version.",
-      "trigger": "Three rounds of fixes (.tscn visible=false, _ready early visible=false, focus_mode=0) failed to suppress the modal. Headless --quit-after never reproduced. Cache theory: clear .godot/ + close-and-reopen Godot → symptom gone.",
+      "trigger": "Three rounds of fixes (.tscn visible=false, _ready early visible=false, focus_mode=0) failed to suppress the modal. Headless --quit-after never reproduced. Cache theory: clear .godot/ + close-and-reopen Godot \u2192 symptom gone.",
       "fix": "rm -rf .godot/ then close and reopen Godot. The editor re-imports everything fresh, ~10-20 s on first open. Disk fixes that were always correct now actually take effect.",
       "rule_added": "rules/godot_editor_cache.md",
       "files_touched": []
@@ -138,7 +138,7 @@
       "phase": "iteration",
       "date": "2026-05-03",
       "category": "godot_script_uid_missing",
-      "summary": "Newly-created GDScript files don't have a `.uid` companion until Godot has imported the project. `.tscn` ExtResource entries that reference a script via path-without-uid silently fall back to a Node-with-no-script when the .uid file doesn't exist on disk yet. The dispenser appeared as an empty Node3D — no chassis, no windows, no interaction surface — even though the script was correct.",
+      "summary": "Newly-created GDScript files don't have a `.uid` companion until Godot has imported the project. `.tscn` ExtResource entries that reference a script via path-without-uid silently fall back to a Node-with-no-script when the .uid file doesn't exist on disk yet. The dispenser appeared as an empty Node3D \u2014 no chassis, no windows, no interaction surface \u2014 even though the script was correct.",
       "trigger": "Operator screenshot showed the seed dispenser was completely missing from the floor at game start. Headless --quit-after passed because the bare Node3D didn't error.",
       "fix": "Run `godot --headless --path . --import` once after creating a new .gd file to generate its .uid, then pin the uid in the .tscn ExtResource line: `[ext_resource type=\"Script\" uid=\"uid://...\" path=\"...\" id=\"...\"]`. Confirm by `cat scenes/.../foo.gd.uid` after import.",
       "rule_added": "rules/godot_script_uid.md",
@@ -152,9 +152,9 @@
       "phase": "iteration",
       "date": "2026-05-05",
       "category": "animation_pose_direction_mismatch",
-      "summary": "Charge pose for the player's tuck-and-flip jump had arms swept back behind the body. Operator caught this reads as a backflip wind-up cue (you cock arms back to swing forward + rotate backward). But the actual flip rotation in physics is forward (front flip), so the takeoff felt surprising — the visual anticipation didn't match the upcoming motion.",
+      "summary": "Charge pose for the player's tuck-and-flip jump had arms swept back behind the body. Operator caught this reads as a backflip wind-up cue (you cock arms back to swing forward + rotate backward). But the actual flip rotation in physics is forward (front flip), so the takeoff felt surprising \u2014 the visual anticipation didn't match the upcoming motion.",
       "trigger": "Operator after the articulated-body pose system landed: \"the front flip isn't really making sense, because it looks like he's gearing up for a backflip, but then the physics lead into a front flip\".",
-      "fix": "Retuned POSE_CHARGE: arms_x 1.65 → -2.20 (arms reach UP and FORWARD, like a diver loading the leap), torso_x 0.40 → 0.28 (less bent, more upright loaded pose), head_x 0.22 → 0.18. Arms reaching up-forward at top of charge naturally flow into the body rotating forward at takeoff.",
+      "fix": "Retuned POSE_CHARGE: arms_x 1.65 \u2192 -2.20 (arms reach UP and FORWARD, like a diver loading the leap), torso_x 0.40 \u2192 0.28 (less bent, more upright loaded pose), head_x 0.22 \u2192 0.18. Arms reaching up-forward at top of charge naturally flow into the body rotating forward at takeoff.",
       "rule_added": "rules/animation_pose_alignment.md",
       "files_touched": [
         "scenes/iso_prototype/iso_player.gd"
@@ -165,9 +165,9 @@
       "phase": "iteration",
       "date": "2026-05-05",
       "category": "procedural_locomotion_foot_slide",
-      "summary": "Walk + run cycle initially used a fixed cycle rate (e.g. WALK_CYCLE_RATE = 9 rad/s) with a pure sin-based leg rotation. Feet appeared to slide across the ground because (1) the cycle didn't match body speed (cadence too slow for stride distance covered), and (2) the sin trajectory keeps the foot moving even at the rotational extents — there's no \"plant\" phase where the foot is stationary in world space.",
+      "summary": "Walk + run cycle initially used a fixed cycle rate (e.g. WALK_CYCLE_RATE = 9 rad/s) with a pure sin-based leg rotation. Feet appeared to slide across the ground because (1) the cycle didn't match body speed (cadence too slow for stride distance covered), and (2) the sin trajectory keeps the foot moving even at the rotational extents \u2014 there's no \"plant\" phase where the foot is stationary in world space.",
       "trigger": "Operator after the initial walk/run cycle landed: \"There seems to be this slidy nature to how he moves around, this feels like an animation principle he's defying. The leg should land where it's supposed to and not slide.\"",
-      "fix": "Two-part: (a) derive cycle_rate from current speed and stride amplitude — `cycle_rate = π · speed / (2 · amp_z)` where `amp_z = LEG_LENGTH · sin(amplitude)` — so plant half-cycle covers exactly stride distance. (b) Replace pure sin with piecewise foot trajectory: SWING phase (foot arcs from -amp_z to +amp_z through air with sin-based lift), PLANT phase (foot z-relative marches linearly from forward to back, exactly cancelling body velocity → foot fixed in world). Solve leg rotation from foot_z via asin (single rigid leg = 1-DOF inverse-sin IK).",
+      "fix": "Two-part: (a) derive cycle_rate from current speed and stride amplitude \u2014 `cycle_rate = \u03c0 \u00b7 speed / (2 \u00b7 amp_z)` where `amp_z = LEG_LENGTH \u00b7 sin(amplitude)` \u2014 so plant half-cycle covers exactly stride distance. (b) Replace pure sin with piecewise foot trajectory: SWING phase (foot arcs from -amp_z to +amp_z through air with sin-based lift), PLANT phase (foot z-relative marches linearly from forward to back, exactly cancelling body velocity \u2192 foot fixed in world). Solve leg rotation from foot_z via asin (single rigid leg = 1-DOF inverse-sin IK).",
       "rule_added": "rules/godot_locomotion_cycle.md",
       "files_touched": [
         "scenes/iso_prototype/iso_player.gd"
@@ -178,7 +178,7 @@
       "phase": "iteration",
       "date": "2026-05-03",
       "category": "robot_diagonal_park_intersect",
-      "summary": "Cody's arrival park position was computed as `Vector3(sin(yaw), 0, cos(yaw)) * offset`. With the camera default yaw flipped to -135° this puts him at the diagonal corner of the elevator (position ≈ (-1.91, _, -1.91)), which is INSIDE the 4×4 elevator core (extends to ±2 on each axis). Cody's chassis intersected the StaticBody3D shaft on emergence.",
+      "summary": "Cody's arrival park position was computed as `Vector3(sin(yaw), 0, cos(yaw)) * offset`. With the camera default yaw flipped to -135\u00b0 this puts him at the diagonal corner of the elevator (position \u2248 (-1.91, _, -1.91)), which is INSIDE the 4\u00d74 elevator core (extends to \u00b12 on each axis). Cody's chassis intersected the StaticBody3D shaft on emergence.",
       "trigger": "Operator screenshot of Cody's arrival showing his chassis overlapping the cyan elevator core: \"Cody is intersect the edge of the wall when he emerges.\"",
       "fix": "Snap the camera-side direction vector to its dominant cardinal axis (sign(x) or sign(z)) rather than using the raw diagonal; bumped park_offset = elev_size * 0.5 + 1.0 (was 0.7) for clear chassis clearance. Auto-tracks if CAMERA_YAW_DEG_INITIAL changes later.",
       "rule_added": null,
@@ -193,7 +193,7 @@
       "category": "gdscript_identifier_shadow",
       "summary": "GDScript silently shadows built-in functions and Control properties when local variables or method parameters reuse those names. `tan` shadows the trig built-in; `scale` shadows Control.scale; method `plant()` was shadowed by a local `plant` variable inside another method on the same class. Reload triggers a warning per shadow but compiles, so the project runs while accumulating noise.",
       "trigger": "Operator screenshot of Godot output panel showing 10 GDScript::reload warnings: shadowed `tan`, `scale`, `plant`, plus unused-var noise.",
-      "fix": "Rename locals to domain-specific names: `tan` → `tangent_dir`, `scale` parameter on _draw_arrow → `arrow_scale`, `plant` local → `plant_visual`. Use `@warning_ignore(\"integer_division\")` only when the int division is intentional. No behaviour change.",
+      "fix": "Rename locals to domain-specific names: `tan` \u2192 `tangent_dir`, `scale` parameter on _draw_arrow \u2192 `arrow_scale`, `plant` local \u2192 `plant_visual`. Use `@warning_ignore(\"integer_division\")` only when the int division is intentional. No behaviour change.",
       "rule_added": "rules/gdscript_builtin_shadow.md",
       "files_touched": [
         "scenes/shared/floor_chrome.gd",
@@ -209,9 +209,9 @@
       "phase": "iteration",
       "date": "2026-05-07",
       "category": "godot_collision_shape_too_aggressive",
-      "summary": "The elevator core was wrapped in a single BoxShape3D matching its full footprint. That made the corners solid (good) but also blocked the cardinal faces (bad) — meaning the player physically could not walk INTO the elevator even when the doors animated open. The visual design said 'four passable doors on the cardinal faces, four solid chamfer panels on the corners,' but the collision said 'all faces blocked.'",
+      "summary": "The elevator core was wrapped in a single BoxShape3D matching its full footprint. That made the corners solid (good) but also blocked the cardinal faces (bad) \u2014 meaning the player physically could not walk INTO the elevator even when the doors animated open. The visual design said 'four passable doors on the cardinal faces, four solid chamfer panels on the corners,' but the collision said 'all faces blocked.'",
       "trigger": "Operator: 'my character should be able to enter the center of the elevator.' Implementing the rideable behaviour required removing the box collision and re-adding selective collision per chamfer panel only.",
-      "fix": "Replace the single BoxShape3D wrapping the elevator core with four thin BoxShape3D collision shapes — one per chamfer panel, oriented along the chamfer's tangent axis. Cardinal-face areas (where doors live) have no collision, so the player walks through the door opening when the panels slide apart. Doors themselves are visual-only (no collision); the wall is the chamfer panels.",
+      "fix": "Replace the single BoxShape3D wrapping the elevator core with four thin BoxShape3D collision shapes \u2014 one per chamfer panel, oriented along the chamfer's tangent axis. Cardinal-face areas (where doors live) have no collision, so the player walks through the door opening when the panels slide apart. Doors themselves are visual-only (no collision); the wall is the chamfer panels.",
       "rule_added": null,
       "files_touched": [
         "scenes/shared/floor_chrome.gd"
@@ -222,9 +222,9 @@
       "phase": "iteration",
       "date": "2026-05-28",
       "category": "godot_label3d_orthographic_zoom",
-      "summary": "Label3D prompts (E, P, Travel, chooser items) authored at pixel_size = 0.005 read at ~16 px on a 1080p display at the iso camera's default orthographic size, and shrink linearly as the operator wheel-zooms out. Effective on-screen height is `font_size × pixel_size × screen_h / camera.size`, so constant pixel_size = vanishing labels at wide framings.",
+      "summary": "Label3D prompts (E, P, Travel, chooser items) authored at pixel_size = 0.005 read at ~16 px on a 1080p display at the iso camera's default orthographic size, and shrink linearly as the operator wheel-zooms out. Effective on-screen height is `font_size \u00d7 pixel_size \u00d7 screen_h / camera.size`, so constant pixel_size = vanishing labels at wide framings.",
       "trigger": "Operator: interaction labels disappeared whenever the camera was anywhere but max zoom. Confirmed by screenshot of the Arboretum showing the elevator E prompt rendered too small to read.",
-      "fix": "Built scenes/shared/label_scaler.gd as a static-method module. Each prompt-owning controller calls LabelScaler.update(label, base_px, camera, CAMERA_ORTHO_SIZE_DEFAULT) per frame; pixel_size is set to base_px × (camera.size / default_ortho). Tuned base values per use (LABEL_BASE_PX_BIG = 0.014 for primary letter prompts, _MID = 0.014 for body labels, _SMALL = 0.011 for hint lines). On-screen height now constant regardless of zoom.",
+      "fix": "Built scenes/shared/label_scaler.gd as a static-method module. Each prompt-owning controller calls LabelScaler.update(label, base_px, camera, CAMERA_ORTHO_SIZE_DEFAULT) per frame; pixel_size is set to base_px \u00d7 (camera.size / default_ortho). Tuned base values per use (LABEL_BASE_PX_BIG = 0.014 for primary letter prompts, _MID = 0.014 for body labels, _SMALL = 0.011 for hint lines). On-screen height now constant regardless of zoom.",
       "rule_added": "rules/godot_label3d_orthographic_zoom.md",
       "files_touched": [
         "scenes/shared/label_scaler.gd",
@@ -239,9 +239,9 @@
       "phase": "iteration",
       "date": "2026-05-28",
       "category": "godot_input_keycode_macos",
-      "summary": "Elevator chooser used `event.keycode` comparisons in `_input(InputEventKey)` to detect 1..N number-key picks. On the operator's macOS keyboard the events arrived with keycode = 0 and only physical_keycode populated, so no destination ever matched. The chooser appeared on screen but couldn't be advanced — a softlock.",
+      "summary": "Elevator chooser used `event.keycode` comparisons in `_input(InputEventKey)` to detect 1..N number-key picks. On the operator's macOS keyboard the events arrived with keycode = 0 and only physical_keycode populated, so no destination ever matched. The chooser appeared on screen but couldn't be advanced \u2014 a softlock.",
       "trigger": "Operator: 'pressing 1/2 to pick the destination does nothing.' Reproduced by adding a print of keycode/physical_keycode/unicode on key press.",
-      "fix": "Two-layer fix. Primary path: polled `Input.is_action_just_pressed(seed_select_N)` each frame — InputMap actions consult all event sources (keycode, physical_keycode, unicode), so the polled action fires regardless of which field the OS populated. The seed_select_1..6 actions were already bound to KEY_1..KEY_6 in project.godot, so no new bindings were needed. Secondary path: `_input` event handler now checks BOTH event.keycode AND event.physical_keycode, and calls set_input_as_handled() to claim the event. ESC handling moved to ui_cancel polling for symmetry.",
+      "fix": "Two-layer fix. Primary path: polled `Input.is_action_just_pressed(seed_select_N)` each frame \u2014 InputMap actions consult all event sources (keycode, physical_keycode, unicode), so the polled action fires regardless of which field the OS populated. The seed_select_1..6 actions were already bound to KEY_1..KEY_6 in project.godot, so no new bindings were needed. Secondary path: `_input` event handler now checks BOTH event.keycode AND event.physical_keycode, and calls set_input_as_handled() to claim the event. ESC handling moved to ui_cancel polling for symmetry.",
       "rule_added": "rules/godot_input_keynum_macos.md",
       "files_touched": [
         "scenes/shared/elevator_handler.gd"
@@ -252,9 +252,9 @@
       "phase": "iteration",
       "date": "2026-05-28",
       "category": "discrete_collision_curve_approximation",
-      "summary": "Spiral staircase v1 approximated a 360° helix with 8 tilted BoxShape3D collision ramps, each spanning 45° of arc. Adjacent boxes met at their centre-line corners but their outer arcs diverged — the box's tangent direction is constant, so the outer arc opens away from the next box's outer arc, leaving a wedge-shaped gap of arc-length ≈ R_outer · (45° - arctan(tread_depth/R_outer)). The player kept walking into invisible voids at the outer edge. Separately, the camera-relative WASD input mapping fought the spiral's continuously curving heading — keeping the player on the ramp required micro-adjusting input every step.",
-      "trigger": "Operator: 'the stairs are hard to navigate AND nothing happens at the top.' Combined with no scene-swap trigger at the top — the spiral led to ramp-air where Floor 4 should be.",
-      "fix": "v2 attempted to close the gaps by bumping segment count 8 → 32 and using tangential overlap = 40% of arc length (instead of an absolute 0.04 m), inner radius 2.30 → 2.55 to clear the chamfer corners. Navigation improved but the curving-heading-vs-camera-input mismatch remained. v3 (shipped): delete the spiral entirely, replace with a single straight inclined ramp going south from the elevator (5.5 m run × 3 m rise ≈ 28° slope, 1.6 m wide). One StaticBody3D, one BoxMesh, no gaps possible. WASD now aligns with the staircase direction. Polled scene-swap triggers at the top point on Floor 3 and the bottom point on Floor 4 close the loop; GameState.arrived_via_stairs mirrors the elevator's in_transit flag.",
+      "summary": "Spiral staircase v1 approximated a 360\u00b0 helix with 8 tilted BoxShape3D collision ramps, each spanning 45\u00b0 of arc. Adjacent boxes met at their centre-line corners but their outer arcs diverged \u2014 the box's tangent direction is constant, so the outer arc opens away from the next box's outer arc, leaving a wedge-shaped gap of arc-length \u2248 R_outer \u00b7 (45\u00b0 - arctan(tread_depth/R_outer)). The player kept walking into invisible voids at the outer edge. Separately, the camera-relative WASD input mapping fought the spiral's continuously curving heading \u2014 keeping the player on the ramp required micro-adjusting input every step.",
+      "trigger": "Operator: 'the stairs are hard to navigate AND nothing happens at the top.' Combined with no scene-swap trigger at the top \u2014 the spiral led to ramp-air where Floor 4 should be.",
+      "fix": "v2 attempted to close the gaps by bumping segment count 8 \u2192 32 and using tangential overlap = 40% of arc length (instead of an absolute 0.04 m), inner radius 2.30 \u2192 2.55 to clear the chamfer corners. Navigation improved but the curving-heading-vs-camera-input mismatch remained. v3 (shipped): delete the spiral entirely, replace with a single straight inclined ramp going south from the elevator (5.5 m run \u00d7 3 m rise \u2248 28\u00b0 slope, 1.6 m wide). One StaticBody3D, one BoxMesh, no gaps possible. WASD now aligns with the staircase direction. Polled scene-swap triggers at the top point on Floor 3 and the bottom point on Floor 4 close the loop; GameState.arrived_via_stairs mirrors the elevator's in_transit flag.",
       "rule_added": null,
       "files_touched": [
         "scenes/shared/spiral_staircase.gd",
@@ -270,9 +270,9 @@
       "phase": "iteration",
       "date": "2026-05-31",
       "category": "godot_architecture",
-      "summary": "Scene-swap floors over an open elevator shaft hole caused an infinite respawn loop. The elevator/stairs used a polled trigger volume at a fixed point to swap scenes; with the central shaft cut open, the player falling through the hole would re-enter the receiving floor positioned over ITS hole and fall again, swapping back and forth forever. Separate-scene floors fundamentally can't model 'fall from floor N to floor N-1' — there is no continuous space between them.",
+      "summary": "Scene-swap floors over an open elevator shaft hole caused an infinite respawn loop. The elevator/stairs used a polled trigger volume at a fixed point to swap scenes; with the central shaft cut open, the player falling through the hole would re-enter the receiving floor positioned over ITS hole and fall again, swapping back and forth forever. Separate-scene floors fundamentally can't model 'fall from floor N to floor N-1' \u2014 there is no continuous space between them.",
       "trigger": "Cutting the elevator shaft open through Floors 2 & 3 so a physical car could travel it. The pre-existing scene-swap-on-trigger model couldn't represent a body crossing a floor boundary mid-air.",
-      "fix": "Collapse the four scene-swap floors into ONE stacked world (scenes/tower/tower.tscn + tower_controller.gd). Each floor is a child Node3D whose controller builds geometry in LOCAL space (slab top at local y=0); the controller sets node.position.y = (level-1)*FLOOR_3D_STORY_HEIGHT so floors need no base_y awareness. Gravity fall-through now carries the player floor-to-floor in continuous space — no swap, no respawn loop. Floor visibility is gated to current-floor-and-below and only re-evaluated when grounded. See F-021 for the one-way-up ceiling that the open shaft required.",
+      "fix": "Collapse the four scene-swap floors into ONE stacked world (scenes/tower/tower.tscn + tower_controller.gd). Each floor is a child Node3D whose controller builds geometry in LOCAL space (slab top at local y=0); the controller sets node.position.y = (level-1)*FLOOR_3D_STORY_HEIGHT so floors need no base_y awareness. Gravity fall-through now carries the player floor-to-floor in continuous space \u2014 no swap, no respawn loop. Floor visibility is gated to current-floor-and-below and only re-evaluated when grounded. See F-021 for the one-way-up ceiling that the open shaft required.",
       "rule_added": null,
       "files_touched": [
         "scenes/tower/tower.tscn",
@@ -286,10 +286,37 @@
       "phase": "iteration",
       "date": "2026-05-31",
       "category": "godot_collision",
-      "summary": "In the stacked world, a solid slab on the floor above blocked upward jumps — the player bonked their head and could never jump up through an aperture ring to climb. But making ALL slabs non-blocking would drop the player through the floor they stand on, and the glass Canopy ceiling SHOULD block.",
+      "summary": "In the stacked world, a solid slab on the floor above blocked upward jumps \u2014 the player bonked their head and could never jump up through an aperture ring to climb. But making ALL slabs non-blocking would drop the player through the floor they stand on, and the glass Canopy ceiling SHOULD block.",
       "trigger": "Adding jump-up-through-a-ring traversal once floors coexisted in one world. Needed selective pass-through: rise through regular floors, land on them from above, but still hit the canopy ceiling.",
       "fix": "Two collision layers + velocity-gated mask. Regular floor slabs on layer 2; the canopy ceiling on layer 1 (always solid). Player drops layer 2 from its mask while rising (set_collision_mask_value(2, velocity.y <= 0.1) each frame before move_and_slide), re-enables it falling so it lands on every floor from above. Pairs with grounded-only floor-change gating so a jump never reveals the floor above or moves the camera.",
       "rule_added": "rules/godot_one_way_collision_passthrough.md",
+      "files_touched": [
+        "scenes/floor_2/iso_player.gd",
+        "scenes/tower/tower_controller.gd"
+      ]
+    },
+    {
+      "id": "F-022",
+      "phase": "iteration",
+      "date": "2026-05-31",
+      "category": "godot_geometry_stacked",
+      "summary": "In the unified stacked tower, the elevator core was WALL_HEIGHT*ELEVATOR_HEIGHT_MULT (~7.5 m) tall \u2014 taller than the 6 m story \u2014 so each floor's core poked ~1.5 m UP into the floor above. Because floors below are visible, the floor-below's core TopCap (an opaque grey disc, r=1.84) landed at ~head height on the floor above; the player's hardhat (crown ~1.8 m) clipped through it when standing on the elevator car. This 'poke above the ceiling to suggest it continues' was a deliberate feature in the OLD separate-scene design (the ceiling was invisible there) and became a bug once floors coexist in one world.",
+      "trigger": "Operator playtest: 'my head/hat pokes through the ceiling of the elevator room when i walk into it.' Reproduced via the windowed screenshot harness with the player centred on the Garden car (profile cam).",
+      "fix": "build_elevator_core now sizes the core to exactly one story (height = FLOOR_3D_STORY_HEIGHT) so per-floor cores TILE into one continuous shaft instead of overlapping into the room above, and the intruding TopCap halo disc was removed. The inner translucent column + chamfer panels now span exactly one story and meet flush at each floor seam. No door logic depended on the core height (the returned dict's 'height' key is vestigial \u2014 no ElevatorHandler is instantiated in the stacked tower; only 'corners' + 'inner_mat' are consumed).",
+      "rule_added": "none (design/geometry fix; the lesson \u2014 'poke-through-ceiling cues from a separate-scene era become intrusions once floors share one world' \u2014 is captured in the session log)",
+      "files_touched": [
+        "scenes/shared/floor_chrome.gd"
+      ]
+    },
+    {
+      "id": "F-023",
+      "phase": "iteration",
+      "date": "2026-05-31",
+      "category": "godot_collision",
+      "summary": "Supersedes F-021's jump model. The velocity-gated mask (player drops layer 2 while rising, re-enables falling) let the player jump UP through a ceiling and then LAND on the floor above \u2014 operator did NOT want that. Desired: jumps are unobstructed by ceilings (jump as high as you can) but always fall back to the SAME floor; the only narrative exception is Floor 3's glass ceiling (Floor 4 slab), which should still block.",
+      "trigger": "Operator playtest feedback: 'I don't want to be able to land on the floor above, I just don't want to be obstructed by the ceiling ... jump as high as I can unless there's a narrative reason to block the jump (like floor 3's glass ceiling).'",
+      "fix": "Moved gating from the player's mask to the floor slabs themselves. The player now keeps its layer-2 mask ON at all times (removed the per-frame set_collision_mask_value toggle). tower_controller.gd caches each regular floor's 'SlabBody' and, in _update, sets its collision_layer to 2 when level<=current_level and 0 when above. Because _current_level only changes when grounded, the floor-above slabs stay non-colliding for the whole airtime \u2192 the jump arcs up through them and lands back on the takeoff floor. The Canopy slab ('TiledSlabBody', layer 1) is never found/toggled, so it stays solid (bonk). Verified with a physics harness: Floor 2 jump peaks ~9 m unobstructed and lands on 2 (no bonk); Floor 3 jump bonks the canopy and lands on 3.",
+      "rule_added": "rules/godot_one_way_collision_passthrough.md (UPDATE: per-floor slab-layer gating replaces velocity-gated player mask; gate on the bodies, not the mask, when 'my floor solid / floors above pass-through / one ceiling always solid' is needed)",
       "files_touched": [
         "scenes/floor_2/iso_player.gd",
         "scenes/tower/tower_controller.gd"
