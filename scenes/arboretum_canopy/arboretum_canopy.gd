@@ -195,6 +195,18 @@ func _build_tiled_slab_with_holes() -> void:
 	_tiles_node.name = "Tiles"
 	body.add_child(_tiles_node)
 
+	# Invisible shaft grate over the central elevator opening (the Canopy isn't an
+	# elevator stop, but you can tube-hop up here and walk to the centre — don't
+	# drop down the open shaft). Collision-only, so it never blocks the cabin view;
+	# the car (static) + a ride (transform-owned) pass through it freely.
+	var grate := CollisionShape3D.new()
+	grate.name = "ShaftGrate"
+	var grate_shape := BoxShape3D.new()
+	grate_shape.size = Vector3(2.0 * elev_radius_m, slab_thickness, 2.0 * elev_radius_m)
+	grate.shape = grate_shape
+	grate.position = Vector3(0, -slab_thickness * 0.5, 0)
+	body.add_child(grate)
+
 	for ix in range(grid):
 		for iz in range(grid):
 			var x_world: float = -half + (ix + 0.5) * plot

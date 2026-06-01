@@ -52,6 +52,20 @@ static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18,
 	_add_slab_piece(body, mat, Vector3(strip, thick, 2.0 * s), Vector3(-(s + strip * 0.5), y, 0))
 	_add_slab_piece(body, mat, Vector3(strip, thick, 2.0 * s), Vector3(s + strip * 0.5, y, 0))
 
+	# Invisible "shaft grate" across the opening so the player can't fall down the
+	# open shaft when the car is parked elsewhere — they stand here and call/ride
+	# the elevator instead. Collision-ONLY (no mesh), so it never blocks the view
+	# of the cabin moving in the shaft. It's a child of SlabBody, so the tower
+	# gates it exactly like the slab (off for floors above → a jump still passes up
+	# through the shaft, and a ride owns the player's transform so it passes too).
+	var grate := CollisionShape3D.new()
+	grate.name = "ShaftGrate"
+	var grate_shape := BoxShape3D.new()
+	grate_shape.size = Vector3(2.0 * s, thick, 2.0 * s)
+	grate.shape = grate_shape
+	grate.position = Vector3(0, y, 0)
+	body.add_child(grate)
+
 
 # One shaft-wall panel on a cardinal face. `pos_xz` is the panel centre on the XZ
 # plane (y ignored); width runs along `tangent`, thickness along `normal`.
@@ -221,14 +235,18 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	inner_mesh.height = height
 	inner_mesh.radial_segments = 8
 	inner.mesh = inner_mesh
+	# Glass shaft column — same feel as the Canopy glass, so you can watch the
+	# elevator cabin rise + fall through it. The grey chamfer corners + door-frame
+	# beams (below) stay opaque; only this enclosing tube is glass.
 	var inner_mat := StandardMaterial3D.new()
-	inner_mat.albedo_color = Color(0.20, 0.25, 0.34, 0.55)
+	inner_mat.albedo_color = Color(0.80, 0.86, 0.92, 0.18)
 	inner_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	inner_mat.roughness = 0.3
-	inner_mat.metallic = 0.5
+	inner_mat.roughness = 0.10
+	inner_mat.metallic = 0.0
+	# A whisper of blue inner light so the tube reads as live, not dead glass.
 	inner_mat.emission_enabled = true
-	inner_mat.emission = Color(0.30, 0.55, 0.85)
-	inner_mat.emission_energy_multiplier = 0.4
+	inner_mat.emission = Color(0.45, 0.66, 0.90)
+	inner_mat.emission_energy_multiplier = 0.10
 	inner.material_override = inner_mat
 	inner.position.y = height * 0.5
 	inner.rotation.y = PI * 0.125

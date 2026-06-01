@@ -33,6 +33,10 @@ var _prompt_key: Label3D
 var _prompt_label: Label3D
 var _offered: bool = false        # a window is in reach this frame
 var _reenter_cd: float = 0.0      # brief lockout after exiting, so E can't re-arm instantly
+# "drag to look" hint slides off + fades once the player actually starts looking.
+var _entry_yaw: float = 0.0
+var _look_engaged: bool = false
+var _hint_anim: float = 0.0       # 0 = hint shown, 1 = fully slid off + faded
 
 
 func _ready() -> void:
@@ -60,7 +64,15 @@ func _process(delta: float) -> void:
 		return
 
 	if looking:
-		# Already looking out — the prompt becomes "back inside"; E or Esc exits.
+		# Once the player actually starts looking around, retire the "drag to look"
+		# hint — slide it off + fade (handled in _position_prompt via _hint_anim).
+		var dyaw: float = absf(wrapf(float(_gs.get("look_view_yaw")) - _entry_yaw, -PI, PI))
+		var dpitch: float = absf(float(_gs.get("look_view_pitch")) + 0.12)
+		if dyaw > 0.05 or dpitch > 0.05:
+			_look_engaged = true
+		if _look_engaged:
+			_hint_anim = minf(1.0, _hint_anim + delta * 3.0)
+		# The prompt becomes "back inside"; E or Esc exits.
 		_show_back_prompt()
 		if Input.is_action_just_pressed(&"interact") or Input.is_action_just_pressed(&"ui_cancel"):
 			_gs.set("looking_out", false)
@@ -104,6 +116,9 @@ func _enter_look_out(n: Vector3) -> void:
 	# Face outward through the window the player walked up to: forward = the wall's
 	# outward normal, so the body turns to look out and the camera sits behind it.
 	var yaw: float = atan2(n.x, n.z)
+	_entry_yaw = yaw
+	_look_engaged = false
+	_hint_anim = 0.0
 	_gs.set("look_out_yaw", yaw)
 	_gs.set("look_view_yaw", yaw)
 	_gs.set("look_view_pitch", -0.12)
@@ -236,7 +251,15 @@ func _position_prompt() -> void:
 	if bool(_gs.get("looking_out")):
 		_prompt_root.global_position = Vector3(p.x, p.y + 2.3, p.z)
 		_prompt_root.scale = Vector3.ONE * 0.5
+		# The "drag to look" key line gently slides off (+x in the billboard plane)
+		# and fades once the player starts looking; the "back inside" line stays.
+		var e: float = smoothstep(0.0, 1.0, _hint_anim)
+		_prompt_key.position = Vector3(2.6 * e, 0.45, 0.0)
+		_prompt_key.modulate.a = 1.0 - e
 		return
+	# Reset the key line (a prior look-out may have faded/slid it).
+	_prompt_key.position = Vector3(0, 0.45, 0)
+	_prompt_key.modulate.a = 1.0
 	# Otherwise float above the player; scale by ortho size so it stays a constant
 	# on-screen height (matches the elevator / vacuum prompts).
 	_prompt_root.global_position = Vector3(p.x, p.y + 2.7, p.z)

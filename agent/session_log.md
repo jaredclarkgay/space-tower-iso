@@ -957,3 +957,20 @@ the back of the head with the city beyond — in the body, not through the eyes.
 - Verified via `_lookout_harness.tscn`: POV shows the back of the head + skyline
   in perspective; drag/keys turn the body + head; exit restores the ortho iso
   view (`proj` 0→1). Camera tunables are all `LOOKOUT_*` in constants.
+
+### Addendum 2 — three operator polish asks
+- **Shaft fall fixed (Q-004 resolved).** Operator: tube-hop to a floor, walk into
+  the elevator, and you fall down the open shaft. Fix: an invisible collision
+  **shaft grate** across the opening on every holed floor (in
+  `FloorChrome.build_slab` + the Canopy's tiled slab). Collision-only so it never
+  blocks the cabin view; child of `SlabBody` so the tower's existing per-floor
+  gating handles it (jumps still pass up; rides own the transform so they pass).
+  You now stand at the shaft and call/ride instead of dropping. `_shaft_harness`
+  confirms the player HOLDS at floor level over the shaft.
+- **Glass elevator core.** The inner shaft column now uses the Canopy-glass feel
+  (`build_elevator_core` `inner_mat` → translucent bluish, alpha 0.18) so you
+  watch the cabin rise/fall through it; the grey chamfer corners + door-frame
+  beams stay opaque. Nothing drives `inner_mat`'s glow, so the restyle was safe.
+- **"Drag to look" retires itself.** Once the player actually starts looking
+  (look angle deviates from entry), the "drag to look" line slides off +x and
+  fades (`sky_lounge` `_hint_anim`); the "E/Esc back inside" line stays.

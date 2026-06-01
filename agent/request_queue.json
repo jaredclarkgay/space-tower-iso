@@ -25,7 +25,8 @@
       "priority": "medium",
       "title": "Open elevator shaft hole \u2014 fall-through-by-design decision",
       "raised": "2026-05-31",
-      "status": "queued",
+      "status": "resolved",
+      "resolution": "Resolved Session 9 (operator hit it: tube-hop to a floor, walk into the elevator, fall down the open shaft to the car/bottom). Fix: an INVISIBLE collision 'shaft grate' across the opening on every floor with a hole (FloorChrome.build_slab shaft branch covers garden/arboretum_ground/residential/sky_lounge/roof; arboretum_canopy adds its own to the tiled slab). Collision-only (no mesh) so it never blocks the view of the cabin; it's a child of SlabBody so the tower gates it per-floor exactly like the slab (off for floors above -> jumps still pass up; a ride owns the transform so it passes too). The player now stands at the shaft and calls/rides instead of falling. Verified with _shaft_harness.tscn (player HELD at floor level over the shaft, no fall).",
       "detail": "The slab on every served floor (now 1/2/4/5, 0-indexed) has a central ~4x4 hole for the elevator car to travel through. When the car is parked on another floor, walking into that hole drops the player down the open shaft. The jump/elevator fall-through bugs were fixed (commit 79021ff), but this open-shaft drop is geometry-by-design and may be the 'fall through in some instances' the operator still felt. Decide the intended behaviour: auto-call the car when the player nears the empty shaft, a retractable safety grate, leave it as an intentional hazard, or fold it into the Q-002 tube-hop traversal. NOTE: the two new blank floors (Residential 4, Sky Lounge 5) also have this central shaft hole, so whatever's decided applies tower-wide."
     },
     {
