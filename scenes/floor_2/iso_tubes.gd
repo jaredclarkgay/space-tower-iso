@@ -16,6 +16,8 @@ extends Node3D
 #   try_interact() -> bool
 #   get_interaction_label() -> String
 
+const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
+
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -31,19 +33,14 @@ var _nearest_index: int = -1
 
 
 func _ready() -> void:
-	var half: float = (_c.GARDEN_GRID_SIZE * _c.GARDEN_PLOT_SIZE) * 0.5
-	# Inset from the interior wall, into the corner. The corner of the
-	# usable floor is at (±half, ±half); tubes sit `inset` units toward
-	# the centre on both axes.
-	var c: float = half - _c.VACUUM_TUBE_INSET
-	for i in range(4):
-		var sign_x: float = -1.0 if i == 0 or i == 3 else 1.0
-		var sign_z: float = -1.0 if i == 0 or i == 1 else 1.0
-		var anchor := Vector3(sign_x * c, 0.0, sign_z * c)
-		var tube := _build_tube(anchor, not _c.VACUUM_TUBE_HAS_FLOOR_ABOVE)
-		add_child(tube)
-		_tubes.append(tube)
-		_tube_anchors.append(anchor)
+	# Geometry comes from the shared builder so the Garden's corner tubes are
+	# identical to (and tile flush with) every other floor's segment. The Garden
+	# is not the top floor (the Arboretum is above), so its tops stay open. We
+	# keep the returned glow mats + anchors for the sell interaction + whoosh.
+	var built: Array = VacuumTube.build_corner_tubes(self, _c, false)
+	for entry in built:
+		_tubes.append(entry.node)
+		_tube_anchors.append(entry.anchor)
 
 
 func _process(delta: float) -> void:
@@ -99,105 +96,6 @@ func _sell_at(index: int) -> void:
 	_gs.backpack_count = 0
 	_spawn_sell_floater(_tube_anchors[index], sale, count)
 	_trigger_whoosh(index)
-
-
-# --- Geometry ------------------------------------------------------------
-
-func _build_tube(anchor: Vector3, top_sealed: bool) -> Node3D:
-	var root := Node3D.new()
-	root.name = "VacuumTube"
-	root.position = anchor
-
-	# Translucent body — vertical cylinder spanning the full story height.
-	var body := MeshInstance3D.new()
-	body.name = "Body"
-	var body_mesh := CylinderMesh.new()
-	body_mesh.top_radius = _c.VACUUM_TUBE_RADIUS
-	body_mesh.bottom_radius = _c.VACUUM_TUBE_RADIUS
-	body_mesh.height = _c.VACUUM_TUBE_HEIGHT
-	body.mesh = body_mesh
-	var body_mat := StandardMaterial3D.new()
-	body_mat.albedo_color = Color(0.45, 0.65, 0.85, 0.32)
-	body_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	body_mat.metallic = 0.6
-	body_mat.roughness = 0.25
-	body.material_override = body_mat
-	body.position = Vector3(0, _c.VACUUM_TUBE_HEIGHT * 0.5, 0)
-	root.add_child(body)
-
-	# Top cap — sealed brass disc when no floor above; thinner brass ring
-	# (an open mouth) when the up port is wired up. The shape is the same;
-	# colour + thickness signal sealed-vs-open.
-	var cap := MeshInstance3D.new()
-	cap.name = "TopCap"
-	var cap_mesh := CylinderMesh.new()
-	cap_mesh.top_radius = _c.VACUUM_TUBE_RADIUS + 0.06
-	cap_mesh.bottom_radius = _c.VACUUM_TUBE_RADIUS + 0.06
-	cap_mesh.height = 0.22 if top_sealed else 0.10
-	cap.mesh = cap_mesh
-	var cap_mat := StandardMaterial3D.new()
-	cap_mat.albedo_color = (
-		Color(0.40, 0.30, 0.22) if top_sealed
-		else Color(0.78, 0.55, 0.30)
-	)
-	cap_mat.metallic = 0.85
-	cap_mat.roughness = 0.4
-	cap.material_override = cap_mat
-	cap.position = Vector3(0, _c.VACUUM_TUBE_HEIGHT + 0.02, 0)
-	root.add_child(cap)
-
-	# Brass collar at floor level — visible "mouth" where items drop in.
-	var collar := MeshInstance3D.new()
-	collar.name = "Collar"
-	var collar_mesh := CylinderMesh.new()
-	collar_mesh.top_radius = _c.VACUUM_TUBE_RADIUS + 0.10
-	collar_mesh.bottom_radius = _c.VACUUM_TUBE_RADIUS + 0.10
-	collar_mesh.height = 0.22
-	collar.mesh = collar_mesh
-	var collar_mat := StandardMaterial3D.new()
-	collar_mat.albedo_color = Color(0.78, 0.55, 0.30)
-	collar_mat.metallic = 0.85
-	collar_mat.roughness = 0.3
-	collar.material_override = collar_mat
-	collar.position = Vector3(0, 0.11, 0)
-	root.add_child(collar)
-
-	# Internal warm glow disc — sits just above the floor and emits.
-	# Pulses gently when player is near with non-empty backpack.
-	var glow := MeshInstance3D.new()
-	glow.name = "Glow"
-	var glow_mesh := CylinderMesh.new()
-	glow_mesh.top_radius = _c.VACUUM_TUBE_RADIUS - 0.08
-	glow_mesh.bottom_radius = _c.VACUUM_TUBE_RADIUS - 0.08
-	glow_mesh.height = 0.04
-	glow.mesh = glow_mesh
-	var glow_mat := StandardMaterial3D.new()
-	glow_mat.albedo_color = Color(1.0, 0.78, 0.32)
-	glow_mat.emission_enabled = true
-	glow_mat.emission = Color(1.0, 0.65, 0.20)
-	glow_mat.emission_energy_multiplier = 1.4
-	glow.material_override = glow_mat
-	glow.position = Vector3(0, 0.30, 0)
-	root.add_child(glow)
-	# Cache the glow material so _update_pulse / _trigger_whoosh can drive
-	# emission energy without scanning children each frame.
-	root.set_meta("glow_mat", glow_mat)
-
-	# Down-arrow above the tube — directional cue. Always on so the corner
-	# reads as a drop point at a glance.
-	var arrow := Label3D.new()
-	arrow.text = "▼"
-	arrow.font_size = 90
-	arrow.outline_size = 10
-	arrow.modulate = Color(1.0, 0.78, 0.32)
-	arrow.outline_modulate = Color(0.05, 0.05, 0.0, 0.9)
-	arrow.pixel_size = 0.010
-	arrow.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	arrow.no_depth_test = true
-	arrow.position = Vector3(0, _c.VACUUM_TUBE_HEIGHT + 0.62, 0)
-	root.add_child(arrow)
-
-	return root
 
 
 # --- Feedback ------------------------------------------------------------

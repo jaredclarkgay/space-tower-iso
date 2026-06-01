@@ -17,6 +17,7 @@ extends Node3D
 #     crown (the part above the slab hole).
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
+const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 const Stairs = preload("res://scenes/shared/stairs.gd")
 const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
 
@@ -58,6 +59,8 @@ func _ready() -> void:
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
+	# Corner vacuum tubes — tile down into the Garden's and up into the Canopy's.
+	VacuumTube.build_corner_tubes(self, _c, false)
 
 	# The single physical staircase that spans Floor 3 → Floor 4. Built in
 	# Floor 3's frame at y=0 so its base sits FLUSH with the floor slab (no

@@ -297,22 +297,46 @@ const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)
 # can keep picking. Cody's hopper-collect is also gated on this.
 const BACKPACK_CAPACITY := 20
 
-# --- Vacuum tubes (cross-floor item conduit) ---
-# One tube in each of the four floor corners, inset from the wall. Each tube
-# has a DOWN port (always active — items go down through Floor 1 and out
-# into the world for cash) and an UP port (only active if a floor exists
-# above the current one; on Floor 2 the up port is sealed). The tubes are
-# the standard cross-floor mechanic; every floor will have them.
+# --- Vacuum tubes (cross-floor conduit + vacuum-lift traversal) ---
+# One tube in each of the four floor corners, inset from the wall. The tubes
+# now run the FULL height of every floor and tile corner-to-corner up the
+# whole stack the way the elevator spine pipes do — each floor renders its own
+# one-story segment (shared/vacuum_tube.gd), so stacked they read as four
+# continuous columns. Three jobs:
+#   1. SELL — on the Garden, dropping a backpack into a tube sends produce down
+#      and out into the world for cash (iso_tubes.gd, unchanged).
+#   2. ITEM TRANSIT — produce/cargo capsules visibly rise through the columns
+#      (vacuum_lift.gd), the cross-floor conduit made literal.
+#   3. VACUUM-LIFT HOP — the player presses jump in a tube mouth to get sucked
+#      up one floor (hold the down key for a down-hop): a third vertical-
+#      traversal method alongside the elevator (multi-floor ride) and the
+#      3<->4 stairs, scoped to exactly ±1 floor.
 const VACUUM_TUBE_INSET := 1.8           # m from the inside of the wall, into the floor
 const VACUUM_TUBE_RADIUS := 0.55         # m — translucent vertical cylinder
-const VACUUM_TUBE_HEIGHT := 3.0          # m — full story height, visible top to bottom
+const VACUUM_TUBE_HEIGHT := FLOOR_3D_STORY_HEIGHT   # one story so segments tile floor-to-floor
 const VACUUM_TUBE_INTERACT_RADIUS := 1.6 # m — slightly larger than DISPENSER for forgiveness
-const VACUUM_TUBE_HAS_FLOOR_ABOVE := false  # Floor 2 (Garden) has no Floor 3 yet — operator
-                                            # is building Floor 1 elsewhere; up tubes seal.
 # Sell economics. v1: cash awarded equals the carried sell value (sum of
 # plant values from PLANT_TYPES). Future tiers can multiply by a floor-
 # specific buyer markup, time-of-day, etc.
 const TUBE_SELL_VALUE_MULTIPLIER := 1.0
+
+# Vacuum-lift hop. The player must be grounded and within HOP_MOUTH_RADIUS (XZ)
+# of a corner tube; jump = up one floor, jump while holding move_down = down one
+# floor. The lift owns the player's transform for HOP_DURATION (a quick suction
+# snap, NOT a slow elevator ride), lerping them to the destination floor's
+# surface; the tower tracks _current_level during the hop so the destination
+# slab is solid on arrival (same class of fix as the elevator ride — F-022).
+const VACUUM_HOP_MOUTH_RADIUS := 0.85    # m — how close to the tube centre counts as "in the mouth"
+const VACUUM_HOP_DURATION := 0.22        # s — suction-snap travel time for one floor
+const VACUUM_HOP_BOTTOM_LEVEL := 1       # lowest floor the lift serves
+const VACUUM_HOP_TOP_LEVEL := 4          # highest floor the lift serves (Canopy reachable by tube)
+
+# Item-transit capsules — small produce blobs that rise through a corner tube
+# on the player's current floor, the cross-floor conduit made visible. Purely
+# cosmetic; spawned on a randomised cadence and freed at the ceiling.
+const VACUUM_TRANSIT_INTERVAL_MIN := 2.2   # s — min gap between transit capsules
+const VACUUM_TRANSIT_INTERVAL_MAX := 5.5   # s — max gap
+const VACUUM_TRANSIT_RISE_SPEED := 5.0     # m/s — how fast a capsule rises the tube
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

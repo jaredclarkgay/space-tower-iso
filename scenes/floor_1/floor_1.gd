@@ -17,6 +17,7 @@ extends Node3D
 # M2 layers in the spine pipes + 6 source objects.
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
+const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -104,6 +105,9 @@ func _ready() -> void:
 	FloorChrome.build_walls(self, _c)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
+	# Corner vacuum tubes — Floor 1 is the bottom of the served stack; its tubes
+	# tile up into the Garden's. Bottom port feeds "out into the world".
+	VacuumTube.build_corner_tubes(self, _c, false)
 	_build_sources()
 	_build_spine_pipes()
 	_build_floor_pipes()
