@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/floor_2/iso_floor.gd" id="8_floor2"]
 [ext_resource type="Script" path="res://scenes/shared/elevator_platform.gd" id="9_elev"]
 [ext_resource type="Script" uid="uid://ch3ghcmky3o4" path="res://scenes/shared/vacuum_lift.gd" id="19_vaclift"]
+[ext_resource type="Script" uid="uid://behyh25mgrwej" path="res://scenes/floor_5/floor_5.gd" id="20_floor5"]
 [ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/floor_2/iso_robot.gd" id="10_robot"]
 [ext_resource type="Script" uid="uid://b4b340og50t0n" path="res://scenes/floor_2/iso_dispenser.gd" id="11_disp"]
 [ext_resource type="Script" uid="uid://dl4i8260hpu4r" path="res://scenes/floor_2/iso_tubes.gd" id="12_tubes"]
@@ -175,6 +176,10 @@ light_color = Color(1, 0.94, 0.78, 1)
 light_energy = 1.5
 omni_range = 22.0
 omni_attenuation = 1.3
+
+[node name="Floor5" type="Node3D" parent="Floors"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0)
+script = ExtResource("20_floor5")
 
 [node name="ElevatorPlatform" type="Node3D" parent="."]
 script = ExtResource("9_elev")

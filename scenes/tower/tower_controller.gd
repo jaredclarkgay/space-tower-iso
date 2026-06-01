@@ -29,6 +29,7 @@ const _FLOORS := [
 	{"node": "Floors/Floor2", "level": 2, "name": "FLOOR 2 / GARDEN"},
 	{"node": "Floors/Floor3", "level": 3, "name": "FLOOR 3 / ARBORETUM"},
 	{"node": "Floors/Floor4", "level": 4, "name": "FLOOR 4 / CANOPY"},
+	{"node": "Floors/Floor5", "level": 5, "name": "FLOOR 5 / VISTA — UNDER CONSTRUCTION"},
 ]
 const _SPAWN_LEVEL := 2   # the player starts on the Garden (home floor)
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
@@ -183,7 +184,9 @@ func _preset_for(level: int) -> Dictionary:
 		1: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}
 		2: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}
 		3: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}
-		_: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}
+		4: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}
+		# Vista (top): open to the sky — bright, cool, airy, with a pale horizon.
+		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55}
 
 
 # Drives the visibility of every passive spine-pipe fill (floors 2-4) from the

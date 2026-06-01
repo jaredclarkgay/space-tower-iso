@@ -373,7 +373,7 @@ const TUBE_SELL_VALUE_MULTIPLIER := 1.0
 const VACUUM_HOP_MOUTH_RADIUS := 0.85    # m — how close to the tube centre counts as "in the mouth"
 const VACUUM_HOP_DURATION := 0.22        # s — suction-snap travel time for one floor
 const VACUUM_HOP_BOTTOM_LEVEL := 1       # lowest floor the lift serves
-const VACUUM_HOP_TOP_LEVEL := 4          # highest floor the lift serves (Canopy reachable by tube)
+const VACUUM_HOP_TOP_LEVEL := 5          # highest floor the lift serves (the Vista is tube-reachable)
 
 # Item-transit capsules — small produce blobs that rise through a corner tube
 # on the player's current floor, the cross-floor conduit made visible. Purely

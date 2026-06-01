@@ -55,10 +55,10 @@ func _ready() -> void:
 	FloorChrome.build_extension_grid(_structure, _c)
 	var elev_data: Dictionary = FloorChrome.build_elevator_core(_structure, _c)
 	FloorChrome.build_passive_spine_pipes(_structure, _c, _gs, elev_data)
-	# Corner vacuum tubes — the Canopy is the top of the served stack, so its
-	# tubes are sealed at the top (no segment above to tile into). Built into the
-	# gated structure so they hide/show with the rest of the Canopy chrome.
-	VacuumTube.build_corner_tubes(_structure, _c, true)
+	# Corner vacuum tubes — the Canopy is no longer the top (the Vista is above),
+	# so its tubes stay open and tile up into Floor 5's. Built into the gated
+	# structure so they hide/show with the rest of the Canopy chrome.
+	VacuumTube.build_corner_tubes(_structure, _c, false)
 
 	# The glass slab + aperture rings stay as direct (always-visible) children.
 	_build_tiled_slab_with_holes()
@@ -127,18 +127,33 @@ func _compute_tree_hole_positions() -> void:
 	var inset: int = int(_c.ARBORETUM_EDGE_INSET)
 	var stride: int = int(_c.ARBORETUM_PLOT_STRIDE)
 	var half: float = grid * plot * 0.5
+	# Keep holes off the corner vacuum tubes — must match Floor 3's plot exclusion
+	# exactly, or the Canopy would have an empty hole at each corner tube (and the
+	# player would drop through it when hopping up the tube). 2 m clearance.
+	var tube_anchors: Array = VacuumTube.corner_anchors(_c)
 
 	var side_indices := [inset, grid - 1 - inset]
 	for perp in side_indices:
 		var perp_world: float = -half + (perp + 0.5) * plot
 		for x in range(inset, grid - inset, stride):
 			var x_world: float = -half + (x + 0.5) * plot
-			_tree_hole_positions.append(Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world))
+			var wp := Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world)
+			if not _near_any_tube(wp, tube_anchors, 2.0):
+				_tree_hole_positions.append(wp)
 	for perp2 in side_indices:
 		var perp_world2: float = -half + (perp2 + 0.5) * plot
 		for z in range(inset + stride, grid - inset - stride + 1, stride):
 			var z_world: float = -half + (z + 0.5) * plot
-			_tree_hole_positions.append(Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world))
+			var wp2 := Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world)
+			if not _near_any_tube(wp2, tube_anchors, 2.0):
+				_tree_hole_positions.append(wp2)
+
+
+func _near_any_tube(wp: Vector3, tube_anchors: Array, radius: float) -> bool:
+	for a in tube_anchors:
+		if Vector2(a.x - wp.x, a.z - wp.z).length() < radius:
+			return true
+	return false
 
 
 # Builds the slab as one StaticBody3D with N child tile collision shapes.
