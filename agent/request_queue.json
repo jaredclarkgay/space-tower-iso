@@ -1,5 +1,33 @@
 {
-  "queue": [],
+  "queue": [
+    {
+      "id": "Q-002",
+      "type": "design_intent",
+      "priority": "high",
+      "title": "Ascending vacuum tubes: cross-floor continuity + a player \u00b11-floor hop",
+      "raised": "2026-05-31",
+      "status": "queued",
+      "detail": "Operator's next pickup. Evolve the four CORNER vacuum tubes (scenes/floor_2/iso_tubes.gd \u2014 one per corner, currently Garden-only sell-down-for-cash) into ASCENDING tubes that run continuously UP THROUGH every floor, tiling corner-to-corner the way the elevator spine pipes now do (one story tall per floor, see FLOOR_1_SPINE_PIPE_*). Two jobs: (1) OBJECTS pass through them between floors (produce/cargo travel up as well as down \u2014 the cross-floor item conduit the tube comments already gesture at), creating visible continuity through the stack; (2) the PLAYER can jump THROUGH a tube to travel up or down a SINGLE floor \u2014 a vacuum-lift hop, distinct from the elevator (multi-floor ride) and the stairs (3<->4). So tubes become a third vertical-traversal method, scoped to \u00b11 floor. Build on the stacked-tower offset-safety patterns (Y-gate + local-frame). Reuse the slab-layer gating insight: a tube hop needs the destination floor solid on arrival (see the elevator-ride current_level fix, F-022-era / commit 79021ff). Note the four corner tubes already exist on every floor via iso_tubes; this is about making them span + be traversable. NOT started \u2014 operator explicitly deferred."
+    },
+    {
+      "id": "Q-003",
+      "type": "design_intent",
+      "priority": "medium",
+      "title": "Garden (Floor 2) economy \u2014 dissect the full service + where it leads",
+      "raised": "2026-05-31",
+      "status": "parked",
+      "detail": "Operator wants to hold this thought for a future session (timing TBD). The Garden currently runs TWO quantities: backpack_count (items carried, cap BACKPACK_CAPACITY=20, +1 per harvest \u2014 consistent) and food_count (sum of each crop's VALUE: tomato 1, pumpkin 1, pepper 2, cucumber 3, blueberries 5, eggplant 15). Selling at a corner vacuum tube converts food_count * TUBE_SELL_VALUE_MULTIPLIER -> cash and zeroes both backpack_count and food_count (iso_tubes._sell_at). Harvest floaters were just made consistent (every crop shows '+1 <Crop>', uniform green \u2014 commit fc0e935) BUT food_count += value still happens under the hood, so the value economy is invisible right now. Open questions for the design session: is 'value' meant to be per-crop worth or just item count? Should the two currencies merge? The tubes 'send produce down to Floor 1 and out into the world for cash' (iso_tubes header) \u2014 the Garden -> Utility -> economy pipeline is stubbed but not wired to anything real yet (no diner/population consumer). Decide what the Garden's full service produces and what consumes it before re-surfacing per-crop value in the UI. NOTE: 'Garden' = Floor 2 (the original brief's stale 'Floor 3' label refers to the Garden; canonical Floor 3 is the Arboretum)."
+    },
+    {
+      "id": "Q-004",
+      "type": "design_intent",
+      "priority": "medium",
+      "title": "Open elevator shaft hole \u2014 fall-through-by-design decision",
+      "raised": "2026-05-31",
+      "status": "queued",
+      "detail": "The slab on Floors 2/3 has a central ~4x4 hole for the elevator car to travel through. When the car is parked on another floor, walking into that hole drops the player down the open shaft. The jump/elevator fall-through bugs were fixed (commit 79021ff), but this open-shaft drop is geometry-by-design and may be the 'fall through in some instances' the operator still felt. Decide the intended behaviour: auto-call the car when the player nears the empty shaft, a retractable safety grate, leave it as an intentional hazard, or fold it into the Q-002 tube-hop traversal. Tie this in when Q-002 is tackled."
+    }
+  ],
   "request_types": [
     "aesthetic_calibration",
     "design_intent",
