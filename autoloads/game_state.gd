@@ -78,15 +78,16 @@ var camera_focus_point := Vector3.ZERO
 # the vacuum lift won't offer a hop.
 var driving_crane := false
 
-# Sky Lounge "look out the window" mode. While active, iso_camera detaches to an
-# exterior vantage the player drives (Q/R orbit, arrows pan, wheel zoom); the
-# player is frozen and the vacuum lift won't offer a hop. sky_lounge.gd sets the
-# flag + the anchor/yaw for the window the player walked up to; iso_camera eases
-# the camera out there and back. look_out_anchor = world point the camera looks
-# toward; look_out_yaw = pivot yaw facing outward through that window.
+# Sky Lounge "look out the window" mode — a third-person POV. While active,
+# iso_camera sits just over/behind the player's head (perspective) and the player
+# DRAGS to free-look; the body + head turn to face the look direction. The player
+# is frozen and the vacuum lift won't offer a hop. sky_lounge.gd sets the flag +
+# look_out_yaw (the initial outward facing for the window walked up to); iso_camera
+# then owns look_view_yaw/pitch (the live drag angle) and the body/head follow it.
 var looking_out := false
-var look_out_anchor := Vector3.ZERO
-var look_out_yaw := 0.0
+var look_out_yaw := 0.0       # initial outward yaw set on entry (camera reads it once)
+var look_view_yaw := 0.0      # live look yaw — camera writes, player body follows
+var look_view_pitch := 0.0    # live look pitch — camera writes, player head tilts to it
 
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and

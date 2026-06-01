@@ -936,3 +936,24 @@ Verified with a dedicated `_lookout_harness.tscn` using the tower's OWN camera.
   interactive play or a follow-up harness.
 - Docs brought current: CLAUDE.md floor table + architecture callout, the
   invariants doc base_y formula + floor numbers.
+
+### Addendum — look-out redesigned to a third-person POV (operator feedback)
+First look-out (free-orbit around the tower exterior) felt wrong and the operator
+hit a "super loop." Rewrote it into a **third-person POV**: on `[E]` the camera
+drops just over/behind the player's head and switches to **perspective** (the
+rest of the game is orthographic), you **drag** the mouse (or Q/R + ↑↓ as a
+keyboard fallback) to free-look any direction, and the **body + head turn to
+follow** the look angle (iso_camera publishes `look_view_yaw/pitch`;
+`iso_player._apply_lookout_pose` turns `_visual` + tilts `_head_pivot`). You see
+the back of the head with the city beyond — in the body, not through the eyes.
+- **Loop fix:** the whole mode was rewritten with one clean enter/exit + a
+  `LOOKOUT_REENTER_COOLDOWN` so a single E can't re-arm instantly.
+- **Exit-restore bug caught + fixed:** the ease-back originally fired the
+  ortho-restore on a *distance* threshold, which stalls at high frame rates (the
+  camera returned to position but stayed perspective). Switched to a
+  fixed-duration (`LOOKOUT_EXIT_DUR`) time-based ease so the restore ALWAYS
+  completes regardless of fps. (Learning: don't gate a state transition on
+  convergence distance when frame-rate varies — use a timer.)
+- Verified via `_lookout_harness.tscn`: POV shows the back of the head + skyline
+  in perspective; drag/keys turn the body + head; exit restores the ortho iso
+  view (`proj` 0→1). Camera tunables are all `LOOKOUT_*` in constants.

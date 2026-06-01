@@ -32,6 +32,7 @@ var _prompt_root: Node3D
 var _prompt_key: Label3D
 var _prompt_label: Label3D
 var _offered: bool = false        # a window is in reach this frame
+var _reenter_cd: float = 0.0      # brief lockout after exiting, so E can't re-arm instantly
 
 
 func _ready() -> void:
@@ -46,9 +47,11 @@ func _ready() -> void:
 	_build_prompt()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _player == null:
 		return
+	if _reenter_cd > 0.0:
+		_reenter_cd -= delta
 	var looking: bool = bool(_gs.get("looking_out"))
 	# Only relevant while the player is actually up here on the Sky Lounge.
 	var on_floor: bool = absf(_player.global_position.y - global_position.y) < 3.0
@@ -61,6 +64,12 @@ func _process(_delta: float) -> void:
 		_show_back_prompt()
 		if Input.is_action_just_pressed(&"interact") or Input.is_action_just_pressed(&"ui_cancel"):
 			_gs.set("looking_out", false)
+			_reenter_cd = float(_c.LOOKOUT_REENTER_COOLDOWN)
+		return
+
+	# Brief lockout right after exiting so the same tap can't re-arm the look-out.
+	if _reenter_cd > 0.0:
+		_set_prompt(false)
 		return
 
 	# Find the nearest perimeter wall and whether the player is within reach.
@@ -92,20 +101,12 @@ func _nearest_wall_normal() -> Vector3:
 
 
 func _enter_look_out(n: Vector3) -> void:
-	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
-	var surface_y: float = global_position.y + float(_c.FLOOR_3D_TOP_Y)
-	var lp: Vector3 = to_local(_player.global_position)
-	# Look-at point: out beyond the wall and a touch below, centred where the
-	# player is standing along the wall so you look out "from here".
-	var anchor := Vector3.ZERO
-	anchor.x = (n.x * (half + float(_c.LOOKOUT_OUTSET))) if n.x != 0.0 else lp.x
-	anchor.z = (n.z * (half + float(_c.LOOKOUT_OUTSET))) if n.z != 0.0 else lp.z
-	anchor.y = surface_y - float(_c.LOOKOUT_DROP)
-	anchor += global_position * Vector3(1, 0, 1)   # floor node XZ origin (0 at the tower centre)
-	# Pivot yaw that puts the camera on the interior side, looking outward (+n).
-	var yaw: float = atan2(-n.x, -n.z)
-	_gs.set("look_out_anchor", anchor)
+	# Face outward through the window the player walked up to: forward = the wall's
+	# outward normal, so the body turns to look out and the camera sits behind it.
+	var yaw: float = atan2(n.x, n.z)
 	_gs.set("look_out_yaw", yaw)
+	_gs.set("look_view_yaw", yaw)
+	_gs.set("look_view_pitch", -0.12)
 	_gs.set("looking_out", true)
 
 
@@ -222,15 +223,22 @@ func _show_back_prompt() -> void:
 	if _prompt_root == null:
 		return
 	_prompt_root.visible = true
-	_prompt_key.text = "E / ESC"
-	_prompt_label.text = "Back inside"
+	_prompt_key.text = "drag to look"
+	_prompt_label.text = "E / Esc — back inside"
 	_position_prompt()
 
 
 func _position_prompt() -> void:
-	# Float above the player; scale the whole group by the camera ortho size so it
-	# stays a constant on-screen height (matches the elevator / vacuum prompts).
 	var p: Vector3 = _player.global_position
+	# While looking out the camera is a perspective POV right behind the head, so
+	# the ortho-size scaling doesn't apply — use a fixed modest scale + a little
+	# lift so the "back inside" hint reads without ballooning in frame.
+	if bool(_gs.get("looking_out")):
+		_prompt_root.global_position = Vector3(p.x, p.y + 2.3, p.z)
+		_prompt_root.scale = Vector3.ONE * 0.5
+		return
+	# Otherwise float above the player; scale by ortho size so it stays a constant
+	# on-screen height (matches the elevator / vacuum prompts).
 	_prompt_root.global_position = Vector3(p.x, p.y + 2.7, p.z)
 	var ortho: float = float(_gs.camera.get("ortho_size", _c.CAMERA_ORTHO_SIZE_DEFAULT)) if _gs else float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
 	var k: float = clampf(ortho / float(_c.CAMERA_ORTHO_SIZE_DEFAULT), 0.18, 1.0)

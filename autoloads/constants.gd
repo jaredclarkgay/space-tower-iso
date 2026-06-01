@@ -387,20 +387,28 @@ const VACUUM_TRANSIT_INTERVAL_MIN := 2.2   # s — min gap between transit capsu
 const VACUUM_TRANSIT_INTERVAL_MAX := 5.5   # s — max gap
 const VACUUM_TRANSIT_RISE_SPEED := 5.0     # m/s — how fast a capsule rises the tube
 
-# --- Sky Lounge: look-out-the-window camera + placeholder cityscape ----------
-# Walk up to a Sky Lounge window and press E to "look out": the camera detaches
-# to an exterior vantage you drive — Q/R orbit, arrows pan, wheel zoom, Esc/E
-# back inside. The player stays put while looking out (a modal camera owner).
+# --- Sky Lounge: look-out-the-window POV camera + placeholder cityscape ------
+# Walk up to a Sky Lounge window and press E to "look out": the camera drops to a
+# third-person POV just over/behind the player's head (you see the back of the
+# head). DRAG the mouse to free-look any direction; the character's body + head
+# turn to face where you're looking — you're in the body, not through the eyes.
+# A perspective camera while looking out (the rest of the game is orthographic),
+# for a real sense of looking OUT into depth. Esc/E eases back to iso.
 const LOOKOUT_WINDOW_RADIUS := 3.2     # m — how close to a wall offers the look-out
-const LOOKOUT_TILT_DEG := -18.0        # look OUT and slightly down over the edge
-const LOOKOUT_DISTANCE := 16.0         # camera distance from the look-at point
-const LOOKOUT_SIZE := 26.0             # ortho size while looking out (wide vista)
-const LOOKOUT_EASE_RATE := 3.2         # ease in/out speed of the look-out transition
-const LOOKOUT_ORBIT_RATE := 1.15       # rad/s — Q/R swing the view along the facade
-const LOOKOUT_PAN_RATE := 9.0          # m/s — arrows slide the vantage
-const LOOKOUT_PAN_RANGE := 9.0         # m — clamp on how far panning strays from the window
-const LOOKOUT_OUTSET := 3.0            # m the look-at point sits beyond the wall (outward)
-const LOOKOUT_DROP := 2.0              # m the look-at point sits below the floor (toward the city)
+const LOOKOUT_EASE_RATE := 6.0         # ease speed INTO the POV pose (exponential)
+const LOOKOUT_EXIT_DUR := 0.35         # s — fixed-duration ease BACK (always completes → restores ortho)
+const LOOKOUT_FOV := 68.0              # perspective fov (deg) while looking out
+const LOOKOUT_HEAD_Y := 1.5            # m — head anchor height above the player's feet
+const LOOKOUT_BACK_DIST := 2.4         # m — camera behind the head along the look dir
+const LOOKOUT_HEIGHT := 0.7            # m — camera above the head (over-the-head read)
+const LOOKOUT_YAW_SENS := 0.0065       # rad per pixel of horizontal drag
+const LOOKOUT_PITCH_SENS := 0.005      # rad per pixel of vertical drag
+const LOOKOUT_PITCH_MIN := -1.0        # look-down clamp (rad)
+const LOOKOUT_PITCH_MAX := 1.15        # look-up clamp (rad)
+const LOOKOUT_KEY_YAW_RATE := 1.5      # rad/s — Q/R look fallback (no mouse)
+const LOOKOUT_KEY_PITCH_RATE := 1.1    # rad/s — up/down arrow look fallback
+const LOOKOUT_HEAD_PITCH_MUL := 0.55   # how much the head tilts with look pitch
+const LOOKOUT_REENTER_COOLDOWN := 0.45 # s before the look-out can re-arm after exit
 
 # Placeholder cityscape — a ring of distant blocky buildings on a ground plane,
 # seen out the Sky Lounge glass. Throwaway: a real skyline is the worldbuilding

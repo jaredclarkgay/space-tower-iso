@@ -290,6 +290,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if _prompt_root:
 			_prompt_root.visible = false
+		# Looking out: turn the body + tilt the head to face where the camera is
+		# looking, so the player is "in the body" looking around (iso_camera owns
+		# the look angle in GameState.look_view_*).
+		if looking_out and _gs:
+			_apply_lookout_pose(delta)
 		return
 
 	# When standing in a corner tube mouth, jump is reserved for the vacuum hop
@@ -996,6 +1001,22 @@ func set_facing_yaw(yaw: float) -> void:
 	_facing_yaw = yaw
 	if _visual:
 		_visual.rotation.y = yaw
+
+
+# Look-out POV: ease the body to face the look yaw (so the back faces the camera)
+# and tilt the head to the look pitch. iso_camera publishes look_view_yaw/pitch.
+func _apply_lookout_pose(delta: float) -> void:
+	var ly: float = float(_gs.get("look_view_yaw"))
+	var lp: float = float(_gs.get("look_view_pitch"))
+	_facing_yaw = ly
+	var k: float = clampf(12.0 * delta, 0.0, 1.0)
+	if _visual:
+		_visual.rotation.y = lerp_angle(_visual.rotation.y, ly, k)
+	if _head_pivot:
+		# Look up (pitch > 0) tilts the head back (negative head_x, since +x bends
+		# the head forward/down per the POSE_* convention).
+		var head_x: float = clampf(-lp * float(_c.LOOKOUT_HEAD_PITCH_MUL), -0.6, 0.6)
+		_head_pivot.rotation.x = lerpf(_head_pivot.rotation.x, head_x, k)
 
 
 func get_facing_yaw() -> float:

@@ -35,22 +35,28 @@ func _ready() -> void:
 		player.global_position.y, str(_tower.get_node("Cityscape").visible)])
 	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "1_interior.png")
 
-	# Trigger the look-out at the +x window.
+	# Trigger the POV look-out at the +x window.
 	sky.call("_enter_look_out", Vector3(1, 0, 0))
 	await _wait(55)
-	print("looking_out=%s anchor=%s" % [str(_gs.get("looking_out")), str(_gs.get("look_out_anchor"))])
-	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "2_lookout.png")
+	print("looking_out=%s view_yaw=%.2f proj=%s" % [
+		str(_gs.get("looking_out")), float(_gs.get("look_view_yaw")), str(cam.projection)])
+	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "2_pov.png")
 
-	# Orbit a touch (simulate holding R) then shoot again.
+	# Look around via the keyboard fallback: pan the view right + tilt up a touch.
 	Input.action_press(&"camera_rotate_right")
-	await _wait(30)
+	Input.action_press(&"move_up")
+	await _wait(34)
 	Input.action_release(&"camera_rotate_right")
+	Input.action_release(&"move_up")
 	await _wait(6)
-	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "3_lookout_orbited.png")
+	print("after look: view_yaw=%.2f view_pitch=%.2f" % [
+		float(_gs.get("look_view_yaw")), float(_gs.get("look_view_pitch"))])
+	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "3_pov_looked.png")
 
-	# Exit — ease back inside.
+	# Exit — ease back to the iso view.
 	_gs.set("looking_out", false)
 	await _wait(60)
+	print("after exit: proj=%s" % str(cam.projection))
 	get_viewport().get_texture().get_image().save_png(SHOT_DIR + "4_back.png")
 
 	get_tree().quit()
