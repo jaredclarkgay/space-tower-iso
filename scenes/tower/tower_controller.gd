@@ -168,6 +168,10 @@ func _update(snap: bool) -> void:
 		var rise: float = maxf(0.0, _player.global_position.y - floor_surface)
 		var target_y: float = floor_anchor + rise * _JUMP_FOLLOW_FRACTION
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
+	# Light the passive spine-pipe risers on the floors above Utility to match
+	# whatever's online down on Floor 1 — so an activated utility glows
+	# continuously all the way up the shaft, not just on its own floor.
+	_update_spine_pipe_fills()
 	# Ambience eases to the current floor's mood (Utility dark, Garden warm,
 	# Arboretum/Canopy bright green).
 	_drive_environment(snap)
@@ -180,6 +184,17 @@ func _preset_for(level: int) -> Dictionary:
 		2: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}
 		3: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}
 		_: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}
+
+
+# Drives the visibility of every passive spine-pipe fill (floors 2-4) from the
+# live Floor 1 utility state, so lit risers continue up the whole shaft instead
+# of stopping at the floor they were built on. Floor 1 builds its own animated
+# pipes separately; these are the cross-floor copies.
+func _update_spine_pipe_fills() -> void:
+	var active: Dictionary = _gs.floor_1.get("pipe_active", {})
+	for fill in get_tree().get_nodes_in_group("passive_spine_fill"):
+		var id: String = String(fill.get_meta("sys_id", ""))
+		fill.visible = bool(active.get(id, false))
 
 
 func _drive_environment(snap: bool) -> void:

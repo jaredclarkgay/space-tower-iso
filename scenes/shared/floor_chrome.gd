@@ -334,22 +334,32 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		cold.position = pipe_pos + Vector3(0, pipe_mid_y, 0)
 		parent.add_child(cold)
 
-		if active:
-			var fill := MeshInstance3D.new()
-			fill.name = "PassiveFill_" + sys.id
-			var fill_mesh := CylinderMesh.new()
-			fill_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
-			fill_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
-			fill_mesh.height = pipe_height
-			fill.mesh = fill_mesh
-			var fill_mat := StandardMaterial3D.new()
-			fill_mat.albedo_color = base_col
-			fill_mat.emission_enabled = true
-			fill_mat.emission = sys.glow_color
-			fill_mat.emission_energy_multiplier = 1.6
-			fill.material_override = fill_mat
-			fill.position = pipe_pos + Vector3(0, pipe_mid_y, 0) + normal * 0.005
-			parent.add_child(fill)
+		# The lit "fill" overlay is ALWAYS built now (was build-time only). In the
+		# stacked tower every floor is built at startup, before any utility is
+		# online, so a build-time check always saw inactive and the lit state
+		# never climbed past Floor 1. Instead we build it for every system and
+		# toggle visibility live: it joins the "passive_spine_fill" group tagged
+		# with its system id, and tower_controller drives `visible` from
+		# GameState.floor_1.pipe_active each frame, so activating a utility lights
+		# its riser continuously all the way up the shaft.
+		var fill := MeshInstance3D.new()
+		fill.name = "PassiveFill_" + sys.id
+		var fill_mesh := CylinderMesh.new()
+		fill_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.height = pipe_height
+		fill.mesh = fill_mesh
+		var fill_mat := StandardMaterial3D.new()
+		fill_mat.albedo_color = base_col
+		fill_mat.emission_enabled = true
+		fill_mat.emission = sys.glow_color
+		fill_mat.emission_energy_multiplier = 1.6
+		fill.material_override = fill_mat
+		fill.position = pipe_pos + Vector3(0, pipe_mid_y, 0) + normal * 0.005
+		fill.visible = active
+		fill.set_meta("sys_id", sys.id)
+		fill.add_to_group("passive_spine_fill")
+		parent.add_child(fill)
 
 
 # --- Internal --------------------------------------------------------------
