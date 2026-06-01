@@ -33,6 +33,11 @@ var _highlight: MeshInstance3D
 var _overhead_label: Label3D
 var _player_nearby: bool = false
 var _label_tween: Tween
+# True when the player is on THIS floor (Y-gate). The window number/stock labels
+# use no_depth_test (so same-floor geometry never clips them), which also lets
+# them punch through the slab and show from the Arboretum above — so we hide
+# them whenever the player isn't on the Garden. Set in is_interactable_at.
+var _player_on_floor: bool = true
 
 # The dispenser's interaction anchor. The player's distance is measured to
 # this point so the radius isn't skewed by the body's bounding box.
@@ -89,7 +94,25 @@ func is_interactable_at(player_world_pos: Vector3, radius: float) -> bool:
 	if in_range != _player_nearby:
 		_player_nearby = in_range
 		_fade_overhead_label(in_range)
+	# Y-gate the window labels so they don't show through the floor from above.
+	var on_floor: bool = absf(player_world_pos.y - global_position.y) < 3.0
+	if on_floor != _player_on_floor:
+		_player_on_floor = on_floor
+		_apply_label_floor_gate()
 	return in_range
+
+
+# Hide/show the per-window number + stock labels based on whether the player is
+# on the Garden. (The overhead "SEEDS" beacon is already 3D-distance gated.)
+func _apply_label_floor_gate() -> void:
+	for key in _windows:
+		var w: Dictionary = _windows[key]
+		var num_label = w.get("num_label")
+		var stock_label = w.get("stock_label")
+		if num_label:
+			num_label.visible = _player_on_floor
+		if stock_label:
+			stock_label.visible = _player_on_floor
 
 
 func try_interact() -> bool:
@@ -296,6 +319,7 @@ func _build_windows() -> void:
 			"frame": pane,
 			"icon": icon,
 			"icon_mat": icon_mat,
+			"num_label": num_label,
 			"stock_label": stock_label,
 			"world_offset": Vector3(col_x[col], row_y[row], z - 0.04),
 		}
