@@ -53,6 +53,25 @@ static func build_slab(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18,
 	_add_slab_piece(body, mat, Vector3(strip, thick, 2.0 * s), Vector3(s + strip * 0.5, y, 0))
 
 
+# One shaft-wall panel on a cardinal face. `pos_xz` is the panel centre on the XZ
+# plane (y ignored); width runs along `tangent`, thickness along `normal`.
+static func _add_shaft_panel(body: StaticBody3D, mat: Material, pos_xz: Vector3,
+		tangent: Vector3, normal: Vector3, width: float, thickness: float,
+		y_center: float, y_height: float) -> void:
+	var mesh := MeshInstance3D.new()
+	mesh.name = "ShaftWall"
+	var box := BoxMesh.new()
+	box.size = Vector3(
+		absf(tangent.x) * width + absf(normal.x) * thickness,
+		y_height,
+		absf(tangent.z) * width + absf(normal.z) * thickness,
+	)
+	mesh.mesh = box
+	mesh.material_override = mat
+	mesh.position = Vector3(pos_xz.x, y_center, pos_xz.z)
+	body.add_child(mesh)
+
+
 static func _add_slab_piece(body: StaticBody3D, mat: Material, size: Vector3, pos: Vector3) -> void:
 	var mesh := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -248,6 +267,38 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 		col.position = Vector3(cx, height * 0.5, cz)
 		col.rotation.y = yaw_for_corner
 		body.add_child(col)
+
+	# --- Cardinal-face shaft walls (4). Each face gets a framed DOORWAY: two side
+	# jambs + a lintel above, leaving a central opening. This is what makes the
+	# shaft read as an enclosed elevator shaft on EVERY floor — previously the
+	# cardinal faces were bare, so any floor without the car parked at it (tube-
+	# reached upper floors, or a served floor with the car elsewhere) showed an
+	# open, skeletal shaft. Visual only (no collision) so walking onto the car +
+	# the car's own doors are unaffected; the central opening stays clear.
+	var wall_mat := StandardMaterial3D.new()
+	wall_mat.albedo_color = Color(0.33, 0.35, 0.41)
+	wall_mat.metallic = 0.45
+	wall_mat.roughness = 0.5
+	var door_h: float = minf(2.8, height - 0.4)
+	var door_w: float = side_length * 0.72
+	var jamb_w: float = (side_length - door_w) * 0.5
+	var wall_thk: float = 0.1
+	for spec in [
+		{"tangent": Vector3(1, 0, 0), "normal": Vector3(0, 0, 1), "centre": Vector3(0, 0, -size * 0.5)},
+		{"tangent": Vector3(1, 0, 0), "normal": Vector3(0, 0, 1), "centre": Vector3(0, 0, size * 0.5)},
+		{"tangent": Vector3(0, 0, 1), "normal": Vector3(1, 0, 0), "centre": Vector3(size * 0.5, 0, 0)},
+		{"tangent": Vector3(0, 0, 1), "normal": Vector3(1, 0, 0), "centre": Vector3(-size * 0.5, 0, 0)},
+	]:
+		var tang: Vector3 = spec.tangent
+		var norm: Vector3 = spec.normal
+		var ctr: Vector3 = spec.centre
+		# Two jambs flanking the opening.
+		for sgn in [-1.0, 1.0]:
+			var t_off: float = sgn * (door_w + jamb_w) * 0.5
+			_add_shaft_panel(body, wall_mat, ctr + tang * t_off, tang, norm, jamb_w, wall_thk, height * 0.5, height)
+		# Lintel above the opening.
+		var lintel_h: float = height - door_h
+		_add_shaft_panel(body, wall_mat, ctr, tang, norm, door_w, wall_thk, door_h + lintel_h * 0.5, lintel_h)
 
 	# --- Geometry-data dict. Cardinal faces (N/S/E/W) — kept for any future
 	# caller that builds against the open doorways; unused by the car today.
