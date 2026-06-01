@@ -21,6 +21,7 @@ extends Node3D
 @export var hud_manager_path: NodePath
 @export var world_environment_path: NodePath
 @export var env_light_path: NodePath
+@export var cityscape_path: NodePath
 
 # Floors present in the tower. `node` is relative to this controller, `level`
 # is 0=basement (Utility) and counts UP; `name` is the HUD header text (the part
@@ -45,6 +46,7 @@ var _pivot: Node3D
 var _hud: Node
 var _world_env: WorldEnvironment
 var _env_light: DirectionalLight3D
+var _cityscape: Node3D
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
@@ -63,6 +65,7 @@ func _ready() -> void:
 	_hud = get_node_or_null(hud_manager_path)
 	_world_env = get_node_or_null(world_environment_path)
 	_env_light = get_node_or_null(env_light_path)
+	_cityscape = get_node_or_null(cityscape_path)
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
 	for f in _FLOORS:
@@ -161,7 +164,7 @@ func _update(snap: bool) -> void:
 		_hud.set_floor(_current_level, _name_for_level(_current_level))
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself.
-	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")):
+	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):
 		var floor_anchor: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
 		# Jump-follow: now that a charged jump clears ~9 m, anchoring the pivot to
 		# the floor lets the player launch clean out of the top of frame. Let the
@@ -172,6 +175,10 @@ func _update(snap: bool) -> void:
 		var rise: float = maxf(0.0, _player.global_position.y - floor_surface)
 		var target_y: float = floor_anchor + rise * _JUMP_FOLLOW_FRACTION
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
+	# The placeholder cityscape shows only from the upper floors (so it doesn't
+	# clutter the tight iso framing down on the Garden / Utility).
+	if _cityscape:
+		_cityscape.visible = _current_level >= int(_c.CITY_REVEAL_LEVEL)
 	# Light the passive spine-pipe risers on the floors above Utility to match
 	# whatever's online down on Floor 1 — so an activated utility glows
 	# continuously all the way up the shaft, not just on its own floor.

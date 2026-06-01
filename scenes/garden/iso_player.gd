@@ -280,7 +280,10 @@ func _physics_process(delta: float) -> void:
 		and _iso_robot.is_dialogue_open()
 	)
 	var schematic_open: bool = _gs.get("schematic_open") if _gs else false
-	if dialogue_open or schematic_open:
+	# Looking out a Sky Lounge window is modal too — the camera is the player's
+	# while it's up, so freeze the body (invariant #2).
+	var looking_out: bool = bool(_gs.get("looking_out")) if _gs else false
+	if dialogue_open or schematic_open or looking_out:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		velocity.y = 0.0 if is_on_floor() else (velocity.y - _c.PLAYER_GRAVITY * delta)

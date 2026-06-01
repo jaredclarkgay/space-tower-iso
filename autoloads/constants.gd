@@ -387,6 +387,34 @@ const VACUUM_TRANSIT_INTERVAL_MIN := 2.2   # s — min gap between transit capsu
 const VACUUM_TRANSIT_INTERVAL_MAX := 5.5   # s — max gap
 const VACUUM_TRANSIT_RISE_SPEED := 5.0     # m/s — how fast a capsule rises the tube
 
+# --- Sky Lounge: look-out-the-window camera + placeholder cityscape ----------
+# Walk up to a Sky Lounge window and press E to "look out": the camera detaches
+# to an exterior vantage you drive — Q/R orbit, arrows pan, wheel zoom, Esc/E
+# back inside. The player stays put while looking out (a modal camera owner).
+const LOOKOUT_WINDOW_RADIUS := 3.2     # m — how close to a wall offers the look-out
+const LOOKOUT_TILT_DEG := -18.0        # look OUT and slightly down over the edge
+const LOOKOUT_DISTANCE := 16.0         # camera distance from the look-at point
+const LOOKOUT_SIZE := 26.0             # ortho size while looking out (wide vista)
+const LOOKOUT_EASE_RATE := 3.2         # ease in/out speed of the look-out transition
+const LOOKOUT_ORBIT_RATE := 1.15       # rad/s — Q/R swing the view along the facade
+const LOOKOUT_PAN_RATE := 9.0          # m/s — arrows slide the vantage
+const LOOKOUT_PAN_RANGE := 9.0         # m — clamp on how far panning strays from the window
+const LOOKOUT_OUTSET := 3.0            # m the look-at point sits beyond the wall (outward)
+const LOOKOUT_DROP := 2.0              # m the look-at point sits below the floor (toward the city)
+
+# Placeholder cityscape — a ring of distant blocky buildings on a ground plane,
+# seen out the Sky Lounge glass. Throwaway: a real skyline is the worldbuilding
+# phase. Revealed only on the upper floors (>= LOOKOUT level) so it doesn't
+# clutter the tight iso framing down on the Garden / Utility.
+const CITY_REVEAL_LEVEL := 4           # show the cityscape from this floor up
+const CITY_RING_INNER := 48.0          # m — nearest buildings start out here
+const CITY_RING_OUTER := 95.0          # m — furthest buildings
+const CITY_RING_COUNT := 64            # number of buildings in the ring
+const CITY_GROUND_Y := -2.0            # world y of the city ground plane
+const CITY_HEIGHT_MIN := 6.0
+const CITY_HEIGHT_MAX := 30.0          # shorter than the tower, so you look DOWN onto them
+const CITY_RNG_SEED := 20260601        # fixed so the skyline layout is stable across runs
+
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
 # Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension

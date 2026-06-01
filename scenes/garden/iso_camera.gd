@@ -64,6 +64,19 @@ var _orbit_pitch := 0.0
 var _base_tilt_deg := 0.0
 var _base_distance := 0.0
 
+# --- Sky Lounge look-out mode -----------------------------------------------
+# A modal camera owner (like the dialogue focus): drives the pivot to an exterior
+# vantage the player steers. phase 0 = off, 1 = looking out, 2 = easing back.
+# Reuses _apply_orbit to render, so it composes with the existing tilt/distance.
+var _lookout_phase: int = 0
+var _lookout_anchor0: Vector3       # the window's look-at point at entry (pan is relative to this)
+var _lookout_pan := Vector3.ZERO    # arrow-driven offset from the anchor, clamped
+var _lookout_yaw := 0.0             # pivot yaw target (Q/R orbit it)
+var _lookout_size := 0.0            # ortho size target (wheel zooms it)
+var _lookout_saved_pos := Vector3.ZERO
+var _lookout_saved_yaw := 0.0
+var _lookout_saved_size := 0.0
+
 # --- Living iso camera state ------------------------------------------------
 # _size_base is the player's chosen zoom; the displayed `size` eases toward it
 # plus any transient (sprint pull-back / survey / reveal). Manual zoom edits the
@@ -104,6 +117,18 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Sky Lounge look-out mode owns the camera exclusively while active (or easing
+	# back). It drives the pivot + base tilt/distance/size and renders via
+	# _apply_orbit, then returns so no other mode fights it.
+	if _lookout_phase != 0 or bool(_gs.get("looking_out")):
+		_update_lookout(delta)
+		_apply_orbit()
+		if _pivot:
+			_gs.camera.target = _pivot.global_position
+			_gs.camera.angle_step = _angle_step_from_pivot()
+		_gs.camera.ortho_size = size
+		return
+
 	# Detect dialogue open/close transitions and trigger the close-up
 	# tween in or out.
 	var dialogue_open: bool = bool(_gs.get("dialogue_open"))
@@ -173,6 +198,77 @@ func _apply_orbit() -> void:
 	# Landing dip: a transient downward nudge to the camera (keeps the look basis,
 	# so the world jolts up in frame on a hard landing). Decayed in _update_iso.
 	transform = Transform3D(Basis(x, y, z), pos + Vector3(0.0, -_land_kick, 0.0))
+
+
+# Sky Lounge look-out: drive the pivot to an exterior vantage the player steers.
+# The pivot becomes the look-at point (out over the edge); pivot.yaw (Q/R) orbits
+# the camera around it; arrows pan the vantage; wheel zooms (_unhandled_input).
+# _apply_orbit renders the camera from _base_tilt/_base_distance + this pivot, so
+# it composes with the normal machinery. Phase 2 eases back to the saved pose.
+func _update_lookout(delta: float) -> void:
+	if _pivot == null:
+		return
+	var looking: bool = bool(_gs.get("looking_out"))
+	if _lookout_phase == 0 and looking:
+		# Enter: snapshot the interior pose so we can ease back to it.
+		_lookout_saved_pos = _pivot.global_position
+		_lookout_saved_yaw = _pivot.rotation.y
+		_lookout_saved_size = _size_base
+		_lookout_anchor0 = _gs.get("look_out_anchor")
+		_lookout_pan = Vector3.ZERO
+		_lookout_yaw = float(_gs.get("look_out_yaw"))
+		_lookout_size = float(_c.LOOKOUT_SIZE)
+		_lookout_phase = 1
+	if _lookout_phase == 1 and not looking:
+		# Begin exit: aim the yaw back at the saved heading the short way around.
+		var cur: float = _pivot.rotation.y
+		var d: float = wrapf(_lookout_saved_yaw - cur + PI, 0.0, TAU) - PI
+		_lookout_yaw = cur + d
+		_lookout_phase = 2
+
+	var target_pos: Vector3
+	var target_size: float
+	var target_tilt: float
+	var target_dist: float
+	if _lookout_phase == 1:
+		# Q/R orbit the view; arrows pan (strafe + raise/lower), clamped to range.
+		var orbit: float = Input.get_axis(&"camera_rotate_left", &"camera_rotate_right")
+		_lookout_yaw += orbit * float(_c.LOOKOUT_ORBIT_RATE) * delta
+		var mv: Vector2 = Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
+		var step: float = float(_c.LOOKOUT_PAN_RATE) * delta
+		var rng: float = float(_c.LOOKOUT_PAN_RANGE)
+		var right := Vector3(cos(_lookout_yaw), 0.0, -sin(_lookout_yaw))
+		_lookout_pan += right * (mv.x * step)
+		_lookout_pan.y += -mv.y * step
+		_lookout_pan.x = clampf(_lookout_pan.x, -rng, rng)
+		_lookout_pan.y = clampf(_lookout_pan.y, -rng, rng)
+		_lookout_pan.z = clampf(_lookout_pan.z, -rng, rng)
+		target_pos = _lookout_anchor0 + _lookout_pan
+		target_size = _lookout_size
+		target_tilt = float(_c.LOOKOUT_TILT_DEG)
+		target_dist = float(_c.LOOKOUT_DISTANCE)
+	else:
+		target_pos = _lookout_saved_pos
+		target_size = _lookout_saved_size
+		target_tilt = float(_c.CAMERA_TILT_DEG)
+		target_dist = float(_c.CAMERA_DISTANCE)
+
+	var k: float = clampf(float(_c.LOOKOUT_EASE_RATE) * delta, 0.0, 1.0)
+	_pivot.global_position = _pivot.global_position.lerp(target_pos, k)
+	_pivot.rotation.y = lerpf(_pivot.rotation.y, _lookout_yaw, k)
+	size = lerpf(size, target_size, k)
+	_base_tilt_deg = lerpf(_base_tilt_deg, target_tilt, k)
+	_base_distance = lerpf(_base_distance, target_dist, k)
+	# Keep the free-look offsets neutral so _apply_orbit renders the base pose.
+	_orbit_yaw = 0.0
+	_orbit_pitch = 0.0
+
+	if _lookout_phase == 2 and _pivot.global_position.distance_to(target_pos) < 0.25 \
+			and absf(_pivot.rotation.y - _lookout_yaw) < 0.03:
+		_pivot.global_position = target_pos
+		_pivot.rotation.y = _lookout_yaw
+		_size_base = _lookout_saved_size
+		_lookout_phase = 0
 
 
 # Iso living-camera update: gentle follow + look-ahead lead on the pivot's XZ,
@@ -258,6 +354,16 @@ func _update_iso(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# While looking out the Sky Lounge window, the camera is the player's: only
+	# zoom (routed to the look-out size) is handled here; Q/R orbit + arrow pan are
+	# polled in _update_lookout. Consume everything so Q/R don't also 90°-snap and
+	# the arrows don't fall through to anything else.
+	if bool(_gs.get("looking_out")):
+		if event.is_action_pressed(&"camera_zoom_in"):
+			_lookout_size = clampf(_lookout_size * float(_c.CAMERA_ZOOM_FACTOR), float(_c.CAMERA_ORTHO_SIZE_MIN), float(_c.CAMERA_ORTHO_SIZE_MAX))
+		elif event.is_action_pressed(&"camera_zoom_out"):
+			_lookout_size = clampf(_lookout_size / float(_c.CAMERA_ZOOM_FACTOR), float(_c.CAMERA_ORTHO_SIZE_MIN), float(_c.CAMERA_ORTHO_SIZE_MAX))
+		return
 	# During dialogue, only the pan action is active — and it's repurposed
 	# to drag-rotate the camera around the focused midpoint instead of
 	# panning the world. While the player is actively dragging, the
