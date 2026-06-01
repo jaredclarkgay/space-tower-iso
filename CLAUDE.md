@@ -1,17 +1,21 @@
 # CLAUDE.md — Space Tower Iso
 
-> **⚠️ Architecture update — this doc lags behind a major refactor.** The game is
+> **⚠️ Architecture update — this doc lags behind major refactors.** The game is
 > now ONE stacked-world scene: `scenes/tower/tower.tscn` (the `run/main_scene`)
-> with a single player/camera/HUD and the four floors as offset child nodes
-> (`Floors/Floor1..4` at `y = (level-1) * FLOOR_3D_STORY_HEIGHT`, story height
-> now **6 m**), all driven by `scenes/tower/tower_controller.gd`. Floors no longer
-> scene-swap — you **walk / fall / ride** between them in one continuous world,
-> with visibility gated to the current floor + below. The elevator is a physical
-> car (`scenes/shared/elevator_platform.gd`); the 3↔4 stairs are physical
-> geometry. Trees are genome-driven with a developmental growth shader
-> (`scenes/shared/arboretum_tree.gd`). **Sections below that describe
-> separate-scene floors or a scene-swap elevator are historical** — trust
-> `scenes/tower/`, the git log, and `agent/session_log.md` for current truth.
+> with a single player/camera/HUD and the floors as offset child nodes under
+> `Floors/` (content-named: `Utility, Garden, ArboretumGround, ArboretumCanopy,
+> Residential, SkyLounge, Roof`), each at `y = level * FLOOR_3D_STORY_HEIGHT`
+> (story height **6 m**), all driven by `scenes/tower/tower_controller.gd`.
+> **`level` is 0-indexed: Utility is Floor 0 (the basement), counting up; the Roof
+> has no number.** Floors don't scene-swap — you **walk / fall / ride / hop**
+> between them in one continuous world, visibility gated to the current floor +
+> below. The elevator is a physical car (`scenes/shared/elevator_platform.gd`);
+> the Arboretum ground↔canopy stairs + the corner vacuum-lift hop are the other
+> two traversal methods. Trees are genome-driven with a developmental growth
+> shader (`scenes/shared/arboretum_tree.gd`). **Sections below that describe
+> separate-scene floors, a scene-swap elevator, or the OLD 1-indexed floor
+> numbers are historical** — trust `scenes/tower/`, the git log, and
+> `agent/session_log.md` for current truth.
 
 ## What this repo is
 
@@ -23,18 +27,21 @@ The sibling repo `space-tower/` (full game, original two-mode rendering) still e
 
 ## Current scope (what actually exists)
 
-This is **multi-floor** and has real mechanics. **Canonical floor order** (as the game lays it out — verified against the elevator destination graph + stairs), listed bottom → top:
+This is **multi-floor** and has real mechanics. **Canonical floor order** (0-indexed; verified against the elevator destination graph + stairs + vacuum-lift range), listed bottom → top:
 
-| # | Floor | Dir / scene | What it is |
+| # | Floor | Dir | What it is |
 |---|---|---|---|
-| **1** | **Utility** | `scenes/floor_1/` | Bottom floor / infrastructure. Pull the master breaker, then connect + activate 6 utility sources (water, power, atmosphere, data, waste, cargo). Its spine pipes glow on every floor they pass through. |
-| **2** | **Garden** | `scenes/floor_2/floor_2.tscn` *(main scene)* | The mechanically richest floor: 30×30 plot grid with a ROYGBV value gradient, player-driven seed planting (south-wall dispenser, 6-cell HUD seed selector with stock gauges, `P` plant verb), Cody GX-5 helper robot with arrival ceremony + dialogue tree + Schematics modal, food economy, three camera modes (ISO / PROFILE / OTS). |
-| **3** | **Arboretum (ground)** | `scenes/floor_3/` | Edge tree plots, `P` to plant a sapling, two tree varieties, 60 s continuous growth persisted in `GameState.floor_3.trees`. Straight stairs up to Floor 4. |
-| **4** | **Canopy deck** | `scenes/floor_4/` | Upper half of the Arboretum. Slab built tile-by-tile with pre-cut holes (elevator shaft, stair aperture, tree holes). **No elevator stop** — reachable only on foot via the stairs. Renders the crowns of trees grown on Floor 3 once growth crosses a threshold. |
+| **0** | **Utility / Basement** | `scenes/utility/` | Bottom floor / infrastructure. Pull the master breaker, then connect + activate 6 utility sources (water, power, atmosphere, data, waste, cargo). Its spine pipes glow on every floor they pass through. State: `GameState.utility`. |
+| **1** | **Garden** | `scenes/garden/` | Spawn / home floor and the mechanically richest one: 30×30 plot grid with a ROYGBV value gradient, player-driven seed planting (south-wall dispenser, 6-cell HUD seed selector, `P` plant verb), Cody GX-5 helper robot (arrival ceremony + dialogue tree + Schematics modal), food economy, three camera modes (ISO / PROFILE / OTS). Scripts keep their `iso_*.gd` names (they describe the renderer, not the floor). |
+| **2** | **Arboretum (ground)** | `scenes/arboretum_ground/` | Edge tree plots, `P` to plant a sapling, two tree varieties, continuous growth persisted in `GameState.arboretum.trees`. Straight stairs up to the Canopy. |
+| **3** | **Canopy deck** | `scenes/arboretum_canopy/` | Upper half of the Arboretum. Slab built tile-by-tile with pre-cut holes (elevator shaft, stair aperture, tree holes). **No elevator stop** — reachable on foot via the stairs (or a vacuum hop). Renders the crowns of trees grown on Floor 2 once growth crosses a threshold. |
+| **4** | **Residential** | `scenes/residential/` | **Blank shell** — fully wired into the tower (slab/walls/elevator/spine/tubes) but no housing or residents yet. A worldbuilding-phase fill. |
+| **5** | **Sky Lounge** | `scenes/sky_lounge/` | **Blank shell** — sky-bar observation lounge ringed in floor-to-ceiling glass. Walk up to the glass → **[E] look out the window**: the camera detaches to an exterior vantage you drive (Q/R orbit, arrows pan, wheel zoom, E/Esc back). Looks out at the placeholder `scenes/shared/cityscape.gd`. |
+| **Roof** | **Construction Vista** | `scenes/roof/` | The top: open-sky construction deck with a drivable (cosmetic) crane, the shaft topping out, capped corner tubes. No floor number. Reached by vacuum hop. |
 
-> **Numbering note:** the numbers above are the *in-game* floor numbers and are canonical; directory names now match (`scenes/floor_1` … `floor_4`). The Garden's dir was renamed from the historical `iso_prototype/` to `scenes/floor_2/` so the layout is self-documenting (the `iso_*.gd` script names inside were kept — they describe the iso renderer, not the floor). The original brief called the Garden "Floor 3"; that is **stale** — Floor 3 is the Arboretum. Floors 3 + 4 together are one double-height Arboretum (ground + canopy).
+> **Numbering note (locked Session 9):** Utility is **Floor 0 (the basement)**; numbers count up; the Roof is unnumbered. Internal `level` is 0-indexed to match the display (`base_y = level * FLOOR_3D_STORY_HEIGHT`). Dirs + `GameState` keys + `Floors/` node names are all content-named so the layout reads itself. The original brief's "Garden = Floor 3" and the Session-8-era 1-indexed numbers are **stale**.
 
-Floors connect via a **multi-destination elevator chooser** (`scenes/shared/elevator_handler.gd`); the elevator serves Floors 1–3. Floors **3 ↔ 4** connect by **straight stairs** only (`scenes/shared/stairs.gd`) — the Canopy has no elevator stop.
+Floors connect three ways: a **multi-destination elevator** (`scenes/shared/elevator_platform.gd`, chooser in `elevator_handler.gd`) serving Floors **0, 1, 2, 4, 5**; **straight stairs** for Arboretum ground↔canopy (`scenes/shared/stairs.gd`); and the **corner vacuum-lift hop** (`scenes/shared/vacuum_lift.gd`, ±1 floor) reaching everything 0→Roof. The Canopy has no elevator stop; the Roof is tube-only.
 
 Still genuinely absent (rooms for growth, not constraints): save/load, audio/music, skill-tree unlock logic (visual-only today), a win condition / progression goal, camera-follow on player movement, water/sunlight gating for tree growth (Phase 2B).
 
@@ -60,7 +67,7 @@ The Godot editor app is installed at `/Applications/Godot.app`. The CLI (`godot`
 - Godot 4.x (4.6 targeted), GDScript only.
 - **GL Compatibility renderer.** Web export must remain possible.
 - No C#, no GDExtension, no plugins beyond what ships with Godot.
-- Game code lives under `scenes/`: one dir per floor (`scenes/floor_1/` … `scenes/floor_4/`) plus reusable cross-floor modules in `scenes/shared/`. **New floors get their own `scenes/floor_N/` dir and inherit `scenes/shared/floor_chrome.gd`** + the rules in `docs/floor_design_system.md`.
+- Game code lives under `scenes/`: one **content-named** dir per floor (`scenes/utility/`, `scenes/garden/`, `scenes/arboretum_ground/`, `scenes/arboretum_canopy/`, `scenes/residential/`, `scenes/sky_lounge/`, `scenes/roof/`) plus reusable cross-floor modules in `scenes/shared/`. **A new floor gets its own content-named `scenes/<name>/` dir + controller, inherits `scenes/shared/floor_chrome.gd`** (slab/walls/elevator/spine) + `vacuum_tube.gd`, and is wired into `tower.tscn` (a `Floors/<Name>` node) + `tower_controller._FLOORS` + the elevator `SERVED` list. See `docs/floor_design_system.md`. The two blank floors (`residential`, `sky_lounge`) are the minimal template.
 - The four autoloads (`Constants`, `GameState`, `SaveManager`, `AudioManager`) are the only globals. Tunable game-feel knobs live in `autoloads/constants.gd`; per-floor and cross-floor state lives in `autoloads/game_state.gd` (the single source of truth that the iso scene renders).
 
 ## The Builder Agent loop
@@ -96,10 +103,11 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 | GDScript reload warnings about shadowed identifiers (`tan`, `scale`, etc.) | `rules/gdscript_builtin_shadow.md` |
 | Label3D / 3D prompts that vanish or shrink as the camera zooms | `rules/godot_label3d_orthographic_zoom.md` (use `scenes/shared/label_scaler.gd`) |
 | Number-key / single-key input that works on some machines but not macOS | `rules/godot_input_keynum_macos.md` |
-| Stairs between Floors 3 ↔ 4 | `scenes/shared/stairs.gd` (the spiral staircase was deleted — see F-019; straight stairs replaced it) |
-| Tiled slab with holes (elevator + stair aperture + tree holes) | `scenes/floor_4/floor_4.gd` `_build_tiled_slab_with_holes` |
+| Stairs between Arboretum ground ↔ canopy (Floors 2 ↔ 3) | `scenes/shared/stairs.gd` (the spiral staircase was deleted — see F-019; straight stairs replaced it) |
+| Tiled slab with holes (elevator + stair aperture + tree holes) | `scenes/arboretum_canopy/arboretum_canopy.gd` `_build_tiled_slab_with_holes` |
 | Multi-destination elevator / floor chooser | `scenes/shared/elevator_handler.gd` |
-| Cross-floor entities (tree crown on the floor above, glowing spine pipes) | `scenes/floor_3/floor_3.gd` + `scenes/shared/floor_chrome.gd` `build_passive_spine_pipes` |
+| Cross-floor entities (tree crown on the floor above, glowing spine pipes) | `scenes/arboretum_ground/arboretum_ground.gd` + `scenes/shared/floor_chrome.gd` `build_passive_spine_pipes` |
+| Adding a floor / the look-out camera / placeholder cityscape | `scenes/residential/` + `scenes/sky_lounge/` (blank-floor template), `scenes/shared/cityscape.gd`, look-out mode in `scenes/garden/iso_camera.gd` (`_update_lookout`) |
 
 For specialized work, dispatch to the `godot-iso-builder` subagent (defined in `.claude/agents/`) — it pre-loads project conventions and the rule index.
 
@@ -142,7 +150,7 @@ The five-phase vertical-slice brief that started this repo is **complete**, and 
 1. **Phase 0** — Bootstrap. Done (`a8317b1`).
 2. **Phase 1** — Setup + research (`references/iso_research.md`). Done (`d8e3cb8`).
 3. **Phase 2** — Architecture decision: Path B + 3D-orthographic. Done (`16fe1d9`).
-4. **Phase 3** — Build the slice (the Garden, now `scenes/floor_2/`). Done — runnable.
+4. **Phase 3** — Build the slice (the Garden, now `scenes/garden/`). Done — runnable.
 5. **Phase 4/5** — Self-eval + handoff. The slice answered "yes, iso works"; the repo continued past handoff into active development.
 
 ## How work proceeds now

@@ -26,7 +26,16 @@
       "title": "Open elevator shaft hole \u2014 fall-through-by-design decision",
       "raised": "2026-05-31",
       "status": "queued",
-      "detail": "The slab on Floors 2/3 has a central ~4x4 hole for the elevator car to travel through. When the car is parked on another floor, walking into that hole drops the player down the open shaft. The jump/elevator fall-through bugs were fixed (commit 79021ff), but this open-shaft drop is geometry-by-design and may be the 'fall through in some instances' the operator still felt. Decide the intended behaviour: auto-call the car when the player nears the empty shaft, a retractable safety grate, leave it as an intentional hazard, or fold it into the Q-002 tube-hop traversal. Tie this in when Q-002 is tackled."
+      "detail": "The slab on every served floor (now 1/2/4/5, 0-indexed) has a central ~4x4 hole for the elevator car to travel through. When the car is parked on another floor, walking into that hole drops the player down the open shaft. The jump/elevator fall-through bugs were fixed (commit 79021ff), but this open-shaft drop is geometry-by-design and may be the 'fall through in some instances' the operator still felt. Decide the intended behaviour: auto-call the car when the player nears the empty shaft, a retractable safety grate, leave it as an intentional hazard, or fold it into the Q-002 tube-hop traversal. NOTE: the two new blank floors (Residential 4, Sky Lounge 5) also have this central shaft hole, so whatever's decided applies tower-wide."
+    },
+    {
+      "id": "Q-005",
+      "type": "design_intent",
+      "priority": "high",
+      "title": "The BIG worldbuilding phase — fill the scaffolding the operator just asked for",
+      "raised": "2026-06-01",
+      "status": "queued",
+      "detail": "Operator's explicitly stated NEXT direction, set at the start of Session 9: 'Once these [scaffolding floors] are done... I'd like to dig into the next phase — which will be a big worldbuilding one.' Session 9 delivered the scaffolding: Floor 0 basement renumber, two new BLANK floors (Floor 4 Residential, Floor 5 Sky Lounge), the Sky Lounge look-out-the-window camera + a placeholder cityscape, and a full self-documenting rename. The blank floors + placeholder skyline are deliberately empty, waiting for this phase. Natural first fills: (a) Residential — housing units + residents (who are they, what do they need, does the Garden/Arboretum feed them?); (b) Sky Lounge fit-out (bar/seating/social, tie to the food economy Q-003?); (c) a REAL skyline replacing scenes/shared/cityscape.gd (the world outside the tower — what IS this city/station?). ASK the operator for the worldbuilding shape before building — this is the phase they want to direct. Smaller follow-ups from Session 9 to fold in or knock out first: (1) the look-out camera FRAMING is a first pass — tilt/distance/anchor are LOOKOUT_* constants, open to a feel pass; (2) an actual elevator RIDE to floors 4/5 is logic-wired (SERVED + travel math) but only the vacuum-hop path was screenshot-verified — confirm in play or a harness; (3) Residential/Sky Lounge currently reuse the same shaft-hole-in-slab as other floors (see Q-004)."
     }
   ],
   "request_types": [

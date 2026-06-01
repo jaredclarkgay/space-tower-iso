@@ -867,3 +867,72 @@ cross-floor consistency; (5) mirror linked per-floor layouts; (6) Y-gate
 - Operator is clearing context to start a BIG new production phase. The invariants
   doc + this log are the handoff. Crane boom/hook are cosmetic (no lifting yet) —
   a natural pickup. CLAUDE.md still has stale separate-scene sections to rewrite.
+
+
+## Session 9 — 2026-06-01 — Scaffolding: Floor 0 renumber, two new floors, the Sky Lounge look-out
+
+**Goal (operator-set):** lay scaffolding for the next big *worldbuilding* phase.
+Three asks, all decided up front via a structured question: (1) Utility becomes
+**Floor 0 / the basement** and every number drops by one; (2) add two new BLANK
+floors — **Residential (4)** and a **Sky Lounge (5)** sky-bar with a "look out the
+window" camera — keeping the construction Vista as the unnumbered **Roof**; (3) a
+**full self-documenting rename** (dirs + GameState keys + node names).
+
+Built + verified in three committed phases (the windowed screenshot harness was
+the gate at each step — NOT `--headless`, which renders nothing):
+
+### Phase A — renumber + rename (`82d982e`)
+Internal `level` went **0-indexed to match the display** (`base_y = level*story`,
+dropped the `-1` in the tower, elevator, and vacuum lift). The bottom four floors
+keep their exact world-Y; only their displayed number dropped. Full rename:
+`scenes/floor_1..5` → `utility / garden / arboretum_ground / arboretum_canopy /
+roof` (+ controller scripts renamed to match), `GameState.floor_1/3/4` →
+`utility / arboretum / canopy`, `Floors/Floor1..5` nodes → content names. Done
+with `git mv` (history preserved) + `perl` word-boundary key renames + targeted
+`sed` for paths (BSD sed has no `\b` — use perl). Knock-ons: elevator
+`SERVED`/`NAMES`, vacuum hop range, HUD wayfinding keys + group-visibility checks,
+env presets, `_shot_harness`, and a **new `seed_select_0`** action (key 0) so the
+elevator chooser can pick the basement. `vacuum_lift` now finds a floor node by
+world-Y, not by `"Floor%d"` name, so the rename can't break the tube-glow lookup.
+
+### Phase B — two new floors + float the roof (`cc433fa`)
+`scenes/residential/` + `scenes/sky_lounge/` — blank shells from the shared chrome
+(slab w/ shaft hole + walls + extension grid + elevator core + lit spine pipes +
+corner vacuum tubes). The Vista/Roof floated from y=24 → y=36 (level 4 → 6) to sit
+atop them. Transit reaches everything: vacuum hop range 0..6, elevator serves
+0,1,2,4,5 (Canopy 3 stairs-only, Roof 6 tube-only). Harness hops 1→6, lands solid
+on every floor.
+
+### Phase C — the Sky Lounge look-out (`46a1b77`)
+Operator picked **free-orbit (player drives)** + a **placeholder skyline**. The
+Sky Lounge gets floor-to-ceiling glass; `scenes/shared/cityscape.gd` is a seeded
+ring of distant buildings the tower reveals only from Floor 4 up
+(`CITY_REVEAL_LEVEL`). Walk to the glass → `[E] look out` → the camera detaches to
+an exterior vantage (`GameState.looking_out`): Q/R orbit, arrows pan, wheel zoom,
+E/Esc ease back. Implemented as a **new modal camera owner** in `iso_camera`
+(`_update_lookout`) that drives the pivot and renders via the existing
+`_apply_orbit`, so it composes with the normal machinery. Per invariant #2 the
+player freezes, the tower stops driving the pivot, and the vacuum lift defers.
+Verified with a dedicated `_lookout_harness.tscn` using the tower's OWN camera.
+
+### Durable learnings
+- **BSD `sed` has no `\b`.** For word-boundary renames on macOS use `perl -i -pe`.
+  (Cost a wasted no-op sed pass before the perl redo.)
+- **A camera-only modal owner is a lighter case of invariant #2:** freeze the
+  player + defer other input owners, but skip the `_current_level` tracking (the
+  player doesn't move). Captured in the invariants doc.
+- **Inserting a floor mid-stack pushes everything above it up** — the roof's
+  content didn't change, only its `level` + transform. Clean because base_y is
+  derived, never literal (invariant #1 paying off).
+
+### Open / next
+- **The big worldbuilding phase** is the operator's next direction — the two blank
+  floors (Residential units + residents; Sky Lounge fit-out) and a real skyline are
+  its natural first fills. Logged as Q-005.
+- **Look-out framing** is a reasonable first pass (tilt/distance/anchor are all
+  `LOOKOUT_*` constants) — open to a feel pass.
+- **Not yet screenshot-verified:** an actual elevator *ride* to the new floors 4/5
+  (logic is wired — `SERVED` + travel math; the hop path was verified). Catch in
+  interactive play or a follow-up harness.
+- Docs brought current: CLAUDE.md floor table + architecture callout, the
+  invariants doc base_y formula + floor numbers.

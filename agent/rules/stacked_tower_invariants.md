@@ -1,7 +1,8 @@
 # Stacked-tower invariants — keep floors, transit, and shared state linked
 
 The game is ONE continuous world: floors are offset child nodes at
-`y = (level-1) * FLOOR_3D_STORY_HEIGHT` (story = 6 m) under a single
+`y = level * FLOOR_3D_STORY_HEIGHT` (story = 6 m; `level` is 0-indexed — Utility
+is Floor 0/basement) under a single
 player/camera/HUD, driven by `scenes/tower/tower_controller.gd`. Most bugs this
 era came from code that forgot the floors are stacked, or that built cross-floor
 state once instead of keeping it live. These are the rules that keep it coherent.
@@ -19,7 +20,7 @@ sat at world y=0 is wrong once the floor is at y=6/12/18/24.
 - Floors build their geometry in LOCAL space (slab top at local y=0); the tower
   sets `node.position.y`. So floor controllers / shared builders need ZERO
   base-y awareness — keep it that way. If you need a world height, compute it
-  from `(level-1)*FLOOR_3D_STORY_HEIGHT (+ FLOOR_3D_TOP_Y)`, never a literal.
+  from `level*FLOOR_3D_STORY_HEIGHT (+ FLOOR_3D_TOP_Y)`, never a literal.
 
 ## 2. Transit-ownership: a system owns the player, and the tower must KEEP TRACKING.
 
@@ -27,7 +28,12 @@ There's a recurring pattern for "the player isn't walking right now": a system
 takes over the transform and the player skips its own physics. Each one is a
 GameState bool the player early-returns on:
 `riding_elevator` (elevator car), `tube_hopping` (vacuum lift),
-`driving_crane` (the Vista crane).
+`driving_crane` (the roof crane). A fourth, `looking_out` (Sky Lounge look-out
+camera), is camera-only: it doesn't move the player or change floors, so it needs
+the player-freeze + defer-others (steps 1 + 3) but NOT the `_current_level`
+tracking (step 2) — the player stays put. iso_camera also gates its pivot drive
+off it, and the tower gates its pivot-follow off it, so nobody fights the
+look-out camera.
 
 When you add another (a new vehicle, lift, zip-line, cutscene), wire ALL of:
 1. **Player skip** — add the flag to `iso_player`'s early-return so it doesn't
@@ -69,9 +75,9 @@ builder, NOT copied inline per floor. Inline-per-floor is how things drift.
 
 When two floors share a coordinate system, a change to one needs the same change
 to the other:
-- Floor 3 tree PLOTS ↔ Floor 4 tree HOLES ↔ corner TUBES all live on the same
-  edge grid. Excluding tube corners from Floor 3's plots required the SAME
-  exclusion in Floor 4's hole computation — otherwise the Canopy gets an empty
+- Arboretum-ground (Floor 2) tree PLOTS ↔ Canopy (Floor 3) tree HOLES ↔ corner
+  TUBES all live on the same edge grid. Excluding tube corners from the ground's
+  plots required the SAME exclusion in the canopy's hole computation — otherwise the Canopy gets an empty
   hole at each corner tube and the player drops through it when tube-hopping.
 - These two functions are independent copies of the same algorithm. If you touch
   one, grep for the sibling. (Ideally unify into a shared helper next time.)
