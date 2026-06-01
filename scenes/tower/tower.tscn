@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/garden/iso_player.gd" id="2_player"]
@@ -20,6 +20,8 @@
 [ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/utility/utility_systems_hud.gd" id="16_sys"]
 [ext_resource type="Script" uid="uid://bt7efp2pboajq" path="res://scenes/utility/utility_arrows_hud.gd" id="17_arrows"]
 [ext_resource type="Script" path="res://scenes/garden/cody_badge.gd" id="18_codybadge"]
+[ext_resource type="Script" path="res://scenes/residential/residential.gd" id="21_resid"]
+[ext_resource type="Script" path="res://scenes/sky_lounge/sky_lounge.gd" id="22_skylounge"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -177,8 +179,16 @@ light_energy = 1.5
 omni_range = 22.0
 omni_attenuation = 1.3
 
-[node name="Roof" type="Node3D" parent="Floors"]
+[node name="Residential" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0)
+script = ExtResource("21_resid")
+
+[node name="SkyLounge" type="Node3D" parent="Floors"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, 0)
+script = ExtResource("22_skylounge")
+
+[node name="Roof" type="Node3D" parent="Floors"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 36, 0)
 script = ExtResource("20_floor5")
 player_path = NodePath("../../Player")
 camera_pivot_path = NodePath("../../CameraPivot")

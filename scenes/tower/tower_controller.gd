@@ -30,7 +30,9 @@ const _FLOORS := [
 	{"node": "Floors/Garden", "level": 1, "name": "FLOOR 1 / GARDEN"},
 	{"node": "Floors/ArboretumGround", "level": 2, "name": "FLOOR 2 / ARBORETUM"},
 	{"node": "Floors/ArboretumCanopy", "level": 3, "name": "FLOOR 3 / CANOPY"},
-	{"node": "Floors/Roof", "level": 4, "name": "ROOF / VISTA — UNDER CONSTRUCTION"},
+	{"node": "Floors/Residential", "level": 4, "name": "FLOOR 4 / RESIDENTIAL"},
+	{"node": "Floors/SkyLounge", "level": 5, "name": "FLOOR 5 / SKY LOUNGE"},
+	{"node": "Floors/Roof", "level": 6, "name": "ROOF / VISTA — UNDER CONSTRUCTION"},
 ]
 const _SPAWN_LEVEL := 1   # the player starts on the Garden (home floor)
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
@@ -186,6 +188,8 @@ func _preset_for(level: int) -> Dictionary:
 		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}  # Garden
 		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}  # Arboretum (ground)
 		3: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}  # Canopy
+		4: return {"amb": Color(0.74, 0.72, 0.70), "energy": 1.05, "bg": Color(0.12, 0.12, 0.14), "sun": 1.05}  # Residential (warm interior)
+		5: return {"amb": Color(0.84, 0.88, 0.96), "energy": 1.60, "bg": Color(0.46, 0.60, 0.78), "sun": 1.45}  # Sky Lounge (glass, sky beyond)
 		# Roof / Vista (top): open to the sky — bright, cool, airy, with a pale horizon.
 		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55}
 

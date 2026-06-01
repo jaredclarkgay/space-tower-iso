@@ -3,7 +3,7 @@ extends Node3D
 # Physical ride-able elevator for the stacked tower. A single car travels the
 # open shaft; the player walks onto the platform, presses E to open a floor
 # chooser, picks a floor, and physically rides there — no scene swap. Serves
-# Floors 0-2 (the Canopy is stairs-only, the Roof tube-only). While travelling, the car owns the
+# Floors 0,1,2,4,5 (Canopy 3 is stairs-only, the Roof tube-only). While travelling, the car owns the
 # rider's transform (GameState.riding_elevator), so the tower's visibility +
 # camera follow naturally as the floors pass.
 
@@ -12,8 +12,8 @@ extends Node3D
 
 @export var player_path: NodePath
 
-const SERVED := [0, 1, 2]          # served floor levels (Canopy omitted on purpose)
-const NAMES := {0: "Utility", 1: "Garden", 2: "Arboretum"}
+const SERVED := [0, 1, 2, 4, 5]    # served floors (Canopy 3 stairs-only, Roof 6 tube-only)
+const NAMES := {0: "Utility", 1: "Garden", 2: "Arboretum", 4: "Residential", 5: "Sky Lounge"}
 const CAR_HALF := 1.7              # platform half-extent (fits inside the ±2 shaft)
 const DOOR_HEIGHT := 2.8
 const PROMPT_ANCHOR_Y := 2.7       # prompt-stack height above the player's feet

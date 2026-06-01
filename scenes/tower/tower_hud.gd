@@ -41,6 +41,8 @@ const WAYFIND := {
 	1: "[1–6]  pick a seed     [P]  plant     [E]  harvest · sell at a tube · talk to Cody",
 	2: "[P]  plant a sapling     ·     take the south stairs up to the Canopy",
 	3: "take the stairs back down     ·     the glass floor frames the grove below",
+	4: "[E]  ride the elevator     ·     nobody's moved in yet — the units are still empty",
+	5: "[E]  ride the elevator     ·     walk up to the glass to look out over the city",
 }
 const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [Tab] survey   [E] ride elevator"
 
