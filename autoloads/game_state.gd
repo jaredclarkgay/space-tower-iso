@@ -73,6 +73,11 @@ var camera_land_kick := 0.0
 var camera_focus_active := false
 var camera_focus_point := Vector3.ZERO
 
+# True while the player is operating the Vista crane — the crane owns the
+# player's transform (rides the cab), so iso_player skips its own physics and
+# the vacuum lift won't offer a hop.
+var driving_crane := false
+
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and
 # tweens back out when it clears.

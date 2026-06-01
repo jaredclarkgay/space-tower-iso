@@ -13,9 +13,14 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
+const Crane = preload("res://scenes/floor_5/crane.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
+
+# Set from tower.tscn so the crane can ride the player + read the camera yaw.
+@export var player_path: NodePath
+@export var camera_pivot_path: NodePath
 
 const CONCRETE := Color(0.46, 0.46, 0.48)
 const STEEL := Color(0.38, 0.40, 0.44)
@@ -36,6 +41,12 @@ func _ready() -> void:
 	# Corner vacuum tubes — Floor 5 is the top, so they cap off (top-sealed).
 	VacuumTube.build_corner_tubes(self, _c, true)
 	_build_steel_structure()
+
+	# The drivable construction crane.
+	var crane := Crane.new()
+	crane.name = "Crane"
+	add_child(crane)
+	crane.setup(get_node_or_null(player_path), get_node_or_null(camera_pivot_path))
 
 
 # Exposed steel: four corner columns rising one story, a perimeter ring beam at

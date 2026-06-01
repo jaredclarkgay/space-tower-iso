@@ -90,6 +90,7 @@ func _update_idle(_delta: float) -> void:
 		bool(_gs.get("riding_elevator"))
 		or bool(_gs.get("dialogue_open"))
 		or bool(_gs.get("schematic_open"))
+		or bool(_gs.get("driving_crane"))
 	)
 	var grounded: bool = _player.has_method("is_on_floor") and _player.is_on_floor()
 	var idx: int = _nearest_mouth_index() if (grounded and not busy) else -1
