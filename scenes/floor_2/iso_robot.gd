@@ -265,11 +265,6 @@ func _begin_arrival() -> void:
 	_state = State.ENTERING
 	visible = true
 	rotation.y = 0.0
-	# Spawn at elevator centre, below the slab. The translucent shaft means
-	# the player sees the robot rising up through the column. LOCAL position
-	# (Cody is a child of the floor node), so the ceremony rides the floor's
-	# offset in the stacked tower instead of teleporting to world y=0.
-	position = Vector3(0, -1.8, 0)
 
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
 	# Park on the flat face of the elevator that's most camera-facing, so
@@ -289,13 +284,19 @@ func _begin_arrival() -> void:
 	# this leaves ~0.66 m visual breathing room and avoids any collision
 	# overlap with the StaticBody3D shaft.
 	var park_offset: float = elev_size * 0.5 + 1.0
-	var park_pos := Vector3(
-		dir.x * park_offset,
-		0.05,
-		dir.z * park_offset,
-	)
+	var park_pos := Vector3(dir.x * park_offset, 0.05, dir.z * park_offset)
 
-	_spawn_arrival_light()
+	# Rise IN PLACE at the parking spot, NOT up the central shaft. The unified
+	# tower now parks a physical elevator CAR in that shaft (elevator_platform),
+	# which would occlude the whole ascent — the player only ever saw Cody once
+	# he slid out, so the "rises on a beam of light" moment was lost. Spawning
+	# him just below the slab beside the elevator keeps the from-below fiction
+	# (the foundry) while staying clear of the car: he emerges out of the floor
+	# into the beam, in full view of the iso camera. LOCAL position — Cody is a
+	# child of the floor node, so the ceremony rides the floor's stacked offset.
+	position = Vector3(park_pos.x, -1.4, park_pos.z)
+
+	_spawn_arrival_light(park_pos)
 	_spawn_arrival_banner()
 	# Top-down warm spotlight that follows Cody. Tracks his transform.
 	if _spotlight:
@@ -305,10 +306,9 @@ func _begin_arrival() -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
-	# Phase 1: rise inside the elevator shaft. (LOCAL position — see spawn note.)
-	tween.tween_property(self, "position:y", 0.55, 1.5)
-	# Phase 2: slide outward to the parking spot (park_pos is floor-local).
-	tween.tween_property(self, "position", park_pos, 1.0)
+	# Single rise out of the floor into the beam, then a tiny settle bounce.
+	tween.tween_property(self, "position:y", 0.18, 1.5)
+	tween.tween_property(self, "position:y", 0.05, 0.25)
 	tween.tween_callback(_finish_arrival)
 
 
@@ -320,7 +320,7 @@ func _finish_arrival() -> void:
 
 # Tall translucent emissive column at the elevator. Reads as a beam of
 # light catching the robot as it ascends. Fades out after the entrance.
-func _spawn_arrival_light() -> void:
+func _spawn_arrival_light(at: Vector3 = Vector3.ZERO) -> void:
 	var col := MeshInstance3D.new()
 	col.name = "ArrivalLight"
 	var cm := CylinderMesh.new()
@@ -337,7 +337,7 @@ func _spawn_arrival_light() -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	col.material_override = mat
-	col.position = Vector3(0, 3.0, 0)
+	col.position = Vector3(at.x, 3.0, at.z)
 	get_parent().add_child(col)
 
 	# MeshInstance3D doesn't have `modulate` (that's CanvasItem); fade via
