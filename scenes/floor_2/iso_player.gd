@@ -177,6 +177,13 @@ var _backpack_full_floater_cooldown := 0.0
 
 
 var _spawn_position: Vector3 = Vector3.ZERO
+# Edge-fall catch state. _last_ground_pos is the "jump-from" point the player
+# snaps back to if they drop off an edge; the grace timer suppresses the catch
+# briefly after a tube hop / elevator ride so the arrival doesn't false-trigger.
+var _last_ground_pos: Vector3 = Vector3.ZERO
+var _fall_catch_grace: float = 0.0
+const FALL_CATCH_DROP := 2.5     # m below the launch point that counts as "fell off"
+const FALL_CATCH_GRACE := 0.35   # s of suppression after legit vertical travel
 
 
 func _ready() -> void:
@@ -253,6 +260,7 @@ func _ready() -> void:
 	# Capture the spawn pose for the out-of-bounds fall fail-safe (respawn here
 	# rather than to a hard-coded (0,1,0), which used to land on a shaft hole).
 	_spawn_position = global_position
+	_last_ground_pos = global_position
 
 
 func _physics_process(delta: float) -> void:
@@ -694,10 +702,26 @@ func _physics_process(delta: float) -> void:
 	if input.length_squared() > 0.01:
 		_gs.player.facing = _facing_from_input(input)
 
-	# Fall fail-safe (F-005). In the stacked tower the solid floor slabs catch
-	# any fall (you land on the floor below); this only fires if we somehow
-	# clip out of bounds entirely — snap back to the captured spawn, never to a
-	# fixed point that might sit over a shaft hole.
+	# Edge-fall catch — "reappear where you jumped from". Track the last grounded
+	# spot; if the player leaps/walks off an edge and starts dropping below the
+	# floor they launched from, snap them back there instead of letting them fall
+	# onto a lower floor (operator: jumping off the top dumped you on the Garden).
+	# Legit vertical travel (tube hop / elevator ride) is exempt, with a short
+	# grace after it ends so the player can settle on the destination floor before
+	# the catch re-arms.
+	var transit: bool = bool(_gs.get("riding_elevator")) or bool(_gs.get("tube_hopping")) if _gs else false
+	if transit:
+		_fall_catch_grace = FALL_CATCH_GRACE
+	else:
+		_fall_catch_grace = maxf(0.0, _fall_catch_grace - delta)
+	if is_on_floor() and not transit:
+		_last_ground_pos = global_position
+	elif _fall_catch_grace <= 0.0 and global_position.y < _last_ground_pos.y - FALL_CATCH_DROP:
+		global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
+		velocity = Vector3.ZERO
+
+	# Hard fail-safe (F-005): if we somehow clip out of bounds entirely (below the
+	# whole building), snap back to the captured spawn.
 	if global_position.y < _c.PLAYER_FALL_RESPAWN_Y:
 		global_position = _spawn_position
 		velocity = Vector3.ZERO
@@ -1219,5 +1243,6 @@ func _update_harvest_bar(progress: float) -> void:
 # correct stacked-world spawn (the tower owns spawn placement, not the .tscn).
 func set_spawn_here() -> void:
 	_spawn_position = global_position
+	_last_ground_pos = global_position
 
 
