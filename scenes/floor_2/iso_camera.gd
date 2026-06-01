@@ -198,6 +198,18 @@ func _update_iso(delta: float) -> void:
 	if _land_kick < 0.001:
 		_land_kick = 0.0
 
+	# --- Soft focus override (e.g. Cody's arrival): ease the pivot to a world
+	# point + zoom in, instead of following the player. pivot.y stays on the
+	# tower's floor anchor (the focused subject is on the player's floor). ---
+	if bool(_gs.get("camera_focus_active")):
+		var fp: Vector3 = _gs.get("camera_focus_point")
+		var kf: float = clampf(float(_c.CAMERA_FOCUS_RATE) * delta, 0.0, 1.0)
+		_pivot.global_position.x = lerpf(_pivot.global_position.x, fp.x, kf)
+		_pivot.global_position.z = lerpf(_pivot.global_position.z, fp.z, kf)
+		size = lerpf(size, float(_c.CAMERA_FOCUS_SIZE), kf)
+		_base_tilt_deg = lerpf(_base_tilt_deg, float(_c.CAMERA_TILT_DEG), kf)
+		return
+
 	var vel := Vector3.ZERO
 	if _iso_player is CharacterBody3D:
 		vel = (_iso_player as CharacterBody3D).velocity
@@ -366,7 +378,10 @@ func _enter_dialogue_focus() -> void:
 		var p1: Vector3 = _iso_player.global_position
 		var p2: Vector3 = _iso_robot.global_position
 		target = (p1 + p2) * 0.5
-		target.y = 1.0
+		# Chest height ABOVE the characters' actual floor — not a hardcoded world
+		# y=1.0, which in the stacked tower aims ~5 m below them (the Garden floor
+		# sits at world y≈6). This is what sent the dialogue camera to a weird spot.
+		target.y = (p1.y + p2.y) * 0.5 + 0.9
 		# Aim the camera so its right axis aligns with the player→Cody
 		# vector — both characters land side-by-side in frame, neither
 		# occluded by the other or by the elevator. Camera-right (after a

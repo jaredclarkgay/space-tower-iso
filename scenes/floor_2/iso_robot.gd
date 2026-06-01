@@ -296,6 +296,11 @@ func _begin_arrival() -> void:
 	# child of the floor node, so the ceremony rides the floor's stacked offset.
 	position = Vector3(park_pos.x, -1.4, park_pos.z)
 
+	# Pull the camera onto Cody for the ceremony (operator: it wasn't on him when
+	# he appeared). park_pos is floor-local; the camera wants a world point.
+	_gs.set("camera_focus_active", true)
+	_gs.set("camera_focus_point", to_global(park_pos))
+
 	_spawn_arrival_light(park_pos)
 	_spawn_arrival_banner()
 	# Top-down warm spotlight that follows Cody. Tracks his transform.
@@ -316,6 +321,10 @@ func _finish_arrival() -> void:
 	_state = State.AWAITING_ACTIVATION
 	# Dialogue panel appears once Cody has settled in his parking spot.
 	_spawn_arrival_dialogue()
+	# Hold the camera on Cody a beat longer so the player reads the moment, then
+	# release it back to following the player.
+	var t := get_tree().create_timer(1.4)
+	t.timeout.connect(func(): _gs.set("camera_focus_active", false))
 
 
 # Tall translucent emissive column at the elevator. Reads as a beam of

@@ -67,6 +67,12 @@ var in_tube_mouth := false
 var camera_arrival_pulse := false
 var camera_land_kick := 0.0
 
+# Soft camera focus override (e.g. Cody's arrival ceremony): while active, the
+# iso camera eases its pivot to camera_focus_point and zooms in, instead of
+# following the player. Producer sets active + point; clears active when done.
+var camera_focus_active := false
+var camera_focus_point := Vector3.ZERO
+
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and
 # tweens back out when it clears.

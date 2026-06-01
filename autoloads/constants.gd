@@ -109,6 +109,10 @@ const CAMERA_REVEAL_SIZE := 24.0
 const CAMERA_REVEAL_TILT_DEG := -21.0
 const CAMERA_REVEAL_RATE := 3.5
 
+# Soft focus (Cody arrival) — pivot eases to a world point + this medium-close zoom.
+const CAMERA_FOCUS_SIZE := 12.0
+const CAMERA_FOCUS_RATE := 3.0
+
 # Dialogue close-up: when the Cody chat panel opens, the camera tweens to
 # look at the midpoint between player and Cody at this tight ortho size.
 const CAMERA_DIALOGUE_FOCUS_SIZE := 7.0
