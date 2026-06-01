@@ -98,13 +98,16 @@ func _process(delta: float) -> void:
 func _update(snap: bool) -> void:
 	if _player == null or _floors.is_empty():
 		return
-	# Only change floors when GROUNDED — so jumping (or bonking the ceiling)
-	# never reveals the floor above or moves the camera off your floor. It also
-	# keeps the floor-above slab gating (below) frozen mid-jump, so a jump arcs
-	# up through the ceiling and falls back to the SAME floor. You change floors
-	# by riding the elevator or walking the stairs, never by jumping.
+	# Change floors when GROUNDED or while RIDING the elevator — never mid-jump.
+	# Freezing it mid-jump is what lets a jump arc up through the ceiling and
+	# fall back to the SAME floor (the floor-above slab gating below stays
+	# frozen). Tracking it during an elevator ride is what keeps it correct on
+	# arrival: is_on_floor() is stale while the car owns the player's transform,
+	# so without this the destination slab could still be gated OFF when you
+	# step off the car and you'd fall straight through it (the fall-through bug).
 	var grounded: bool = _player.has_method("is_on_floor") and _player.is_on_floor()
-	if snap or grounded:
+	var riding: bool = bool(_gs.get("riding_elevator"))
+	if snap or grounded or riding:
 		_current_level = _level_for_y(_player.global_position.y)
 	for f in _floors:
 		var node: Node3D = f.node
