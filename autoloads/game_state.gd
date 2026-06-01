@@ -97,15 +97,9 @@ var dispenser_stock := {
 	"eggplant": 0,
 }
 
-# True between an elevator E-press and the receiving floor's _ready
-# fade-in. Lets the new scene know whether to run the from-black tween
-# or skip it (fresh F5 into the project shouldn't fade in).
-var in_transit := false
-
-# True between a stairs trigger fire and the receiving floor's _ready.
-# Floor 3 and Floor 4 each spawn the player at the matching end of
-# their staircase when this flag is set, then reset it to false.
-var arrived_via_stairs := false
+# (Retired with the scene-swap era: in_transit / arrived_via_stairs. The
+# stacked tower has no scene swaps — you ride the elevator car and walk the
+# stairs in one continuous world — so neither fade-coordination flag exists.)
 
 
 # Floor 1 (utility) state. master_on flips when the player pulls the master

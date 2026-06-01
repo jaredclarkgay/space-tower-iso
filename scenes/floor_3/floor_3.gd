@@ -27,8 +27,8 @@ const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
 @export var player_path: NodePath
 var _player: Node3D
 
-# Geometry data returned by FloorChrome.build_elevator_core. Held so
-# ElevatorHandler can read inner_mat for the travel glow.
+# Geometry data returned by FloorChrome.build_elevator_core. Held for its
+# `corners` (spine-pipe mounts); the ride-able car is elevator_platform.gd.
 var _elevator_data: Dictionary = {}
 
 # Edge plot entries — each is a Dictionary:

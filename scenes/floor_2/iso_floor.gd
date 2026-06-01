@@ -25,9 +25,9 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 
-# Elevator geometry data — populated by FloorChrome and read by
-# ElevatorHandler so it can build doors that match the column's
-# proportions and drive the inner-core glow on travel.
+# Elevator geometry data from FloorChrome. Mostly vestigial in the stacked
+# tower (the ride-able car is elevator_platform.gd); we keep it for the
+# `corners` spine-pipe mounts read by build_passive_spine_pipes.
 var _elevator_data: Dictionary = {}
 
 var _grow_lights: Array[OmniLight3D] = []
@@ -363,8 +363,8 @@ func _build_window_spotlight(side: String, half: float) -> void:
 # --- Elevator shaft (centre 4×4 plots) --------------------------------------
 
 func _build_elevator_shaft() -> void:
-	# Canonical elevator core built by FloorChrome; data captured for the
-	# ElevatorHandler. Garden also gets passive spine pipes — they reflect
+	# Canonical elevator core built by FloorChrome (the static shaft; the car
+	# is elevator_platform.gd). Garden also gets passive spine pipes — they reflect
 	# Floor 1's connect/activate state so an online lane shows a glowing
 	# pipe on every floor, not just where you flip the switch.
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)

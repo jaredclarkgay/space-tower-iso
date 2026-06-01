@@ -148,12 +148,13 @@ static func build_extension_grid(parent: Node3D, c: Node) -> void:
 		parent.add_child(bar)
 
 
-# Builds the central elevator / spine core. Octagonal cross-section
-# (square with 45° chamfered corners). Chamfered corners are flat panels
-# where the spine pipes run; cardinal faces are doors that slide apart
-# (the doors themselves are owned by ElevatorHandler so it can animate
-# them based on player proximity). Returns a Dictionary the handler
-# uses to attach + drive door panels:
+# Builds the central elevator / spine core (the static shaft each floor
+# shares — the ride-able car itself is scenes/shared/elevator_platform.gd).
+# Octagonal cross-section (square with 45° chamfered corners). Chamfered
+# corners are flat panels where the spine pipes run; cardinal faces are the
+# open doorways the car passes through. Returns a Dictionary of the geometry;
+# today only `corners` (spine-pipe mounts) + `inner_mat` are consumed, but
+# the full set is kept so a future caller can build against the faces:
 #   {
 #     "core": StaticBody3D,             # the elevator root
 #     "size": float,                    # outer square side length
@@ -248,9 +249,8 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 		col.rotation.y = yaw_for_corner
 		body.add_child(col)
 
-	# --- Geometry-data dict for handler to build doors against.
-	# Cardinal faces (N/S/E/W) — used by ElevatorHandler to spawn door
-	# panels along each face's tangent axis.
+	# --- Geometry-data dict. Cardinal faces (N/S/E/W) — kept for any future
+	# caller that builds against the open doorways; unused by the car today.
 	var cardinals := []
 	for spec in [
 		{"name": "N", "normal": Vector3(0, 0, -1), "tangent": Vector3(1, 0, 0), "centre_offset": Vector3(0, 0, -size * 0.5)},

@@ -73,9 +73,9 @@ var _source_prompt_label: Label3D
 # wheel-spin / fan-spin / LED-blink doesn't snap on activate.
 var _detail_phase := 0.0
 
-# Geometry data returned by FloorChrome.build_elevator_core. ElevatorHandler
-# reads this to know where to spawn doors; _build_spine_pipes reads it to
-# place pipes on the chamfered corner panels.
+# Geometry data returned by FloorChrome.build_elevator_core. _build_spine_pipes
+# reads its `corners` to place pipes on the chamfered corner panels. (The
+# ride-able car is elevator_platform.gd, not built from this data.)
 var _elevator_data: Dictionary = {}
 
 # Yellow pulsing floor halo around the breaker — visible while master is
