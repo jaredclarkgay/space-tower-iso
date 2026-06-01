@@ -284,11 +284,22 @@ func _physics_process(delta: float) -> void:
 			_prompt_root.visible = false
 		return
 
+	# When standing in a corner tube mouth, jump is reserved for the vacuum hop
+	# UP and the down key triggers the hop DOWN (both handled by vacuum_lift.gd).
+	# Read it here so we can stop the down key from WALKING the player off the
+	# mouth before they can descend — the down-hop only fires if they're still on
+	# the tube. Other directions still step them out normally.
+	var in_tube_mouth: bool = bool(_gs.get("in_tube_mouth")) if _gs else false
+
 	# Horizontal input — camera-relative.
 	var input := Vector2(
 		Input.get_action_strength(&"move_right") - Input.get_action_strength(&"move_left"),
 		Input.get_action_strength(&"move_down") - Input.get_action_strength(&"move_up"),
 	)
+	# In a tube mouth, cancel the south/"down" component so it descends instead
+	# of walking you off; up/left/right still move you out.
+	if in_tube_mouth:
+		input.y = minf(input.y, 0.0)
 	if input.length() > 1.0:
 		input = input.normalized()
 	var yaw := 0.0
@@ -454,10 +465,6 @@ func _physics_process(delta: float) -> void:
 	# Charge + jump. Hold Space to accumulate charge; release fires the jump
 	# with a velocity scaled between PLAYER_JUMP_VELOCITY (tap) and
 	# PLAYER_JUMP_VELOCITY_MAX (full hold). Charge only accumulates on floor.
-	# When standing in a corner tube mouth, jump is reserved for the vacuum hop
-	# (vacuum_lift.gd sets in_tube_mouth + handles the press), so we skip the
-	# normal charge/jump and just stay settled.
-	var in_tube_mouth: bool = bool(_gs.get("in_tube_mouth")) if _gs else false
 	var on_floor := is_on_floor()
 	var just_landed := on_floor and _was_in_air
 	if just_landed:

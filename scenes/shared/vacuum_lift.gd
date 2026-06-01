@@ -98,16 +98,21 @@ func _update_idle(_delta: float) -> void:
 	var down_ok: bool = idx >= 0 and level > int(_c.VACUUM_HOP_BOTTOM_LEVEL)
 	var offered: bool = up_ok or down_ok
 
-	# iso_player reads this to swap its normal jump/charge for the hop.
+	# iso_player reads this to swap its normal jump/charge for the hop AND to stop
+	# the down key from walking the player off the mouth.
 	_gs.set("in_tube_mouth", offered)
 	_show_prompt(offered, up_ok, down_ok)
 
-	if offered and Input.is_action_just_pressed(&"jump"):
-		# Hold the down key → down-hop; otherwise up (falling back to down on the
-		# top floor, where up isn't available).
-		var want_down: bool = Input.is_action_pressed(&"move_down") and down_ok
-		var dir: int = -1 if want_down else (1 if up_ok else -1)
-		_begin_hop(idx, level + dir)
+	if not offered:
+		return
+	# Jump = hop up (the headline "jump through the tube" verb). The down key =
+	# hop down — its own trigger, not a jump+down combo, so the player never has
+	# to fight their own footing. On the top floor, where up isn't available,
+	# jump falls back to down so the verb still does something.
+	if Input.is_action_just_pressed(&"jump"):
+		_begin_hop(idx, level + (1 if up_ok else -1))
+	elif down_ok and Input.is_action_just_pressed(&"move_down"):
+		_begin_hop(idx, level - 1)
 
 
 func _begin_hop(mouth_idx: int, dest_level: int) -> void:
@@ -305,10 +310,13 @@ func _show_prompt(visible_now: bool, up_ok: bool, down_ok: bool) -> void:
 	if not visible_now:
 		return
 	if up_ok and down_ok:
-		_prompt_label.text = "Vacuum up ▲   (hold ↓ for down)"
+		_prompt_key.text = "JUMP ▲   ↓ DOWN ▼"
+		_prompt_label.text = "Vacuum lift"
 	elif up_ok:
+		_prompt_key.text = "JUMP"
 		_prompt_label.text = "Vacuum up ▲"
 	else:
+		_prompt_key.text = "JUMP"
 		_prompt_label.text = "Vacuum down ▼"
 
 
