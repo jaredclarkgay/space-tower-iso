@@ -32,6 +32,9 @@ const _FLOORS := [
 ]
 const _SPAWN_LEVEL := 2   # the player starts on the Garden (home floor)
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
+# Fraction of the player's height-above-floor the pivot follows on a jump, so a
+# big jump stays in frame without the camera feeling glued to the body.
+const _JUMP_FOLLOW_FRACTION := 0.55
 
 var _player: Node3D
 var _pivot: Node3D
@@ -149,7 +152,15 @@ func _update(snap: bool) -> void:
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself.
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")):
-		var target_y: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
+		var floor_anchor: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
+		# Jump-follow: now that a charged jump clears ~9 m, anchoring the pivot to
+		# the floor lets the player launch clean out of the top of frame. Let the
+		# pivot chase a FRACTION of how far they've risen above the floor so they
+		# stay in shot, then ease back down on landing. Partial (not 1:1) keeps a
+		# stable ground reference instead of gluing the camera to the body.
+		var floor_surface: float = _base_y_for_level(_current_level) + float(_c.FLOOR_3D_TOP_Y)
+		var rise: float = maxf(0.0, _player.global_position.y - floor_surface)
+		var target_y: float = floor_anchor + rise * _JUMP_FOLLOW_FRACTION
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
 	# Ambience eases to the current floor's mood (Utility dark, Garden warm,
 	# Arboretum/Canopy bright green).
