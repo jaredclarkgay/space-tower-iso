@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
@@ -12,6 +12,11 @@
 [ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/floor_2/iso_robot.gd" id="10_robot"]
 [ext_resource type="Script" uid="uid://b4b340og50t0n" path="res://scenes/floor_2/iso_dispenser.gd" id="11_disp"]
 [ext_resource type="Script" uid="uid://dl4i8260hpu4r" path="res://scenes/floor_2/iso_tubes.gd" id="12_tubes"]
+[ext_resource type="Script" path="res://scenes/tower/tower_hud.gd" id="13_hud"]
+[ext_resource type="Script" uid="uid://7ynjuwavqx76" path="res://scenes/floor_2/seed_hud.gd" id="14_seed"]
+[ext_resource type="Script" uid="uid://3pwgdeqy808o" path="res://scenes/floor_2/cody_schematic.gd" id="15_schem"]
+[ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/floor_1/floor_1_systems_hud.gd" id="16_sys"]
+[ext_resource type="Script" uid="uid://bt7efp2pboajq" path="res://scenes/floor_1/floor_1_arrows_hud.gd" id="17_arrows"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -24,7 +29,7 @@ ambient_light_energy = 1.6
 script = ExtResource("1_tower")
 player_path = NodePath("Player")
 camera_pivot_path = NodePath("CameraPivot")
-header_label_path = NodePath("HUD/HeaderLabel")
+hud_manager_path = NodePath("HUD/HudManager")
 world_environment_path = NodePath("WorldEnvironment")
 env_light_path = NodePath("EnvLight")
 
@@ -66,33 +71,58 @@ iso_robot_path = NodePath("../../Floors/Floor2/IsoRobot")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
-[node name="HeaderLabel" type="Label" parent="HUD"]
-offset_left = 22.0
-offset_top = 14.0
-offset_right = 460.0
-offset_bottom = 50.0
-theme_override_colors/font_color = Color(0.95, 0.86, 0.55, 0.95)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 28
-text = "FLOOR 3 / ARBORETUM"
+[node name="GardenGroup" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
 
-[node name="ControlsLabel" type="Label" parent="HUD"]
-offset_left = 22.0
-offset_top = 50.0
-offset_right = 460.0
-offset_bottom = 168.0
-theme_override_colors/font_color = Color(0.85, 0.84, 0.78, 0.78)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.7)
-theme_override_constants/outline_size = 3
-theme_override_font_sizes/font_size = 14
-text = "Move WASD · Sprint Shift · Jump Space
-Camera Q/R · Zoom Wheel · Pan Middle-drag
-Plant P · Walk the south stairs up to the Canopy (Floor 4)"
+[node name="SeedHud" type="Control" parent="HUD/GardenGroup"]
+mouse_filter = 1
+script = ExtResource("14_seed")
+
+[node name="CodySchematic" type="Control" parent="HUD/GardenGroup"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+script = ExtResource("15_schem")
+iso_robot_path = NodePath("../../../Floors/Floor2/IsoRobot")
+
+[node name="UtilityGroup" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+
+[node name="SystemsHud" type="Control" parent="HUD/UtilityGroup"]
+mouse_filter = 1
+script = ExtResource("16_sys")
+
+[node name="ArrowsHud" type="Control" parent="HUD/UtilityGroup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+script = ExtResource("17_arrows")
+floor_controller_path = NodePath("../../../Floors/Floor1")
+camera_path = NodePath("../../../CameraPivot/Camera3D")
+player_path = NodePath("../../../Player")
 
 [node name="CameraModesHud" type="Control" parent="HUD"]
 mouse_filter = 1
 script = ExtResource("4_cam")
+
+[node name="HudManager" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+script = ExtResource("13_hud")
+garden_group_path = NodePath("../GardenGroup")
+utility_group_path = NodePath("../UtilityGroup")
+schematic_path = NodePath("../GardenGroup/CodySchematic")
 
 [node name="Floors" type="Node3D" parent="."]
 

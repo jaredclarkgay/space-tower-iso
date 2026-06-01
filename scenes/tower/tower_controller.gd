@@ -18,7 +18,7 @@ extends Node3D
 
 @export var player_path: NodePath
 @export var camera_pivot_path: NodePath
-@export var header_label_path: NodePath
+@export var hud_manager_path: NodePath
 @export var world_environment_path: NodePath
 @export var env_light_path: NodePath
 
@@ -35,11 +35,12 @@ const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
 
 var _player: Node3D
 var _pivot: Node3D
-var _header: Label
+var _hud: Node
 var _world_env: WorldEnvironment
 var _env_light: DirectionalLight3D
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
+var _hud_level: int = -1        # last level pushed to the HUD (force first push)
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -51,7 +52,7 @@ var _reveal_margin: float = 3.0
 func _ready() -> void:
 	_player = get_node_or_null(player_path)
 	_pivot = get_node_or_null(camera_pivot_path)
-	_header = get_node_or_null(header_label_path)
+	_hud = get_node_or_null(hud_manager_path)
 	_world_env = get_node_or_null(world_environment_path)
 	_env_light = get_node_or_null(env_light_path)
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
@@ -132,9 +133,11 @@ func _update(snap: bool) -> void:
 		else:
 			# Plain floor: show the current floor + everything below, hide above.
 			node.visible = at_or_below
-	# HUD header reflects the current floor.
-	if _header:
-		_header.text = _name_for_level(_current_level)
+	# HUD reflects the current floor — title, wayfinding, and which floor's
+	# gameplay panels are shown. Only push on change (set_floor relays out).
+	if _hud and _hud.has_method("set_floor") and _current_level != _hud_level:
+		_hud_level = _current_level
+		_hud.set_floor(_current_level, _name_for_level(_current_level))
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself.
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")):
