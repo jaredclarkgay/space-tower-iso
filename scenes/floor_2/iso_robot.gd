@@ -267,8 +267,10 @@ func _begin_arrival() -> void:
 	visible = true
 	rotation.y = 0.0
 	# Spawn at elevator centre, below the slab. The translucent shaft means
-	# the player sees the robot rising up through the column.
-	global_position = Vector3(0, -1.8, 0)
+	# the player sees the robot rising up through the column. LOCAL position
+	# (Cody is a child of the floor node), so the ceremony rides the floor's
+	# offset in the stacked tower instead of teleporting to world y=0.
+	position = Vector3(0, -1.8, 0)
 
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
 	# Park on the flat face of the elevator that's most camera-facing, so
@@ -304,10 +306,10 @@ func _begin_arrival() -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
-	# Phase 1: rise inside the elevator shaft.
-	tween.tween_property(self, "global_position:y", 0.55, 1.5)
-	# Phase 2: slide outward to the parking spot.
-	tween.tween_property(self, "global_position", park_pos, 1.0)
+	# Phase 1: rise inside the elevator shaft. (LOCAL position — see spawn note.)
+	tween.tween_property(self, "position:y", 0.55, 1.5)
+	# Phase 2: slide outward to the parking spot (park_pos is floor-local).
+	tween.tween_property(self, "position", park_pos, 1.0)
 	tween.tween_callback(_finish_arrival)
 
 

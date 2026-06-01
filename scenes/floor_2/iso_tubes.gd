@@ -54,6 +54,14 @@ func _process(delta: float) -> void:
 
 # Side-effect: caches the nearest-tube index for the rest of the frame.
 func is_interactable_at(player_world_pos: Vector3, radius: float) -> bool:
+	# Y-gate: _nearest_in_range matches on XZ only (offset-safe, but blind to
+	# height), so in the stacked tower a player standing on the floor directly
+	# above — same XZ as a Garden corner tube — would otherwise read as in
+	# range. global_position.y is this floor's surface; require the player to
+	# be on it before any tube is sellable.
+	if absf(player_world_pos.y - global_position.y) > 1.5:
+		_nearest_index = -1
+		return false
 	_nearest_index = _nearest_in_range(player_world_pos, radius)
 	return _nearest_index >= 0
 

@@ -81,7 +81,11 @@ func is_interactable_at(player_world_pos: Vector3, radius: float) -> bool:
 	# Track proximity as a side-effect so the overhead label (and any other
 	# range-gated visuals) can fade in/out without the dispenser needing a
 	# direct ref to the player. The player calls this every physics frame.
-	var in_range: bool = _interact_anchor.distance_to(player_world_pos) <= radius
+	# Compare in WORLD space: global_position already folds in the floor's
+	# stacked-tower offset, and the full-3D distance Y-gates the dispenser so
+	# it isn't interactable from the floor above (the local _interact_anchor
+	# would sit ~6 m below the player and never resolve in range).
+	var in_range: bool = global_position.distance_to(player_world_pos) <= radius
 	if in_range != _player_nearby:
 		_player_nearby = in_range
 		_fade_overhead_label(in_range)

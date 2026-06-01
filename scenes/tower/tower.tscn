@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
@@ -9,6 +9,9 @@
 [ext_resource type="Script" uid="uid://c6ydytqd24b7r" path="res://scenes/floor_1/floor_1.gd" id="7_floor1"]
 [ext_resource type="Script" uid="uid://cvocfr0y4q4gp" path="res://scenes/floor_2/iso_floor.gd" id="8_floor2"]
 [ext_resource type="Script" path="res://scenes/shared/elevator_platform.gd" id="9_elev"]
+[ext_resource type="Script" uid="uid://cibunof3xytaq" path="res://scenes/floor_2/iso_robot.gd" id="10_robot"]
+[ext_resource type="Script" uid="uid://b4b340og50t0n" path="res://scenes/floor_2/iso_dispenser.gd" id="11_disp"]
+[ext_resource type="Script" uid="uid://dl4i8260hpu4r" path="res://scenes/floor_2/iso_tubes.gd" id="12_tubes"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -29,6 +32,10 @@ env_light_path = NodePath("EnvLight")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.2, -6)
 script = ExtResource("2_player")
 camera_pivot_path = NodePath("../CameraPivot")
+iso_floor_path = NodePath("../Floors/Floor2")
+iso_robot_path = NodePath("../Floors/Floor2/IsoRobot")
+iso_dispenser_path = NodePath("../Floors/Floor2/IsoDispenser")
+iso_tubes_path = NodePath("../Floors/Floor2/IsoTubes")
 
 [node name="PlayerSpot" type="SpotLight3D" parent="Player"]
 position = Vector3(0, 3.2, 0)
@@ -55,6 +62,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 17.32)
 script = ExtResource("3_camera")
 pivot_path = NodePath("..")
 iso_player_path = NodePath("../../Player")
+iso_robot_path = NodePath("../../Floors/Floor2/IsoRobot")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
@@ -95,6 +103,18 @@ script = ExtResource("7_floor1")
 [node name="Floor2" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
 script = ExtResource("8_floor2")
+
+[node name="IsoRobot" type="Node3D" parent="Floors/Floor2"]
+visible = false
+script = ExtResource("10_robot")
+iso_floor_path = NodePath("..")
+hud_path = NodePath("../../../HUD")
+
+[node name="IsoDispenser" type="Node3D" parent="Floors/Floor2"]
+script = ExtResource("11_disp")
+
+[node name="IsoTubes" type="Node3D" parent="Floors/Floor2"]
+script = ExtResource("12_tubes")
 
 [node name="Floor3" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 0)

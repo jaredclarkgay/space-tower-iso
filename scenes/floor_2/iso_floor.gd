@@ -99,12 +99,18 @@ func _update_plot(plot: Dictionary, delta: float) -> void:
 
 func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Variant:
 	# Returns the closest plot with stage == 5 within `radius`, or null.
+	# `plot.world_pos` is stored in THIS floor's local frame, so convert the
+	# player's world position into the same frame first. In the stacked tower
+	# the floor is offset (Garden at y=6); to_local cancels that offset, and
+	# the full-3D distance then naturally Y-gates — a player standing a floor
+	# above is >radius away in local space, so Garden plots don't trigger.
+	var local_pos: Vector3 = to_local(world_pos)
 	var best: Variant = null
 	var best_dist_sq: float = radius * radius
 	for plot in _plots:
 		if plot.stage != _c.GROWTH_STAGE_COUNT:
 			continue
-		var d_sq: float = (plot.world_pos - world_pos).length_squared()
+		var d_sq: float = (plot.world_pos - local_pos).length_squared()
 		if d_sq < best_dist_sq:
 			best_dist_sq = d_sq
 			best = plot
@@ -114,13 +120,15 @@ func find_nearest_harvestable_plot_near(world_pos: Vector3, radius: float) -> Va
 func find_nearest_empty_plot_near(world_pos: Vector3, radius: float) -> Variant:
 	# Returns the closest plot with no plant (plant_type == null) within
 	# `radius`, or null. Used by iso_player.gd to drive the P prompt and the
-	# plant action.
+	# plant action. See find_nearest_harvestable_plot_near for the local-frame
+	# + implicit Y-gate rationale (plot.world_pos is local to this floor node).
+	var local_pos: Vector3 = to_local(world_pos)
 	var best: Variant = null
 	var best_dist_sq: float = radius * radius
 	for plot in _plots:
 		if plot.plant_type != null:
 			continue
-		var d_sq: float = (plot.world_pos - world_pos).length_squared()
+		var d_sq: float = (plot.world_pos - local_pos).length_squared()
 		if d_sq < best_dist_sq:
 			best_dist_sq = d_sq
 			best = plot
