@@ -48,6 +48,17 @@ var schematic_open := false
 # player's transform, so iso_player skips its own movement/physics.
 var riding_elevator := false
 
+# True while the player is mid vacuum-lift hop (shared/vacuum_lift.gd owns the
+# player's transform for the quick ±1-floor suction). Like riding_elevator,
+# iso_player skips its own physics and the tower keeps tracking _current_level
+# during the hop so the destination floor's slab is solid on arrival.
+var tube_hopping := false
+
+# True while the player is grounded inside a corner tube mouth with a hop
+# available. The vacuum lift sets this each frame; iso_player reads it to swap
+# its normal jump/charge for the vacuum hop (the lift handles the jump press).
+var in_tube_mouth := false
+
 # True while the player is mid-conversation with Cody. iso_camera tweens
 # in to a close-up on the player+Cody midpoint while this is set, and
 # tweens back out when it clears.

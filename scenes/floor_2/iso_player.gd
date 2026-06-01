@@ -260,9 +260,9 @@ func _physics_process(delta: float) -> void:
 	# GameState autoload preserves cross-scene state.
 	# (Debug floor cycling is handled by the tower controller now.)
 
-	# While riding the elevator, the elevator car owns the player's transform —
-	# skip our own movement/physics entirely.
-	if _gs and _gs.get("riding_elevator"):
+	# While riding the elevator OR mid vacuum-lift hop, that system owns the
+	# player's transform — skip our own movement/physics entirely.
+	if _gs and (_gs.get("riding_elevator") or _gs.get("tube_hopping")):
 		return
 
 	# When the Cody dialogue or the Schematics modal is open, lock the
@@ -454,6 +454,10 @@ func _physics_process(delta: float) -> void:
 	# Charge + jump. Hold Space to accumulate charge; release fires the jump
 	# with a velocity scaled between PLAYER_JUMP_VELOCITY (tap) and
 	# PLAYER_JUMP_VELOCITY_MAX (full hold). Charge only accumulates on floor.
+	# When standing in a corner tube mouth, jump is reserved for the vacuum hop
+	# (vacuum_lift.gd sets in_tube_mouth + handles the press), so we skip the
+	# normal charge/jump and just stay settled.
+	var in_tube_mouth: bool = bool(_gs.get("in_tube_mouth")) if _gs else false
 	var on_floor := is_on_floor()
 	var just_landed := on_floor and _was_in_air
 	if just_landed:
@@ -462,7 +466,7 @@ func _physics_process(delta: float) -> void:
 	if _land_squash_t > 0.0:
 		_land_squash_t = max(0.0, _land_squash_t - delta)
 
-	if on_floor and not _is_harvesting and not _is_planting:
+	if on_floor and not _is_harvesting and not _is_planting and not in_tube_mouth:
 		if Input.is_action_pressed(&"jump"):
 			_charge_time = min(_charge_time + delta, _c.PLAYER_JUMP_CHARGE_DURATION)
 		if Input.is_action_just_released(&"jump"):
@@ -483,9 +487,10 @@ func _physics_process(delta: float) -> void:
 			# Settle on the slab rather than letting move_and_slide accumulate
 			# downward velocity while resting.
 			velocity.y = -1.0
-	elif on_floor and (_is_harvesting or _is_planting):
-		# Rooted on the slab during a harvest or plant action — keep settled,
-		# no charge accumulation.
+	elif on_floor and (_is_harvesting or _is_planting or in_tube_mouth):
+		# Rooted on the slab during a harvest/plant action, OR standing in a
+		# corner tube mouth where jump is reserved for the vacuum-lift hop
+		# (vacuum_lift.gd handles the jump press). Keep settled, no charge.
 		_charge_time = 0.0
 		velocity.y = -1.0
 	else:

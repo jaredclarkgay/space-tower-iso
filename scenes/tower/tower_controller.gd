@@ -107,7 +107,12 @@ func _update(snap: bool) -> void:
 	# step off the car and you'd fall straight through it (the fall-through bug).
 	var grounded: bool = _player.has_method("is_on_floor") and _player.is_on_floor()
 	var riding: bool = bool(_gs.get("riding_elevator"))
-	if snap or grounded or riding:
+	# A vacuum-lift hop owns the player's transform mid-flight (is_on_floor() is
+	# stale), so track the level during it exactly like the elevator ride — the
+	# destination floor's slab must be solid when the hop lands or the player
+	# falls straight through it (same fall-through class as F-022).
+	var hopping: bool = bool(_gs.get("tube_hopping"))
+	if snap or grounded or riding or hopping:
 		_current_level = _level_for_y(_player.global_position.y)
 	for f in _floors:
 		var node: Node3D = f.node
