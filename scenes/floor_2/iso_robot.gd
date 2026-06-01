@@ -54,9 +54,9 @@ var _led_mat: StandardMaterial3D
 # Top-down warm spotlight that follows Cody from arrival through awaiting
 # activation, then fades out when the player presses E to send him to work.
 var _spotlight: SpotLight3D
-# Bobbing red "!" Label3D above Cody when his hopper is full. Hidden in
-# every other state.
-var _full_indicator: Label3D
+# Cody's "hopper full" alert is now a HUD badge (cody_badge.gd), driven by
+# GameState.cody_full — see _update_full_indicator. (The old world-space "!"
+# Label3D rendered through floors, which the operator didn't want.)
 # Slippy-style intro dialogue panel parked bottom-left of the screen while
 # Cody is awaiting activation. Dismissed on activation.
 var _arrival_dialogue: Control
@@ -82,7 +82,6 @@ func _ready() -> void:
 		_hud = get_node(hud_path)
 	_build_visual()
 	_build_spotlight()
-	_build_full_indicator()
 	visible = false
 
 
@@ -619,33 +618,11 @@ func _fade_out_spotlight() -> void:
 
 # Bobbing red "!" Label3D that hovers above Cody when his hopper is full.
 # Always created but hidden — visibility flips in _update_full_indicator.
-func _build_full_indicator() -> void:
-	_full_indicator = Label3D.new()
-	_full_indicator.name = "FullIndicator"
-	_full_indicator.text = "!"
-	_full_indicator.font_size = 96
-	_full_indicator.outline_size = 14
-	_full_indicator.modulate = Color(1.0, 0.30, 0.20, 1.0)
-	_full_indicator.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
-	_full_indicator.pixel_size = 0.012
-	_full_indicator.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_full_indicator.no_depth_test = true
-	_full_indicator.position = Vector3(0, 1.55, 0)
-	_full_indicator.visible = false
-	add_child(_full_indicator)
-
-
+# Surfaces Cody's "hopper full" state to the HUD (cody_badge.gd reads this and
+# shows a small blinking-LED badge). Replaces the old through-floors "!".
 func _update_full_indicator() -> void:
-	if _full_indicator == null:
-		return
-	var should_show := _state == State.FULL_AWAITING_PICKUP
-	_full_indicator.visible = should_show
-	if should_show:
-		# Bob up and down, plus an alpha pulse, to draw the eye.
-		var bob: float = sin(_time * TAU / 0.6) * 0.18
-		_full_indicator.position.y = 1.55 + bob
-		var alpha: float = 0.7 + sin(_time * TAU / 0.6) * 0.3
-		_full_indicator.modulate.a = alpha
+	if _gs:
+		_gs.set("cody_full", _state == State.FULL_AWAITING_PICKUP)
 
 
 # +1 floater above Cody whenever he completes a harvest — visual companion

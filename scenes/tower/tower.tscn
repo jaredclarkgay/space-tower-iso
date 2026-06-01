@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/floor_2/iso_player.gd" id="2_player"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://3pwgdeqy808o" path="res://scenes/floor_2/cody_schematic.gd" id="15_schem"]
 [ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/floor_1/floor_1_systems_hud.gd" id="16_sys"]
 [ext_resource type="Script" uid="uid://bt7efp2pboajq" path="res://scenes/floor_1/floor_1_arrows_hud.gd" id="17_arrows"]
+[ext_resource type="Script" path="res://scenes/floor_2/cody_badge.gd" id="18_codybadge"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -89,6 +90,10 @@ anchor_bottom = 1.0
 mouse_filter = 1
 script = ExtResource("15_schem")
 iso_robot_path = NodePath("../../../Floors/Floor2/IsoRobot")
+
+[node name="CodyBadge" type="Control" parent="HUD/GardenGroup"]
+mouse_filter = 1
+script = ExtResource("18_codybadge")
 
 [node name="UtilityGroup" type="Control" parent="HUD"]
 anchors_preset = 15
