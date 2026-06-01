@@ -1114,7 +1114,7 @@ func _build_e_prompt() -> void:
 	_e_prompt.pixel_size = 0.008
 	_e_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_e_prompt.no_depth_test = true
-	_e_prompt.position = Vector3(0, 0.55, 0)
+	_e_prompt.position = Vector3(0, 0.66, 0)   # extra headroom so "E" clears the label
 	_prompt_root.add_child(_e_prompt)
 
 	_harvest_label = Label3D.new()
@@ -1127,7 +1127,7 @@ func _build_e_prompt() -> void:
 	_harvest_label.pixel_size = 0.008
 	_harvest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_harvest_label.no_depth_test = true
-	_harvest_label.position = Vector3(0, -0.25, 0)
+	_harvest_label.position = Vector3(0, -0.34, 0)
 	_prompt_root.add_child(_harvest_label)
 
 

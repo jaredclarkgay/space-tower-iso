@@ -7,8 +7,6 @@ extends Node3D
 # rider's transform (GameState.riding_elevator), so the tower's visibility +
 # camera follow naturally as the floors pass.
 
-const LabelScaler = preload("res://scenes/shared/label_scaler.gd")
-
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -18,6 +16,7 @@ const SERVED := [1, 2, 3]          # served floor levels (Canopy omitted on purp
 const NAMES := {1: "Utility", 2: "Garden", 3: "Arboretum"}
 const CAR_HALF := 1.7              # platform half-extent (fits inside the ±2 shaft)
 const DOOR_HEIGHT := 2.8
+const PROMPT_ANCHOR_Y := 2.7       # prompt-stack height above the player's feet
 const SPEED := 6.0                 # m/s vertical travel
 const INTERACT_RADIUS := 2.4
 
@@ -64,10 +63,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
-	# Float the prompt at the player's level near the shaft (works whether the
-	# car is at their floor or being called from another).
+	# Float the prompt stack a fixed height above the player (works whether the
+	# car is at their floor or being called from another). The "E" + label are
+	# small offsets around this anchor and the whole group scales as one (see
+	# _update_label_scale), so they never overlap regardless of zoom.
 	if _prompt_root:
-		_prompt_root.position.y = _player.global_position.y
+		_prompt_root.position.y = _player.global_position.y + PROMPT_ANCHOR_Y
 	match _state:
 		State.IDLE:
 			_update_idle(delta)
@@ -293,28 +294,31 @@ func _build_prompt() -> void:
 	_prompt_root.visible = false
 	add_child(_prompt_root)
 
+	# "E" + label are SMALL offsets around the prompt-stack origin and share a
+	# fixed pixel_size; _update_label_scale scales the whole _prompt_root as one
+	# group, so the gap between them is preserved at every zoom (no overlap).
 	_prompt_e = Label3D.new()
 	_prompt_e.text = "E"
-	_prompt_e.font_size = 96
+	_prompt_e.font_size = 84
 	_prompt_e.outline_size = 12
 	_prompt_e.modulate = Color(1.0, 0.92, 0.55, 1.0)
 	_prompt_e.outline_modulate = Color(0, 0, 0, 0.92)
-	_prompt_e.pixel_size = 0.005
+	_prompt_e.pixel_size = 0.0075
 	_prompt_e.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_prompt_e.no_depth_test = true
-	_prompt_e.position = Vector3(0, 3.2, 0)
+	_prompt_e.position = Vector3(0, 0.45, 0)
 	_prompt_root.add_child(_prompt_e)
 
 	_prompt_label = Label3D.new()
 	_prompt_label.text = "Ride elevator"
-	_prompt_label.font_size = 56
+	_prompt_label.font_size = 48
 	_prompt_label.outline_size = 8
 	_prompt_label.modulate = Color(1.0, 0.96, 0.85, 1.0)
 	_prompt_label.outline_modulate = Color(0, 0, 0, 0.92)
-	_prompt_label.pixel_size = 0.005
+	_prompt_label.pixel_size = 0.0075
 	_prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_prompt_label.no_depth_test = true
-	_prompt_label.position = Vector3(0, 2.85, 0)
+	_prompt_label.position = Vector3(0, -0.28, 0)
 	_prompt_root.add_child(_prompt_label)
 
 	_build_chooser_ui()
@@ -374,6 +378,9 @@ func _update_label_scale() -> void:
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam == null:
 		return
+	# Scale the whole prompt group (matches iso_player's prompt): keeps the "E"
+	# and label locked in relative layout so they never overlap, and keeps the
+	# prompt from dominating the frame in close camera modes.
 	var def: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
-	LabelScaler.update(_prompt_e, _c.LABEL_BASE_PX_BIG, cam, def)
-	LabelScaler.update(_prompt_label, _c.LABEL_BASE_PX_MID, cam, def)
+	var k: float = clampf(cam.size / def, 0.18, 1.0)
+	_prompt_root.scale = Vector3.ONE * k
