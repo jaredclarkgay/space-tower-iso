@@ -55,6 +55,11 @@ const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
 # Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
 const PLAYER_FALL_RESPAWN_Y := -3.0   # below Floor 1 (the bottom floor sits at y=0); only fires if you clip out of the building entirely
+# Edge-fall: how far you can plunge off an open edge before the game returns you
+# to where you jumped from. Operator wants a real fall — the full height of the
+# tower, up to 5 floors. Falls that land on a floor below first (e.g. through the
+# Canopy tree-hole apertures down to the Arboretum) are NOT caught.
+const FALL_CATCH_MAX_FLOORS := 5
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor

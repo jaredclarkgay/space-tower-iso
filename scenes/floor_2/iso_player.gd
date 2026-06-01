@@ -177,13 +177,9 @@ var _backpack_full_floater_cooldown := 0.0
 
 
 var _spawn_position: Vector3 = Vector3.ZERO
-# Edge-fall catch state. _last_ground_pos is the "jump-from" point the player
-# snaps back to if they drop off an edge; the grace timer suppresses the catch
-# briefly after a tube hop / elevator ride so the arrival doesn't false-trigger.
+# Edge-fall catch — the "jump-from" point the player snaps back to after plunging
+# off an open edge (see the catch logic at the end of _physics_process).
 var _last_ground_pos: Vector3 = Vector3.ZERO
-var _fall_catch_grace: float = 0.0
-const FALL_CATCH_DROP := 2.5     # m below the launch point that counts as "fell off"
-const FALL_CATCH_GRACE := 0.35   # s of suppression after legit vertical travel
 
 
 func _ready() -> void:
@@ -269,9 +265,9 @@ func _physics_process(delta: float) -> void:
 	# GameState autoload preserves cross-scene state.
 	# (Debug floor cycling is handled by the tower controller now.)
 
-	# While riding the elevator OR mid vacuum-lift hop, that system owns the
-	# player's transform — skip our own movement/physics entirely.
-	if _gs and (_gs.get("riding_elevator") or _gs.get("tube_hopping")):
+	# While riding the elevator, mid vacuum-lift hop, OR operating the crane, that
+	# system owns the player's transform — skip our own movement/physics entirely.
+	if _gs and (_gs.get("riding_elevator") or _gs.get("tube_hopping") or _gs.get("driving_crane")):
 		return
 
 	# When the Cody dialogue or the Schematics modal is open, lock the
@@ -702,27 +698,25 @@ func _physics_process(delta: float) -> void:
 	if input.length_squared() > 0.01:
 		_gs.player.facing = _facing_from_input(input)
 
-	# Edge-fall catch — "reappear where you jumped from". Track the last grounded
-	# spot; if the player leaps/walks off an edge and starts dropping below the
-	# floor they launched from, snap them back there instead of letting them fall
-	# onto a lower floor (operator: jumping off the top dumped you on the Garden).
-	# Legit vertical travel (tube hop / elevator ride) is exempt, with a short
-	# grace after it ends so the player can settle on the destination floor before
-	# the catch re-arms.
+	# Edge-fall catch — "reappear where you jumped from", but let the fall PLAY.
+	# Track the last grounded spot; if the player leaps off an open edge they
+	# plunge a real distance — up to the full height of the tower (5 floors) or
+	# just past the bottom — and only THEN return to where they jumped from.
+	# Falls that reach a floor below first (e.g. dropping through the Canopy's
+	# tree-hole apertures down onto the Arboretum slab) land normally and are not
+	# caught. Legit vertical travel (tube hop / elevator ride) is exempt.
 	var transit: bool = bool(_gs.get("riding_elevator")) or bool(_gs.get("tube_hopping")) if _gs else false
-	if transit:
-		_fall_catch_grace = FALL_CATCH_GRACE
-	else:
-		_fall_catch_grace = maxf(0.0, _fall_catch_grace - delta)
 	if is_on_floor() and not transit:
 		_last_ground_pos = global_position
-	elif _fall_catch_grace <= 0.0 and global_position.y < _last_ground_pos.y - FALL_CATCH_DROP:
-		global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
-		velocity = Vector3.ZERO
+	elif not transit:
+		var max_drop: float = float(_c.FALL_CATCH_MAX_FLOORS) * float(_c.FLOOR_3D_STORY_HEIGHT)
+		var bottom_y: float = -float(_c.FLOOR_3D_STORY_HEIGHT)   # one story below Floor 1
+		if global_position.y < _last_ground_pos.y - max_drop or global_position.y < bottom_y:
+			global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
+			velocity = Vector3.ZERO
 
-	# Hard fail-safe (F-005): if we somehow clip out of bounds entirely (below the
-	# whole building), snap back to the captured spawn.
-	if global_position.y < _c.PLAYER_FALL_RESPAWN_Y:
+	# Deep backstop for true out-of-bounds clipping (should never normally fire).
+	if global_position.y < -100.0:
 		global_position = _spawn_position
 		velocity = Vector3.ZERO
 
