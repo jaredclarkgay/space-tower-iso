@@ -12,7 +12,7 @@ extends Control
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-const _BUTTON_W := 124.0
+const _BUTTON_W := 156.0   # wide enough for the longest label ("OVER-SHOULDER")
 const _BUTTON_H := 38.0
 const _BUTTON_GAP := 4.0
 const _RIGHT_MARGIN := 20.0

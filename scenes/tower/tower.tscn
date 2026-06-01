@@ -129,6 +129,7 @@ schematic_path = NodePath("../GardenGroup/CodySchematic")
 [node name="Floor1" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("7_floor1")
+player_path = NodePath("../../Player")
 
 [node name="Floor2" type="Node3D" parent="Floors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)

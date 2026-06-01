@@ -904,6 +904,15 @@ func _make_material(color: Color) -> StandardMaterial3D:
 
 # --- Source interaction loop ---------------------------------------------
 
+# True only while the player is physically standing on this floor (Floor 1 sits
+# at y=0 in the tower; global_position.y is its surface). Stops cross-floor
+# interactions in the stacked world.
+func _player_on_this_floor() -> bool:
+	if _player == null:
+		return false
+	return absf(_player.global_position.y - global_position.y) < 1.5
+
+
 func _check_source_interact() -> void:
 	if _player == null:
 		return
@@ -920,6 +929,14 @@ func _check_source_interact() -> void:
 
 
 func _nearest_source_in_range(player_pos: Vector3) -> String:
+	# Y-gate: the per-source range test below is XZ-only (it ignores height so
+	# the player's slightly-raised feet don't skew it). In the stacked tower
+	# that would otherwise let a player standing on the floor directly above —
+	# same XZ as a source — connect/activate it. Require them to be on this
+	# floor first. (The master breaker uses a full-3D distance, so it's already
+	# height-gated and needs no extra check.)
+	if not _player_on_this_floor():
+		return ""
 	var best := ""
 	var best_d: float = _c.SOURCE_INTERACT_RADIUS
 	for id in _source_state.keys():
