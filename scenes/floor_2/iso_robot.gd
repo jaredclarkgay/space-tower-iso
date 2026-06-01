@@ -628,22 +628,15 @@ func _update_full_indicator() -> void:
 # +1 floater above Cody whenever he completes a harvest — visual companion
 # to GameState's food count climbing on player collection. Fires per-plot,
 # so the player can see Cody working without having to track him directly.
-func _spawn_robot_harvest_feedback(plant_name: String, value: int) -> void:
-	# Match the player's tiered floater colours so Cody's hauls read with
-	# the same value cues — gold for mid, blue for blueberries, violet
-	# for the rare ones.
-	var color := Color(0.55, 1.0, 0.50, 1.0)
-	if value >= 15:
-		color = Color(0.85, 0.45, 1.00, 1.0)
-	elif value >= 5:
-		color = Color(0.45, 0.65, 1.00, 1.0)
-	elif value >= 2:
-		color = Color(0.95, 0.85, 0.30, 1.0)
+func _spawn_robot_harvest_feedback(plant_name: String, _value: int) -> void:
+	# Consistent with the player's harvest floater: every crop reads "+1 <Crop>"
+	# in the same garden-green, no value tiers (see iso_floor._spawn_harvest_
+	# feedback). The crop's value still accrues to food_count on collection.
 	var label := Label3D.new()
-	label.text = "+%d %s" % [value, plant_name]
+	label.text = "+1 %s" % plant_name
 	label.font_size = 36
 	label.outline_size = 6
-	label.modulate = color
+	label.modulate = Color(0.78, 1.00, 0.55, 1.0)
 	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.85)
 	label.pixel_size = 0.010
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED

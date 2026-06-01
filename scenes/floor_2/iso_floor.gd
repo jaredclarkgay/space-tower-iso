@@ -164,35 +164,19 @@ func harvest_plot(plot: Dictionary, with_feedback: bool = true) -> void:
 
 
 func _spawn_harvest_feedback(plot: Dictionary) -> void:
-	var value: int = int(plot.plant_type.get("value", 1))
-	# Higher-value crops get bigger, gold-then-violet floaters so the
-	# rarer hauls feel rewarding instead of just a same-sized "+N".
-	var color: Color
-	var pixel_size: float
-	var font_size: int
-	if value >= 15:
-		color = Color(0.85, 0.45, 1.00, 1.0)   # violet
-		pixel_size = 0.014
-		font_size = 56
-	elif value >= 5:
-		color = Color(0.45, 0.65, 1.00, 1.0)   # blue
-		pixel_size = 0.012
-		font_size = 48
-	elif value >= 2:
-		color = Color(0.95, 0.85, 0.30, 1.0)   # gold
-		pixel_size = 0.011
-		font_size = 44
-	else:
-		color = Color(0.70, 1.00, 0.55, 1.0)   # green
-		pixel_size = 0.011
-		font_size = 40
+	# Consistent harvest feedback: every crop reads as "+1 <Crop>" (one item into
+	# the backpack), same colour + size. Each crop's value still accrues to
+	# food_count under the hood for the eventual sell economy — that nuance will
+	# get a clearer surfacing when the Garden economy is designed. For now a
+	# tomato and an eggplant harvest look the same, so picking doesn't flash a
+	# jarring "+15" on one crop and "+1" on the rest.
 	var label := Label3D.new()
-	label.text = "+%d %s" % [value, plot.plant_type.name]
-	label.font_size = font_size
+	label.text = "+1 %s" % plot.plant_type.name
+	label.font_size = 42
 	label.outline_size = 6
-	label.modulate = color
+	label.modulate = Color(0.78, 1.00, 0.55, 1.0)   # uniform garden-green
 	label.outline_modulate = Color(0, 0, 0, 0.85)
-	label.pixel_size = _adapt_pixel_size(pixel_size)
+	label.pixel_size = _adapt_pixel_size(0.011)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.position = plot.world_pos + Vector3(0, 0.7, 0)
