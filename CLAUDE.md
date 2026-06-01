@@ -84,6 +84,7 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 
 | If you're working on... | Read first |
 |---|---|
+| **Adding a floor / vehicle / vertical-traversal method, or ANY cross-floor visual** | **`rules/stacked_tower_invariants.md`** (start here) |
 | Walk/run/locomotion in `iso_player.gd` | `rules/godot_locomotion_cycle.md` |
 | Animation poses (kneel / charge / tuck / land) | `rules/animation_pose_alignment.md` |
 | Adding a new `.gd` file referenced by a `.tscn` | `rules/godot_script_uid.md` |

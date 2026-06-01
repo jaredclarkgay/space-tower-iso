@@ -806,3 +806,64 @@ tree crowns with genome-driven trees.
 - CLAUDE.md now carries a top callout flagging the unified-tower
   architecture; deeper sections still describe the old separate-scene
   model and should be rewritten when touched.
+
+---
+
+## Session 8 — 2026-06-01 — Ascending tubes, living camera, the Vista + crane, and the stacked-tower invariants
+
+A long screenshot-driven session: shipped the ascending vacuum tubes (Q-002),
+reworked the camera into a "living" iso camera, added a 5th floor (construction
+Vista) with a drivable crane, fixed a batch of operator-reported regressions, and
+— most importantly for the next phase — distilled the recurring failure modes
+into `rules/stacked_tower_invariants.md`.
+
+### What landed (feature)
+- **Ascending vacuum tubes (Q-002).** `scenes/shared/vacuum_tube.gd` static
+  builder renders one-story corner segments built per-floor, tiling corner-to-
+  corner up the whole stack like the spine pipes. `scenes/shared/vacuum_lift.gd`
+  (top-level, mirrors `elevator_platform`) adds the player ±1-floor **vacuum hop**
+  (jump = up, down key = down — a third vertical-traversal method) plus rising
+  produce "item transit" capsules. The Garden's `iso_tubes` sell flow now calls
+  the shared builder.
+- **Living iso camera.** Closer default (ortho 20→16), gentle horizontal follow
+  with deadzone + velocity look-ahead, **survey/diorama** on hold-`Tab` + a brief
+  auto-pulse on floor arrival, **traversal reveal** (widen/lower during tube hop /
+  elevator ride), and motion juice (sprint pull-back, landing dip scaled to impact,
+  vertical jump-follow). All knobs in Constants (`CAMERA_FOLLOW_*`, `_SURVEY_*`,
+  `_REVEAL_*`, etc.).
+- **Floor 5 Vista + crane.** `scenes/floor_5/` — open concrete/steel construction
+  deck, the shaft topping out, tube-reachable (`VACUUM_HOP_TOP_LEVEL` 4→5),
+  open-sky ambience. `scenes/floor_5/crane.gd` is a drivable crane: E to get in,
+  WASD drives + turns it (camera-relative, clamped to the deck), E to get out;
+  rides the cab via `GameState.driving_crane`.
+- **Edge-fall catch** ("reappear where you jumped from"): plunge up to 5 floors /
+  past the bottom off an open edge, then return to the launch point; tree-hole
+  drops land on the Arboretum.
+
+### Operator-reported fixes (the instructive ones)
+- **Cody dialogue camera** aimed at hardcoded world `y=1.0` → ~5 m below the
+  characters in the stacked tower. (Invariant #1.)
+- **Cody arrival** was occluded by the now-parked elevator car; re-staged beside
+  the elevator + a camera focus onto him. (Invariant #7.)
+- **Lit spine-pipe state** stopped at Floor 1 — built cold once at startup before
+  any utility was online. Now driven live from `tower_controller`. (Invariant #3.)
+- **Elevator "walls" missing** on tube-reached floors — the static shaft had bare
+  cardinal faces (only the car made it read enclosed). Added framed-doorway walls
+  in `build_elevator_core`; every floor inherited it. (Invariant #4.)
+- **Trees grew on the tube corners**; **dispenser labels punched through** from the
+  Arboretum (`no_depth_test`). (Invariants #5, #6.)
+
+### The durable learning
+All of the above are one of a handful of stacked-world failure modes, now written
+down in **`rules/stacked_tower_invariants.md`**: (1) never hardcode world-Y;
+(2) transit-ownership + the tower must track `_current_level` during ANY transit
+or the destination slab gates off and you fall through; (3) cross-floor visual
+state must be live, not baked at `_ready`; (4) shared builders are the unit of
+cross-floor consistency; (5) mirror linked per-floor layouts; (6) Y-gate
+`no_depth_test` labels; (7) stage ceremonies clear of shared moving infra;
+(8) edge-fall plays then returns. Read it before the next floor/vehicle/traversal.
+
+### Next
+- Operator is clearing context to start a BIG new production phase. The invariants
+  doc + this log are the handoff. Crane boom/hook are cosmetic (no lifting yet) —
+  a natural pickup. CLAUDE.md still has stale separate-scene sections to rewrite.
