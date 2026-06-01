@@ -62,7 +62,14 @@ func _ready() -> void:
 			continue
 		var base_y: float = float(int(f.level) - 1) * story
 		node.position.y = base_y          # geometry (built local) rides up with the node
-		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y})
+		# Regular floors build their slab as a StaticBody3D named "SlabBody"
+		# (FloorChrome.build_slab). We toggle its collision per current floor so
+		# a jump passes UP through the ceiling and falls back to the same floor
+		# (never lands above). The Canopy's slab is "TiledSlabBody" and is NOT
+		# found here, so its collision is left permanently on — the one glass
+		# ceiling you can bonk (3 → 4).
+		var slab: StaticBody3D = _find_slab_body(node)
+		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab})
 	# The tower owns the player spawn (derived from the floor heights), not the
 	# .tscn — keeps it correct if the story height changes.
 	if _player and not _floors.is_empty():
@@ -91,22 +98,32 @@ func _update(snap: bool) -> void:
 	if _player == null or _floors.is_empty():
 		return
 	# Only change floors when GROUNDED — so jumping (or bonking the ceiling)
-	# never reveals the floor above or moves the camera off your floor. You
-	# change floors by landing (walk up the stairs, or jump up through a ring).
+	# never reveals the floor above or moves the camera off your floor. It also
+	# keeps the floor-above slab gating (below) frozen mid-jump, so a jump arcs
+	# up through the ceiling and falls back to the SAME floor. You change floors
+	# by riding the elevator or walking the stairs, never by jumping.
 	var grounded: bool = _player.has_method("is_on_floor") and _player.is_on_floor()
 	if snap or grounded:
 		_current_level = _level_for_y(_player.global_position.y)
 	for f in _floors:
 		var node: Node3D = f.node
 		var at_or_below: bool = (int(f.level) <= _current_level)
+		# Slab collision: solid for your floor + everything below, OFF for floors
+		# above so a jump passes straight up through the ceiling and falls back
+		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass
+		# ceiling collision is never touched here, so Floor 3 jumps still bonk it.
+		var slab: StaticBody3D = f.get("slab")
+		if slab:
+			slab.collision_layer = 2 if at_or_below else 0
 		if node.has_method("set_structure_visible"):
 			# Glass-ceiling floor (Canopy): walls/elevator gated; the slab is an
 			# invisible glass ceiling from below and a frosted-glass floor when
-			# you stand on it. Its aperture rings stay faintly visible as
-			# jump-through aim targets, and a bonk lights a localized glow.
+			# you stand on it. Its tree-hole aperture rings stay faintly visible
+			# from the floor below, and bonking the glass ceiling (you can't jump
+			# through it — it's the one solid ceiling) lights a localized glow.
 			node.set_structure_visible(at_or_below)
 			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if at_or_below else 0.0)
-			# Rings (aim targets) only from the floor directly below or on it.
+			# Aperture rings only from the floor directly below or on it.
 			if node.has_method("set_apertures_visible"):
 				node.set_apertures_visible(_current_level >= int(f.level) - 1)
 			if node.has_method("set_ceiling_ping"):
@@ -171,6 +188,19 @@ func _level_for_y(py: float) -> int:
 		if py + _reveal_margin >= f.base_y + top_y:
 			level = maxi(level, int(f.level))
 	return level
+
+
+# First descendant StaticBody3D named "SlabBody" (FloorChrome.build_slab's
+# slab). Returns null for the Canopy, whose slab is "TiledSlabBody" — that's
+# intentional: the Canopy slab stays permanently solid as the glass ceiling.
+func _find_slab_body(node: Node) -> StaticBody3D:
+	for child in node.get_children():
+		if child is StaticBody3D and child.name == "SlabBody":
+			return child
+		var found: StaticBody3D = _find_slab_body(child)
+		if found != null:
+			return found
+	return null
 
 
 func _base_y_for_level(level: int) -> float:

@@ -506,10 +506,14 @@ func _physics_process(delta: float) -> void:
 		_flip_pivot.rotation.x = 0.0
 		_flip_airtime_elapsed = 0.0
 
-	# One-way-up: while rising, ignore regular floor slabs (layer 2) so the jump
-	# passes UP through them; the Canopy ceiling (layer 1) still blocks. Falling
-	# re-enables them so we land on every floor from above.
-	set_collision_mask_value(2, velocity.y <= 0.1)
+	# Jumps are unobstructed by ceilings but never land you on the floor above.
+	# The tower (tower_controller.gd) gates each floor's slab collision by the
+	# player's CURRENT floor — floors above are made non-colliding — so a jump
+	# arcs up through where the ceiling is and falls back to the SAME floor.
+	# Vertical travel between floors is stairs + elevator, not jumping. The
+	# Canopy slab (layer 1) stays solid as the one narrative glass ceiling, so
+	# bonking it on Floor 3 still blocks. The player therefore keeps its
+	# slab-collision mask (layer 2) on at all times — see set in _ready().
 	move_and_slide()
 
 	# Visual facing: smoothly rotate visual root toward movement direction.
@@ -864,8 +868,9 @@ func _build_collision() -> void:
 	floor_max_angle = deg_to_rad(50.0)
 	floor_snap_length = 0.6
 	up_direction = Vector3.UP
-	# Collide with regular floor slabs (layer 2) by default; _physics_process
-	# drops this while rising so jumps pass UP through to the floor above.
+	# Collide with regular floor slabs (layer 2) at all times. Jumping up through
+	# a ceiling is handled by the tower toggling the floor-above slab's own
+	# collision off (not the player's mask), so this stays on permanently.
 	set_collision_mask_value(2, true)
 
 
