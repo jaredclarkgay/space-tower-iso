@@ -94,27 +94,37 @@ func _compute_edge_plots() -> void:
 	var inset: int = int(_c.ARBORETUM_EDGE_INSET)
 	var stride: int = int(_c.ARBORETUM_PLOT_STRIDE)
 	var half: float = grid * plot * 0.5
+	# Corner vacuum-tube anchors — keep tree plots clear of them so a tree never
+	# grows up through a tube. Skip any plot within this XZ radius of a tube.
+	var tube_anchors: Array = VacuumTube.corner_anchors(_c)
+	var tube_clear: float = 2.0
 
 	# Top + bottom sides (z fixed; walk x from inset to grid-1-inset).
 	for perp in [inset, grid - 1 - inset]:
 		var perp_world: float = -half + (perp + 0.5) * plot
 		for x in range(inset, grid - inset, stride):
 			var x_world: float = -half + (x + 0.5) * plot
-			_edge_plots.append({
-				"key": "%d,%d" % [x, perp],
-				"world_pos": Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world),
-				"marker": null,
-			})
+			var wp := Vector3(x_world, _c.FLOOR_3D_TOP_Y, perp_world)
+			if _near_any_tube(wp, tube_anchors, tube_clear):
+				continue
+			_edge_plots.append({"key": "%d,%d" % [x, perp], "world_pos": wp, "marker": null})
 	# Left + right sides (x fixed; walk z to avoid duplicating corner plots).
 	for perp2 in [inset, grid - 1 - inset]:
 		var perp_world2: float = -half + (perp2 + 0.5) * plot
 		for z in range(inset + stride, grid - inset - stride + 1, stride):
 			var z_world: float = -half + (z + 0.5) * plot
-			_edge_plots.append({
-				"key": "%d,%d" % [perp2, z],
-				"world_pos": Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world),
-				"marker": null,
-			})
+			var wp2 := Vector3(perp_world2, _c.FLOOR_3D_TOP_Y, z_world)
+			if _near_any_tube(wp2, tube_anchors, tube_clear):
+				continue
+			_edge_plots.append({"key": "%d,%d" % [perp2, z], "world_pos": wp2, "marker": null})
+
+
+# True if a plot world position is within `radius` (XZ) of any corner tube.
+func _near_any_tube(wp: Vector3, tube_anchors: Array, radius: float) -> bool:
+	for a in tube_anchors:
+		if Vector2(a.x - wp.x, a.z - wp.z).length() < radius:
+			return true
+	return false
 
 
 # Visual marker per edge plot — subtle darker square so the player can
