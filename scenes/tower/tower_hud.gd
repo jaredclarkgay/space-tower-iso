@@ -42,7 +42,7 @@ const WAYFIND := {
 	3: "[P]  plant a sapling     ·     take the south stairs up to the Canopy",
 	4: "take the stairs back down     ·     the glass floor frames the grove below",
 }
-const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [E] ride elevator"
+const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [Tab] survey   [E] ride elevator"
 
 var _garden_group: Control
 var _utility_group: Control
