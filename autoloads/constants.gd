@@ -495,8 +495,11 @@ const FLOOR_1_SOURCE_COLD_MULT := 0.42
 # Spine pipe geometry — six vertical pipes attached to the south face of the
 # central elevator/spine column.
 const FLOOR_1_SPINE_PIPE_RADIUS := 0.10
-const FLOOR_1_SPINE_PIPE_BASE_Y := 0.30
-const FLOOR_1_SPINE_PIPE_TOP_Y := 2.5
+# Run the spine pipes the FULL height of the elevator core (one story) so they
+# read as continuous risers and tile floor-to-floor up the shaft, instead of
+# stopping partway up the column.
+const FLOOR_1_SPINE_PIPE_BASE_Y := 0.0
+const FLOOR_1_SPINE_PIPE_TOP_Y := FLOOR_3D_STORY_HEIGHT
 
 # --- Garden visual signature (drives iso_floor.gd in Phase 3) ---
 # Sources: docs/space-tower-project-knowledge-v3.md,
