@@ -458,6 +458,15 @@ const CONSTRUCT_CAM_SIZE_PER_FLOOR := 5.0  # widen the view as the stack grows
 const CONSTRUCT_CAM_CENTER_LIFT := 1.5     # raise the framed centre a touch above mid-stack
 const CONSTRUCT_RISE_DROP := 4.5           # m a new floor rises from
 const CONSTRUCT_RISE_DUR := 0.6            # s for the rise-and-settle
+# Walk-in occupy: ground-floor doorways (one per side) + the exterior site ground.
+const DOOR_WIDTH := 3.0                     # m — doorway opening width (centred on each wall)
+const DOOR_HEIGHT := 3.0                    # m — doorway opening height (lintel above)
+const SITE_GROUND_SIZE := 72.0             # m — walkable ground plane around the tower base
+const SITE_GROUND_COLOR := Color(0.30, 0.31, 0.27)
+const SITE_PATH_COLOR := Color(0.46, 0.44, 0.38)
+const SITE_PATH_WIDTH := 3.4               # m — path strip width out from each doorway
+const SITE_PATH_LENGTH := 16.0             # m — how far the path runs from the wall
+const EXTERIOR_WALK_CAM_TWEEN_DUR := 1.2   # s — dollhouse -> ground-follow ease on topping out
 const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (which sits at x~0)
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum

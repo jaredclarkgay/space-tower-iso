@@ -105,10 +105,73 @@ static func _add_slab_piece(body: StaticBody3D, mat: Material, size: Vector3, po
 # Builds 4 perimeter walls. Each wall: low solid base + collision spanning
 # full height + vertical posts at WALL_POST_SPACING + thin top trim +
 # translucent glass spanning the gap between base and trim.
-static func build_walls(parent: Node3D, c: Node) -> void:
+static func build_walls(parent: Node3D, c: Node, doorways: bool = false) -> void:
 	var half: float = c.FLOOR_3D_SIZE * 0.5
 	for side in ["+x", "-x", "+z", "-z"]:
-		_build_one_wall(parent, c, side, half)
+		if doorways:
+			_build_one_wall_doored(parent, c, side, half)
+		else:
+			_build_one_wall(parent, c, side, half)
+
+
+# One wall piece (mesh, collision, or both). `a` is the centre offset ALONG the
+# wall; `thk` runs perpendicular (into the room). Mirrors the cardinal-axis math
+# the solid wall uses, so doored + solid walls line up exactly.
+static func _wall_piece(body: StaticBody3D, mat: Material, along_x: bool, perp: float,
+		a: float, along_len: float, y_center: float, y_height: float, thk: float,
+		collide_only: bool) -> void:
+	var pos: Vector3 = Vector3(a, y_center, perp) if along_x else Vector3(perp, y_center, a)
+	var size: Vector3 = Vector3(along_len, y_height, thk) if along_x else Vector3(thk, y_height, along_len)
+	if collide_only:
+		var col := CollisionShape3D.new()
+		var cs := BoxShape3D.new()
+		cs.size = size
+		col.shape = cs
+		col.position = pos
+		body.add_child(col)
+	else:
+		var m := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = size
+		m.mesh = box
+		m.material_override = mat
+		m.position = pos
+		body.add_child(m)
+
+
+# A perimeter wall with a centred doorway: two solid side pieces (mesh + collision)
+# flank an open gap, framed by jambs + a lintel. The gap has NO collision so the
+# player walks straight through. Used by the ground floor (Floor 0).
+static func _build_one_wall_doored(parent: Node3D, c: Node, side: String, half: float) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Wall_" + side
+	parent.add_child(body)
+	var along_x: bool = side in ["+z", "-z"]
+	var perp: float = half if side in ["+x", "+z"] else -half
+	var length: float = c.FLOOR_3D_SIZE
+	var thick: float = c.WALL_THICKNESS
+	var dw: float = c.DOOR_WIDTH
+	var dh: float = c.DOOR_HEIGHT
+	var side_len: float = (length - dw) * 0.5
+	var side_ctr: float = (dw + side_len) * 0.5
+	var wall_mat := _flat_material(Color(0.32, 0.32, 0.36))
+	var frame_mat := _flat_material(Color(0.30, 0.30, 0.34))
+	var glass_h: float = c.WALL_HEIGHT - c.WALL_BASE_HEIGHT - 0.12
+
+	for sgn in [-1.0, 1.0]:
+		var a: float = sgn * side_ctr
+		_wall_piece(body, wall_mat, along_x, perp, a, side_len, c.WALL_BASE_HEIGHT * 0.5, c.WALL_BASE_HEIGHT, thick, false)  # base
+		_wall_piece(body, null, along_x, perp, a, side_len, c.WALL_HEIGHT * 0.5, c.WALL_HEIGHT, thick, true)               # collision (full height)
+		_wall_piece(body, _make_window_material(), along_x, perp, a, side_len - 0.4, c.WALL_BASE_HEIGHT + glass_h * 0.5, glass_h, 0.05, false)  # glass
+
+	# Door frame: jambs flanking the opening + a lintel above it (mesh only).
+	for sgn in [-1.0, 1.0]:
+		_wall_piece(body, frame_mat, along_x, perp, sgn * dw * 0.5, 0.18, dh * 0.5, dh, thick * 1.1, false)
+	var lintel_h: float = c.WALL_HEIGHT - dh
+	_wall_piece(body, frame_mat, along_x, perp, 0.0, dw, dh + lintel_h * 0.5, lintel_h, thick * 1.1, false)
+
+	# Top trim spanning the full wall (matches the solid wall's cap).
+	_wall_piece(body, _flat_material(Color(0.28, 0.28, 0.32)), along_x, perp, 0.0, length, c.WALL_HEIGHT - 0.06, 0.12, thick * 1.05, false)
 
 
 # Builds a faint blueprint-style grid extending outward from each wall —

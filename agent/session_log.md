@@ -1316,3 +1316,23 @@ dollhouse view → step inside to occupy the finished Garden. `CONSTRUCT_FROM_EM
 today's straight-to-Garden dev boot. Commits 5ebddaf, b5c43f1, ebc8fa4, + this stage.
 Follow-ups logged (C-001): true shell/interior split for BUILD_INTERIORS, build cost/economy,
 crane-driven placement, partner figure on-site, camera/ceremony feel pass, smoother occupy cut.
+
+## Session 13 — 2026-06-02 — Walk-in occupy (explore the exterior, enter through a doorway)
+
+**Direction (operator):** after the tower tops out, the player gets a controllable character at
+ground level, explores the tower exterior, and walks IN through a doorway (one per side) to begin
+play. Decisions: walking through any doorway drops into the GARDEN (Floor 1); tower shown AS BUILT
+(reuse the built-floor view). Staged E (geometry) + F (mode/tween/entry), screenshot-verified.
+
+### Stage E — site ground + Floor-0 doorways + paths
+- `floor_chrome.build_walls(parent, c, doorways=false)`: when true, `_build_one_wall_doored` builds
+  each wall as two solid side pieces (mesh + collision) flanking a centred DOOR_WIDTH×DOOR_HEIGHT
+  gap (no collision → walk-through), framed by jambs + a lintel. New `_wall_piece` helper does the
+  cardinal-axis math (doored + solid walls line up). Original `_build_one_wall` untouched (other
+  floors stay solid). `utility.gd` (Floor 0) now requests doorways.
+- New `scenes/shared/site_ground.gd` (+ `SiteGround` node in tower.tscn + `site_ground_path`
+  export): a wide layer-2 ground plane (SITE_GROUND_SIZE 72 m, top y=0) centred on the tower + a
+  path strip out from each doorway. Shown during construction (the tower sits on it), hidden on
+  occupy. Constants: DOOR_WIDTH/HEIGHT, SITE_GROUND_*, SITE_PATH_*, EXTERIOR_WALK_CAM_TWEEN_DUR.
+Verified (windowed): each Floor-0 wall has 2 collision shapes (the doorway gap); site ground +
+4 paths render under the built tower. Parse clean.

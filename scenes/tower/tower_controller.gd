@@ -23,6 +23,7 @@ extends Node3D
 @export var env_light_path: NodePath
 @export var cityscape_path: NodePath
 @export var empty_lot_path: NodePath
+@export var site_ground_path: NodePath
 
 # Floors present in the tower. `node` is relative to this controller, `level`
 # is 0=basement (Utility) and counts UP; `name` is the HUD header text (the part
@@ -49,6 +50,7 @@ var _world_env: WorldEnvironment
 var _env_light: DirectionalLight3D
 var _cityscape: Node3D
 var _empty_lot: Node3D
+var _site_ground: Node3D        # walkable exterior ground around the tower base (construct + walk)
 var _camera: Camera3D            # the iso Camera3D under the pivot (driven during construction)
 var _top_level: int = 0          # highest floor level (Roof) — the build target
 # True during the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE). Like
@@ -79,6 +81,7 @@ func _ready() -> void:
 	_env_light = get_node_or_null(env_light_path)
 	_cityscape = get_node_or_null(cityscape_path)
 	_empty_lot = get_node_or_null(empty_lot_path)
+	_site_ground = get_node_or_null(site_ground_path)
 	_camera = _pivot.get_node_or_null("Camera3D") if _pivot else null
 	add_to_group("tower_controller")   # so the hire panel can reach enter_tower()
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
@@ -234,6 +237,8 @@ func _update_constructing(snap: bool) -> void:
 		_cityscape.visible = false
 	if _empty_lot:
 		_empty_lot.visible = false
+	if _site_ground:
+		_site_ground.visible = true       # the tower sits on the build site ground
 	_frame_construction(snap)
 	if _hud and _hud.has_method("set_construction") and _hud_level != -4:
 		_hud_level = -4                       # construction-header marker
@@ -282,6 +287,8 @@ func _occupy() -> void:
 	_constructing = false
 	_gs.set("constructing", false)
 	_gs.built_level = _top_level              # whole tower present from here on
+	if _site_ground:
+		_site_ground.visible = false
 	if _player:
 		_player.visible = true
 	var gd: Node = get_node_or_null("/root/GameDirector")

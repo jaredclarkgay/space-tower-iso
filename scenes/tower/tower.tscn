@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://scenes/sky_lounge/sky_lounge.gd" id="22_skylounge"]
 [ext_resource type="Script" path="res://scenes/shared/cityscape.gd" id="23_city"]
 [ext_resource type="Script" path="res://scenes/shared/empty_lot.gd" id="24_lot"]
+[ext_resource type="Script" path="res://scenes/shared/site_ground.gd" id="26_site"]
 [ext_resource type="Script" path="res://scenes/garden/hire_partner.gd" id="25_hire"]
 
 [sub_resource type="Environment" id="Environment_tower"]
@@ -42,6 +43,7 @@ world_environment_path = NodePath("WorldEnvironment")
 env_light_path = NodePath("EnvLight")
 cityscape_path = NodePath("Cityscape")
 empty_lot_path = NodePath("EmptyLot")
+site_ground_path = NodePath("SiteGround")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.2, -6)
@@ -220,3 +222,7 @@ script = ExtResource("23_city")
 
 [node name="EmptyLot" type="Node3D" parent="."]
 script = ExtResource("24_lot")
+
+[node name="SiteGround" type="Node3D" parent="."]
+visible = false
+script = ExtResource("26_site")

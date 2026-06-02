@@ -102,7 +102,7 @@ func _ready() -> void:
 	# Slab + walls + extension grid — same construction the Garden uses, so
 	# Floor 1 reads as the same building viewed one story down.
 	FloorChrome.build_slab(self, _c)
-	FloorChrome.build_walls(self, _c)
+	FloorChrome.build_walls(self, _c, true)   # ground floor: a doorway on each side (walk-in)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	# Corner vacuum tubes — Floor 1 is the bottom of the served stack; its tubes
