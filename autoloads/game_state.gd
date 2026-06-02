@@ -41,6 +41,10 @@ var cash := 0
 # GameDirector ref) keeps GameState free of a load-order dependency.
 var phase := 0   # GameDirector.Phase.EMPTY_LOT
 
+# The hired partner's name (HIRE_PARTNER beat). Pure story flavour — no
+# mechanical effect. Empty until the player picks one on the exterior.
+var partner_name := ""
+
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the

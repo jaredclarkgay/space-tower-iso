@@ -1062,3 +1062,35 @@ Floor 1 / Garden, unregressed. Headless parse clean; no errors.
 **Minor follow-up (not blocking):** the always-on wayfinding chrome still reads
 "E ride elevator" on the lot — out of place; fold into the Step 4 HUD objective work or
 a later polish.
+
+### Step 3 — trivial one-of-five partner hire (`HIRE_PARTNER`)
+
+The hire beat, on the exterior, with zero mechanical consequence (pure story): pick one
+of five names → stored → phase advances → hand off into the tower (today's Garden spawn).
+
+**Flow (two walkable exterior beats):** boot `EMPTY_LOT` → lot + a centered card "AN EMPTY
+LOT" with a single "▸ HIRE A PARTNER" CTA. Click → `set_phase(HIRE_PARTNER)` → card becomes
+"CHOOSE YOUR PARTNER" + the five names. Click a name → `GameState.partner_name = <name>`,
+`set_phase(BUILD_STRUCTURE)`, `tower_controller.enter_tower()` → land on the Garden, card
+self-hides (phase no longer EMPTY_LOT/HIRE_PARTNER).
+
+- **`scenes/garden/hire_partner.gd`** (new) — the card. Mirrors `camera_modes_hud.gd`:
+  clickable `PanelContainer` cells via `gui_input` (NOT `Button`), so nothing can steal the
+  Space/Enter `ui_accept` that jump binds (F-008 sidestepped by construction, not a
+  `focus_mode` patch). Shrink-wrapped centered card (anchors 0.5 + GROW_BOTH) so the CTA is
+  compact and the name list grows it. Hover restyle. Self-shows by phase via `phase_changed`.
+- **`game_state.gd`** — `var partner_name := ""`.
+- **`constants.gd`** — `PARTNER_NAMES := ["MARA","TOBIN","REESE","IRIS","VANCE"]`
+  (placeholders — rename freely; worldbuilding is Q-005).
+- **`tower_controller.gd`** — `add_to_group("tower_controller")` in `_ready` so the panel
+  reaches `enter_tower()` without a brittle path. (`enter_tower()` from Step 2 gets its first
+  real caller.)
+- **`tower.tscn`** — `HUD/HirePartner` node after `HudManager` (draws on top).
+
+**Verify (windowed harness, full flow):** boot → phase 0, CTA shown (`3_lot_cta.png`); CTA
+click → phase 1, five names (`3_choose.png`); pick index 2 → `partner_name=="REESE"`, phase 2
+(BUILD_STRUCTURE), `_exterior=false`, player at Garden spawn (0,6,-6), card hidden, Garden
+renders normally (`3_in_tower.png`). Parse clean; no errors; Cody/interiors untouched.
+
+**Minor (Step 4 territory):** the tower_hud title still reads "EMPTY LOT" during
+HIRE_PARTNER (exterior header is static) — the per-phase objective line will drive that.

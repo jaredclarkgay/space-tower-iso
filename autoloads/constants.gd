@@ -433,6 +433,9 @@ const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum
 const LOT_DIRT_COLOR := Color(0.33, 0.26, 0.19)
+# Five helper names offered at the HIRE_PARTNER beat. Placeholder flavour names —
+# the hire has no mechanical consequence; rename freely (worldbuilding is Q-005).
+const PARTNER_NAMES := ["MARA", "TOBIN", "REESE", "IRIS", "VANCE"]
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

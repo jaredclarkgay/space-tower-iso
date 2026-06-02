@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://scenes/sky_lounge/sky_lounge.gd" id="22_skylounge"]
 [ext_resource type="Script" path="res://scenes/shared/cityscape.gd" id="23_city"]
 [ext_resource type="Script" path="res://scenes/shared/empty_lot.gd" id="24_lot"]
+[ext_resource type="Script" path="res://scenes/garden/hire_partner.gd" id="25_hire"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -136,6 +137,13 @@ script = ExtResource("13_hud")
 garden_group_path = NodePath("../GardenGroup")
 utility_group_path = NodePath("../UtilityGroup")
 schematic_path = NodePath("../GardenGroup/CodySchematic")
+
+[node name="HirePartner" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+script = ExtResource("25_hire")
 
 [node name="Floors" type="Node3D" parent="."]
 

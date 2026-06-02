@@ -73,6 +73,7 @@ func _ready() -> void:
 	_env_light = get_node_or_null(env_light_path)
 	_cityscape = get_node_or_null(cityscape_path)
 	_empty_lot = get_node_or_null(empty_lot_path)
+	add_to_group("tower_controller")   # so the hire panel can reach enter_tower()
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
 	for f in _FLOORS:
