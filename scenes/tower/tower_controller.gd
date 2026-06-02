@@ -98,10 +98,7 @@ func _ready() -> void:
 		var gd: Node = get_node_or_null("/root/GameDirector")
 		var to_exterior: bool = bool(_c.BOOT_TO_EXTERIOR) and gd != null and int(gd.current_phase) == 0 and _empty_lot != null
 		if to_exterior:
-			_exterior = true
-			_player.global_position = _empty_lot.spawn_position()
-			if _player.has_method("set_spawn_here"):
-				_player.set_spawn_here()
+			enter_exterior()
 		else:
 			_spawn_in_garden()
 			if _empty_lot:
@@ -134,6 +131,21 @@ func enter_tower() -> void:
 	_update(true)
 
 
+# Enter (or return to) the exterior empty lot: spawn the player on the lot and
+# flip on exterior mode. Used by the boot branch and by the debug phase walk
+# when it wraps back to EMPTY_LOT.
+func enter_exterior() -> void:
+	_exterior = true
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	if _empty_lot:
+		_player.global_position = _empty_lot.spawn_position()
+	if _player.has_method("set_spawn_here"):
+		_player.set_spawn_here()
+	_hud_level = -3   # force the exterior header to re-push (distinct from -2/-1)
+	_update(true)
+
+
 # The empty-lot world: hide the tower + cityscape, keep the lot solid, frame the
 # camera on the dirt, neutral exterior header (no floor panels). XZ follow is the
 # camera's own job (iso_camera); we only set pivot.Y + the outdoor environment.
@@ -163,6 +175,11 @@ func _process(delta: float) -> void:
 	# top). Temporary traversal aid until the elevator platform lands (2b).
 	if Input.is_action_just_pressed(&"debug_floor_switch"):
 		_debug_cycle_floor()
+	# Debug: ] walks the GameDirector phase, keeping the world coherent (the
+	# exterior beats stay on the lot; advancing inward enters the tower; wrapping
+	# back to EMPTY_LOT returns to the lot).
+	if Input.is_action_just_pressed(&"debug_advance_phase"):
+		_debug_advance_phase()
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -308,6 +325,19 @@ func _debug_cycle_floor() -> void:
 	_player.global_position = Vector3(0.0, _base_y_for_level(next) + float(_c.FLOOR_3D_TOP_Y) + 0.1, -6.0)
 	if _player is CharacterBody3D:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
+
+
+func _debug_advance_phase() -> void:
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd == null:
+		return
+	gd.advance_phase()
+	var phase: int = int(gd.current_phase)
+	var on_exterior_beat: bool = phase == 0 or phase == 1   # EMPTY_LOT / HIRE_PARTNER
+	if _exterior and not on_exterior_beat:
+		enter_tower()
+	elif not _exterior and on_exterior_beat:
+		enter_exterior()
 
 
 func _level_for_y(py: float) -> int:

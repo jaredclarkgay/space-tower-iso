@@ -1094,3 +1094,40 @@ renders normally (`3_in_tower.png`). Parse clean; no errors; Cody/interiors unto
 
 **Minor (Step 4 territory):** the tower_hud title still reads "EMPTY LOT" during
 HIRE_PARTNER (exterior header is static) — the per-phase objective line will drive that.
+
+### Step 4 — per-phase HUD objective line
+
+`tower_hud.gd` now shows an arc-objective line at the top of the wayfinding panel, driven
+off `GameDirector.phase_changed` (independent of the per-floor `set_floor`). `OBJECTIVE` map
+phase→string (placeholder copy). Reuses `_hint_label()` + `_format_hint()` + `_divider_style()`
+— objective line, divider, then the existing move/verb lines. Connects to `phase_changed` in
+`_ready` and seeds from `current_phase`. Verified: line reads "Survey your empty lot." on the
+lot and "Raise the tower, floor by floor." (BUILD_STRUCTURE) after the hire-handoff into the
+Garden. Committed `071cc47`.
+
+### Step 5 — stub remaining phases + debug advance
+
+The enum transitions are already no-ops (`set_phase` just mirrors + emits), so this makes the
+mid/late phases reachable + proves they emit cleanly.
+- `game_director.gd`: `advance_phase()` — `set_phase((current_phase + 1) % (Phase.TEMPORAL + 1))`,
+  wraps.
+- `project.godot`: `debug_advance_phase` input action on `]` (keycode 93), mirroring the
+  existing `\` `debug_floor_switch`.
+- `tower_controller.gd`: `_process` handles the action via `_debug_advance_phase()`, which
+  advances the director AND keeps the world coherent — advancing out of the exterior beats
+  (phase ∉ {EMPTY_LOT, HIRE_PARTNER}) calls `enter_tower()`; wrapping back to EMPTY_LOT calls
+  the new `enter_exterior()` helper (factored from the Step-2 boot branch; the boot branch now
+  calls it too). HUD sentinel `-3` forces the exterior header to re-push on re-entry.
+
+**Verify (windowed):** walked all 8 advances from boot — phase 0→1 stay on the lot
+(`_exterior=true`, y=0), 1→2 enters the tower (`_exterior=false`, y=6), 2→6 stay in the tower,
+6→0 wraps back onto the lot (`_exterior=true`, y=0). Objective line updates each step; no
+errors. `5_build_interiors.png` shows the Garden rendering normally under the BUILD_INTERIORS
+objective.
+
+### GameDirector phase — DONE
+All 5 steps shipped (`097463b`, `7ba9f19`, `257db09`, `071cc47`, + step 5). The director
+sequences the arc end to end; the two real opening beats (EMPTY_LOT + HIRE_PARTNER) work; the
+old direct-to-Garden boot is preserved behind `BOOT_TO_EXTERIOR`; the hire has zero mechanical
+consequence; GameState stays pure data (the director mirrors into it); exactly one new autoload;
+Cody + all interiors untouched. Decisions D-001/D-002 logged resolved, D-003 deferrals queued.

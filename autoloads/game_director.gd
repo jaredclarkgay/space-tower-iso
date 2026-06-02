@@ -36,5 +36,12 @@ func set_phase(p: Phase) -> void:
 	_mirror()
 	phase_changed.emit(current_phase)
 
+# Debug/sequencing helper: step to the next phase, wrapping at the end. The
+# mid/late phases (BUILD_STRUCTURE..TEMPORAL) are no-op transitions for now (no
+# gates yet) — this walks the full enum end to end.
+func advance_phase() -> void:
+	set_phase((current_phase + 1) % (Phase.TEMPORAL + 1))
+
+
 func _mirror() -> void:
 	_gs.phase = current_phase
