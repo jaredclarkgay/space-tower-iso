@@ -323,15 +323,17 @@ func _sky_state(t: float) -> Dictionary:
 	var elev: float = -cos(TAU * t)                      # -1 midnight, 0 dawn/dusk, +1 noon
 	var day: float = smoothstep(-0.15, 0.5, elev)        # 0 deep night -> 1 daylight
 	var high: float = clampf(elev, 0.0, 1.0)             # 0 at the horizon -> 1 at noon
-	var intensity: float = lerpf(float(_c.TOD_NIGHT_INTENSITY), 1.0, day)
+	# Night floor -> identity by daybreak, plus a midday GAIN that peaks at noon so
+	# daylight reads brighter than the neutral identity (and night dimmer).
+	var intensity: float = lerpf(float(_c.TOD_NIGHT_INTENSITY), 1.0, day) + (float(_c.TOD_DAY_INTENSITY) - 1.0) * high
 	# Warmth: cool moonlight at night, golden near the horizon, white at noon.
 	var golden := Color(1.00, 0.72, 0.45)
 	var moon := Color(0.55, 0.64, 0.92)
 	var warmth: Color = moon.lerp(golden.lerp(Color.WHITE, high), day)
-	# Sky bg: dark night -> warm horizon -> day blue.
+	# Sky bg: dark night -> warm horizon -> bright day blue.
 	var night_sky := Color(0.04, 0.05, 0.10)
-	var horizon_sky := Color(0.55, 0.42, 0.34)
-	var day_sky := Color(0.50, 0.62, 0.80)
+	var horizon_sky := Color(0.76, 0.46, 0.28)
+	var day_sky := Color(0.58, 0.73, 0.95)
 	var sky_tint: Color = night_sky.lerp(horizon_sky.lerp(day_sky, high), day)
 	# Sun rotation: elevation tracks the curve; azimuth sweeps east->west by day.
 	var pitch: float = lerpf(float(_c.TOD_SUN_PITCH_MIN), float(_c.TOD_SUN_PITCH_MAX), elev * 0.5 + 0.5)

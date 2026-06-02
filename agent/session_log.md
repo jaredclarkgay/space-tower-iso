@@ -1243,3 +1243,20 @@ brightness/feel is screenshot-tunable via the TOD_* constants + per-floor sky_ex
 Two-axis clock shipped: GameDirector (linear narrative) + TimeOfDay (cyclic, broadcasting,
 zero location logic), latched on at TEMPORAL, driving per-floor lighting modulation composed on
 each floor's identity. Commits d03caae, 4d5ee3d, 5c9d5f9, + this stage.
+
+### Follow-ups (operator: push + debug key + feel pass)
+- **Pushed** Stages 0-3 (c0936bb..ec79999).
+- **Debug `[` key** (`debug_start_clock`, robust two-event binding): calls `TimeOfDay.start()`
+  on demand so the day/night swing is testable without walking the arc to TEMPORAL. Commit
+  6158888.
+- **Lighting feel pass.** Noon read too dark because the modulation capped at the floor
+  identity (intensity 1.0 at noon). Added `TOD_DAY_INTENSITY` (1.40) as a midday GAIN —
+  `intensity = lerp(NIGHT,1,day) + (DAY-1)*high` — so noon reads brighter than identity and
+  night dimmer. Lightened `day_sky` (0.58,0.73,0.95), warmed `horizon_sky` (0.76,0.46,0.28).
+  Verified (windowed, measured): Sky Lounge amb energy noon 2.24 / dusk 0.42 / night 0.24,
+  sun pitch -62/-27/+8; Residential swings 1.26->0.60 (gentler — exposure 0.5). Bright cool
+  noon, warm low dusk, dark moonlit night.
+  - **Harness learning (logged):** when jamming `GameState.sim_time_msec` directly and calling
+    `_drive_environment(true)` to snap, FIRST wait a frame so `TimeOfDay._process` refreshes
+    `GameState.time_of_day` — else the snap reads the stale hour and the slow per-frame lerp
+    lags. (Real play is unaffected: time advances continuously and the lerp tracks it.)

@@ -437,6 +437,7 @@ const TWILIGHT_HALF_WIDTH := 0.07      # half-width of each dawn/dusk transition
 # Time-of-day lighting feel (Stage 3) — modulation composed on each floor's
 # identity preset, scaled by that floor's sky_exposure. Gradients, not switches.
 const TOD_NIGHT_INTENSITY := 0.15      # moonlit floor: sky-exposed floors never go full dark
+const TOD_DAY_INTENSITY := 1.40        # midday GAIN above identity, so noon reads as bright daylight
 const TOD_SUN_PITCH_MIN := -8.0        # deg — sun just below the horizon (night)
 const TOD_SUN_PITCH_MAX := 62.0        # deg — sun elevation at noon
 const TOD_SUN_YAW_SWEEP := 70.0        # deg — east->west azimuth swing across the day
