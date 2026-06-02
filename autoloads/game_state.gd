@@ -45,6 +45,12 @@ var phase := 0   # GameDirector.Phase.EMPTY_LOT
 # mechanical effect. Empty until the player picks one on the exterior.
 var partner_name := ""
 
+# Highest floor LEVEL that has been built (construct-from-empty / BUILD_STRUCTURE).
+# A floor is present in the world — visible, collidable, elevator/vacuum-served —
+# only when its level <= built_level. Defaults high so the whole tower is present
+# until construction lowers it (dev / CONSTRUCT_FROM_EMPTY=false keeps today's boot).
+var built_level := 99
+
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the

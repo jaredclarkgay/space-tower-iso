@@ -232,7 +232,11 @@ func _update(snap: bool) -> void:
 	_pulse_level = _current_level
 	for f in _floors:
 		var node: Node3D = f.node
-		var at_or_below: bool = (int(f.level) <= _current_level)
+		# Construct-from-empty: a floor only exists once built. Unbuilt floors are
+		# fully absent (invisible + no collision). With built_level=99 (default)
+		# every floor is built, so this reduces to the original at_or_below rule.
+		var built: bool = int(f.level) <= int(_gs.built_level)
+		var at_or_below: bool = built and (int(f.level) <= _current_level)
 		# Slab collision: solid for your floor + everything below, OFF for floors
 		# above so a jump passes straight up through the ceiling and falls back
 		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass
@@ -248,9 +252,9 @@ func _update(snap: bool) -> void:
 			# through it — it's the one solid ceiling) lights a localized glow.
 			node.set_structure_visible(at_or_below)
 			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if at_or_below else 0.0)
-			# Aperture rings only from the floor directly below or on it.
+			# Aperture rings only from the floor directly below or on it (and built).
 			if node.has_method("set_apertures_visible"):
-				node.set_apertures_visible(_current_level >= int(f.level) - 1)
+				node.set_apertures_visible(built and _current_level >= int(f.level) - 1)
 			if node.has_method("set_ceiling_ping"):
 				var ping: float = _ceiling_pulse if int(f.level) == _current_level + 1 else 0.0
 				node.set_ceiling_ping(_bonk_pos, ping)

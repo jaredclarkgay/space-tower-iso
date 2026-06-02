@@ -1260,3 +1260,18 @@ each floor's identity. Commits d03caae, 4d5ee3d, 5c9d5f9, + this stage.
     `_drive_environment(true)` to snap, FIRST wait a frame so `TimeOfDay._process` refreshes
     `GameState.time_of_day` — else the snap reads the stale hour and the slow per-frame lerp
     lags. (Real play is unaffected: time advances continuously and the lerp tracks it.)
+
+## Session 12 — 2026-06-02 — Construct-from-empty (BUILD_STRUCTURE)
+
+**Direction (operator):** raise the tower floor-by-floor from the empty lot. Decisions:
+whole-floor reveal (existing floor content is the reused payload); simple build action;
+HYBRID external dollhouse build → then occupy the Garden. Staged A-D, screenshot-verified.
+
+### Stage A — built_level presence gate
+- `GameState.built_level` (default 99 = whole tower present). `Constants.CONSTRUCT_FROM_EMPTY`.
+- `tower_controller._update` floor loop: a floor is present only when `level <= built_level`
+  (`built` gate folded into `at_or_below` + the aperture rule). Unbuilt floors are fully absent
+  (invisible + slab collision off). At built_level=99 this reduces to the original at_or_below
+  rule — byte-for-byte today.
+Verified (windowed, player parked on the Roof so all floors are normally revealed): built=99 →
+all slabs col=2; built=2 → floors 0-2 col=2, Residential/Sky Lounge col=0 (absent). Parse clean.

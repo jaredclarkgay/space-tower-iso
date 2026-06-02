@@ -448,6 +448,10 @@ const TOD_SUN_YAW_SWEEP := 70.0        # deg — east->west azimuth swing across
 # real opening boots onto the lot; the dev fallback boots straight to the
 # Garden so existing-floor work still launches in one step.
 const BOOT_TO_EXTERIOR := true
+# Construct-from-empty: after the hire, the player raises the tower floor-by-floor
+# in an external dollhouse view, then occupies it. false = the whole tower is
+# present and the hire drops straight into the Garden (today's dev boot).
+const CONSTRUCT_FROM_EMPTY := true
 const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (which sits at x~0)
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum
