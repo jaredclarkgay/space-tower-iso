@@ -1157,3 +1157,23 @@ Cody + all interiors untouched. Decisions D-001/D-002 logged resolved, D-003 def
    the arc phase (re-pushing when it changes), tracked by `_ext_hud_phase`: EMPTY_LOT →
    "EXTERIOR / EMPTY LOT", HIRE_PARTNER → "EXTERIOR / CHOOSE A PARTNER" (was a static
    "EMPTY LOT" through both beats). `enter_exterior` resets the tracker so re-entry re-pushes.
+
+## Session 11 — 2026-06-01 — Time-of-day (TEMPORAL): the day/night clock
+
+**Direction (operator brief):** introduce TIME-OF-DAY as a SECOND axis. Hard principles:
+two axes (narrative Phase = linear/pass-through; time-of-day = cyclic/always-on, NOT an enum
+value); the clock BROADCASTS, holds zero per-location logic (locations subscribe + interpret
+locally); gradients not switches (smooth ramps, soft thresholds, hysteresis); litmus (what is
+true → GameState; what happens next/when → GameDirector; scenes render; clock broadcasts).
+Forward-looking substrate for later emergent character tension — build a clean broadcaster
+now, NO character logic yet. Method: decision-gated stages, surface-don't-guess.
+
+### Stage 0 — GameDirector polish (no behavior change)
+- `advance_phase()` wrap now uses `Phase.size()` instead of the magic `(… % (TEMPORAL+1))`,
+  so it survives enum edits. Comment marks the modulo wrap as DEBUG-only (real play is forward
+  pass-through).
+- Added `phase_name(p)` helper (readable logging; bounds-guarded → `PHASE_n`).
+- Header comment now states the TWO-AXIS principle explicitly (Phase linear; time-of-day is a
+  cyclic layer that lives elsewhere, switched on only at the TEMPORAL moment).
+Verified: `Phase.size()==7`, full walk wraps to EMPTY_LOT (same as before), `phase_name`
+incl. out-of-bounds. Parse clean.
