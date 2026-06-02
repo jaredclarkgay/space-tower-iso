@@ -434,6 +434,12 @@ const CLOCK_START_FRAC := 7.0 / 24.0   # the clock latches on at ~07:00 (morning
 const DAWN_CENTER := 0.25              # sun rising
 const DUSK_CENTER := 0.75              # sun setting
 const TWILIGHT_HALF_WIDTH := 0.07      # half-width of each dawn/dusk transition band
+# Time-of-day lighting feel (Stage 3) — modulation composed on each floor's
+# identity preset, scaled by that floor's sky_exposure. Gradients, not switches.
+const TOD_NIGHT_INTENSITY := 0.15      # moonlit floor: sky-exposed floors never go full dark
+const TOD_SUN_PITCH_MIN := -8.0        # deg — sun just below the horizon (night)
+const TOD_SUN_PITCH_MAX := 62.0        # deg — sun elevation at noon
+const TOD_SUN_YAW_SWEEP := 70.0        # deg — east->west azimuth swing across the day
 
 # --- Boot / exterior opening (GameDirector EMPTY_LOT) --------------------
 # The game's new front door: a stand-alone empty lot you open on, in-world

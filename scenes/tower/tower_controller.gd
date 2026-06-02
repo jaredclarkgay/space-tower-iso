@@ -282,18 +282,21 @@ func _update(snap: bool) -> void:
 	_drive_environment(snap)
 
 
-# Per-floor environment preset: ambient colour/energy, background, sun energy.
+# Per-floor environment preset: the floor's lighting IDENTITY (ambient colour/
+# energy, background, sun energy) plus `sky_exposure` (0..1) — how much this floor
+# reads the day/night sky. Time-of-day modulates ON TOP of the identity, scaled by
+# exposure: windowless interiors barely shift; glass/open floors swing the full day.
 func _preset_for(level: int) -> Dictionary:
 	match level:
-		-1: return {"amb": Color(0.86, 0.88, 0.92), "energy": 1.40, "bg": Color(0.50, 0.62, 0.80), "sun": 1.60}  # Exterior empty lot (open daylight)
-		0: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}  # Utility (basement)
-		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}  # Garden
-		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}  # Arboretum (ground)
-		3: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35}  # Canopy
-		4: return {"amb": Color(0.74, 0.72, 0.70), "energy": 1.05, "bg": Color(0.12, 0.12, 0.14), "sun": 1.05}  # Residential (warm interior)
-		5: return {"amb": Color(0.84, 0.88, 0.96), "energy": 1.60, "bg": Color(0.46, 0.60, 0.78), "sun": 1.45}  # Sky Lounge (glass, sky beyond)
-		# Roof / Vista (top): open to the sky — bright, cool, airy, with a pale horizon.
-		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55}
+		-1: return {"amb": Color(0.86, 0.88, 0.92), "energy": 1.40, "bg": Color(0.50, 0.62, 0.80), "sun": 1.60, "sky_exposure": 1.0}   # Exterior empty lot (open sky)
+		0: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45, "sky_exposure": 0.0}    # Utility (basement — windowless)
+		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95, "sky_exposure": 0.18}   # Garden (mostly interior)
+		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25, "sky_exposure": 0.40}   # Arboretum (ground)
+		3: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35, "sky_exposure": 0.60}   # Canopy (glassy upper)
+		4: return {"amb": Color(0.74, 0.72, 0.70), "energy": 1.05, "bg": Color(0.12, 0.12, 0.14), "sun": 1.05, "sky_exposure": 0.50}   # Residential (windows)
+		5: return {"amb": Color(0.84, 0.88, 0.96), "energy": 1.60, "bg": Color(0.46, 0.60, 0.78), "sun": 1.45, "sky_exposure": 1.0}    # Sky Lounge (floor-to-ceiling glass)
+		# Roof / Vista (top): open to the sky — full day/night swing.
+		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55, "sky_exposure": 1.0}
 
 
 # Drives the visibility of every passive spine-pipe fill (floors 2-4) from the
@@ -307,17 +310,63 @@ func _update_spine_pipe_fills() -> void:
 		fill.visible = bool(active.get(id, false))
 
 
+# Global day/night modulation derived from normalized time-of-day (0..1). Pure
+# function of the hour — no per-location logic (floors apply it scaled by their
+# sky_exposure). Smooth curves throughout (gradients, not switches).
+func _sky_state(t: float) -> Dictionary:
+	var elev: float = -cos(TAU * t)                      # -1 midnight, 0 dawn/dusk, +1 noon
+	var day: float = smoothstep(-0.15, 0.5, elev)        # 0 deep night -> 1 daylight
+	var high: float = clampf(elev, 0.0, 1.0)             # 0 at the horizon -> 1 at noon
+	var intensity: float = lerpf(float(_c.TOD_NIGHT_INTENSITY), 1.0, day)
+	# Warmth: cool moonlight at night, golden near the horizon, white at noon.
+	var golden := Color(1.00, 0.72, 0.45)
+	var moon := Color(0.55, 0.64, 0.92)
+	var warmth: Color = moon.lerp(golden.lerp(Color.WHITE, high), day)
+	# Sky bg: dark night -> warm horizon -> day blue.
+	var night_sky := Color(0.04, 0.05, 0.10)
+	var horizon_sky := Color(0.55, 0.42, 0.34)
+	var day_sky := Color(0.50, 0.62, 0.80)
+	var sky_tint: Color = night_sky.lerp(horizon_sky.lerp(day_sky, high), day)
+	# Sun rotation: elevation tracks the curve; azimuth sweeps east->west by day.
+	var pitch: float = lerpf(float(_c.TOD_SUN_PITCH_MIN), float(_c.TOD_SUN_PITCH_MAX), elev * 0.5 + 0.5)
+	var yaw: float = lerpf(-float(_c.TOD_SUN_YAW_SWEEP), float(_c.TOD_SUN_YAW_SWEEP), clampf((t - 0.25) / 0.5, 0.0, 1.0))
+	return {"intensity": intensity, "warmth": warmth, "sky_tint": sky_tint, "sun_pitch": pitch, "sun_yaw": yaw}
+
+
 func _drive_environment(snap: bool) -> void:
 	if _world_env == null or _world_env.environment == null:
 		return
 	var p := _preset_for(_current_level)
 	var env := _world_env.environment
 	var k: float = 1.0 if snap else 0.06
-	env.ambient_light_color = env.ambient_light_color.lerp(p.amb, k)
-	env.ambient_light_energy = lerpf(env.ambient_light_energy, float(p.energy), k)
-	env.background_color = env.background_color.lerp(p.bg, k)
+	# Targets start at the floor's IDENTITY; time-of-day modulates on top, scaled by
+	# this floor's sky exposure. Clock dormant (pre-TEMPORAL) or exposure 0 -> no-op,
+	# so the look is exactly today's.
+	var amb: Color = p.amb
+	var energy: float = float(p.energy)
+	var bg: Color = p.bg
+	var sun: float = float(p.sun)
+	var exposure: float = float(p.get("sky_exposure", 0.0))
+	var tod: Node = get_node_or_null("/root/TimeOfDay")
+	var running: bool = tod != null and bool(tod.running)
+	var s: Dictionary = _sky_state(float(_gs.time_of_day)) if running else {}
+	if running and exposure > 0.0:
+		var lvl: float = lerpf(1.0, float(s.intensity), exposure)
+		var warmth: Color = s.warmth
+		amb = (p.amb as Color).lerp((p.amb as Color) * warmth, exposure)
+		energy = float(p.energy) * lvl
+		sun = float(p.sun) * lvl
+		bg = (p.bg as Color).lerp(s.sky_tint, exposure)
+	env.ambient_light_color = env.ambient_light_color.lerp(amb, k)
+	env.ambient_light_energy = lerpf(env.ambient_light_energy, energy, k)
+	env.background_color = env.background_color.lerp(bg, k)
 	if _env_light:
-		_env_light.light_energy = lerpf(_env_light.light_energy, float(p.sun), k)
+		_env_light.light_energy = lerpf(_env_light.light_energy, sun, k)
+		# Sun DIRECTION is global + time-driven (only once the clock runs); harmless on
+		# low-exposure floors because their sun energy stays low.
+		if running:
+			var target_rot := Vector3(-float(s.sun_pitch), float(s.sun_yaw), 0.0)
+			_env_light.rotation_degrees = target_rot if snap else _env_light.rotation_degrees.lerp(target_rot, k)
 
 
 # Highest floor whose surface is at or just below the player. The reveal margin

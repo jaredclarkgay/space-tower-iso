@@ -1214,3 +1214,32 @@ Decision: the day starts at a fixed hour on latch (anchored, repeatable "first l
 Verified (windowed): boot dormant (--:--, time_of_day 0); at TEMPORAL → running, 07:00; +6h
 sim → 13:00; debug-wrap phase back to EMPTY_LOT → clock STILL running (one-way); +6h → 19:00.
 Parse clean. Still no visuals (Stage 3).
+
+### Stage 3 — time-of-day lighting: floor identity × time modulation
+Decisions: per-floor sky exposure; moonlit-dim nights (not near-black).
+
+- `_preset_for` floors gain `sky_exposure` (0..1): Utility 0.0 (windowless), Garden 0.18,
+  Arboretum 0.40, Canopy 0.60, Residential 0.50, Sky Lounge 1.0, Roof/exterior 1.0.
+- `_sky_state(t)` — pure function of the hour, NO location logic: `elev = -cos(TAU*t)`
+  (−1 midnight, 0 dawn/dusk, +1 noon); smooth `intensity` (moonlit floor `TOD_NIGHT_INTENSITY`
+  → 1 at noon), `warmth` (cool moon → golden horizon → white noon), `sky_tint` bg, and the sun
+  `pitch`/`yaw` (the sun ROTATION, which didn't exist before).
+- `_drive_environment` composes: targets start at the floor IDENTITY, then time modulates on
+  top scaled by `sky_exposure` — ambient tinted by warmth, ambient/sun energy × intensity, bg
+  toward sky_tint; the single light's DIRECTION is global + time-driven (harmless on
+  low-exposure floors since their sun energy stays low). The existing k=0.06 lerp is the
+  hysteresis. **Clock dormant or exposure 0 → no-op, so pre-TEMPORAL the look is exactly
+  today's.** Constants: `TOD_NIGHT_INTENSITY`, `TOD_SUN_PITCH_MIN/MAX`, `TOD_SUN_YAW_SWEEP`.
+
+Verified (windowed): Sky Lounge (exposure 1.0) swings cool-blue noon → golden dusk → dark
+moonlit night; Residential (0.5) keeps its warm interior identity and shifts gently — per-floor
+exposure differentiates them. Parse clean; Cody/elevator/geometry untouched.
+
+**Note for the operator:** the clock only LATCHES at TEMPORAL (the last phase), so day/night
+isn't visible in normal early play — walk to TEMPORAL with the debug `]` to see it. Absolute
+brightness/feel is screenshot-tunable via the TOD_* constants + per-floor sky_exposure.
+
+### Time-of-day phase — DONE (Stages 0-3)
+Two-axis clock shipped: GameDirector (linear narrative) + TimeOfDay (cyclic, broadcasting,
+zero location logic), latched on at TEMPORAL, driving per-floor lighting modulation composed on
+each floor's identity. Commits d03caae, 4d5ee3d, 5c9d5f9, + this stage.
