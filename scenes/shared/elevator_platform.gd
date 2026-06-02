@@ -120,7 +120,7 @@ func _update_choosing(delta: float) -> void:
 	_prompt_root.visible = false
 	_show_chooser(true)
 	var here: int = _car_floor_level()
-	for lvl in SERVED:
+	for lvl in _served_now():
 		if lvl == here:
 			continue
 		if Input.is_action_just_pressed(StringName("seed_select_%d" % lvl)):
@@ -183,10 +183,24 @@ func _player_floor_level() -> int:
 func _car_floor_level() -> int:
 	return _nearest_served(_car_y)
 
-func _nearest_served(y: float) -> int:
-	var best: int = SERVED[0]
-	var bd: float = 1.0e9
+# SERVED floors that currently EXIST (built). Construct-from-empty: the chooser
+# and nearest-floor queries only consider floors the player has built so far.
+func _served_now() -> Array:
+	var bl: int = int(_gs.built_level)
+	var out: Array = []
 	for lvl in SERVED:
+		if lvl <= bl:
+			out.append(lvl)
+	return out
+
+
+func _nearest_served(y: float) -> int:
+	var served: Array = _served_now()
+	if served.is_empty():
+		served = [SERVED[0]]   # fallback: the foundation floor always exists
+	var best: int = served[0]
+	var bd: float = 1.0e9
+	for lvl in served:
 		var d: float = absf(y - _floor_y(lvl))
 		if d < bd:
 			bd = d

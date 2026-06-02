@@ -96,7 +96,8 @@ func _update_idle(_delta: float) -> void:
 	var grounded: bool = _player.has_method("is_on_floor") and _player.is_on_floor()
 	var idx: int = _nearest_mouth_index() if (grounded and not busy) else -1
 	var level: int = _player_level()
-	var up_ok: bool = idx >= 0 and level < int(_c.VACUUM_HOP_TOP_LEVEL)
+	# Construct-from-empty: can't hop up to a floor that isn't built yet.
+	var up_ok: bool = idx >= 0 and level < int(_c.VACUUM_HOP_TOP_LEVEL) and (level + 1) <= int(_gs.built_level)
 	var down_ok: bool = idx >= 0 and level > int(_c.VACUUM_HOP_BOTTOM_LEVEL)
 	var offered: bool = up_ok or down_ok
 

@@ -1275,3 +1275,10 @@ HYBRID external dollhouse build → then occupy the Garden. Staged A-D, screensh
   rule — byte-for-byte today.
 Verified (windowed, player parked on the Roof so all floors are normally revealed): built=99 →
 all slabs col=2; built=2 → floors 0-2 col=2, Residential/Sky Lounge col=0 (absent). Parse clean.
+
+### Stage B — transit serves only built floors
+- `elevator_platform.gd`: new `_served_now()` (SERVED filtered by `built_level`); the chooser
+  loop + `_nearest_served` use it (empty → fallback to the foundation floor SERVED[0]).
+- `vacuum_lift.gd`: up-hop `up_ok` also requires `(level+1) <= built_level` — can't hop up to
+  an unbuilt floor. Down unaffected.
+Verified (windowed): elevator serves [0,1,2,4,5] at 99, [0,1,2] at built_level 2, [0,1] at 1.
