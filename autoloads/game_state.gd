@@ -217,6 +217,11 @@ var arboretum := {
 var sim_time_msec: float = 0.0
 var sim_speed: float = 1.0
 
+# Normalized time-of-day (0..1), mirrored each frame by the TimeOfDay clock while
+# it's running. 0.0/1.0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk. World
+# truth (data); TimeOfDay owns it, scenes read it. Dormant until TEMPORAL (Stage 2).
+var time_of_day: float = 0.0
+
 
 func _process(delta: float) -> void:
 	sim_time_msec += delta * 1000.0 * sim_speed

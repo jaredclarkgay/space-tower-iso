@@ -1177,3 +1177,25 @@ now, NO character logic yet. Method: decision-gated stages, surface-don't-guess.
   cyclic layer that lives elsewhere, switched on only at the TEMPORAL moment).
 Verified: `Phase.size()==7`, full walk wraps to EMPTY_LOT (same as before), `phase_name`
 incl. out-of-bounds. Parse clean.
+
+### Stage 1 — the clock (decision: new TimeOfDay autoload, derived from sim clock)
+Operator decisions: (1) clock lives in a NEW `TimeOfDay` autoload (6th global — the
+cyclic-axis sibling of GameDirector); (2) derive from `sim_time_msec` with its own
+`DAY_LENGTH_MSEC` (sim_speed stays the global time-scale).
+
+- **`autoloads/time_of_day.gd`** (new) — broadcaster: each frame derives
+  `t = fmod(sim_time_msec, DAY_LENGTH_MSEC) / DAY_LENGTH_MSEC`, mirrors into
+  `GameState.time_of_day`, emits `tick(t)`. Zero per-location logic. `hour_string()`
+  formats 0..1 → "HH:MM". `running` defaults true (free-runs) — **Stage 2 flips it to
+  dormant + latches on at TEMPORAL.**
+- **`game_state.gd`** — `var time_of_day := 0.0` (world-truth mirror; 0=midnight,
+  0.25=dawn, 0.5=noon, 0.75=dusk).
+- **`constants.gd`** — `DAY_LENGTH_MSEC` (~4 min) + `DAWN_CENTER`/`DUSK_CENTER`/
+  `TWILIGHT_HALF_WIDTH` (soft windows for the Stage-3 lighting modulation).
+- **`project.godot`** — `TimeOfDay` autoload registered after `GameDirector`.
+- **`tower_hud.gd`** — debug top-centre "TIME HH:MM" readout (always on, every floor +
+  exterior).
+
+Verified (windowed): driving `sim_time_msec` to 0/0.25/0.5/0.75/1.25×day →
+time_of_day 0.0/0.25/0.5/0.75/0.25 → "00:00/06:00/12:00/18:00/06:00" (wraps correctly);
+HUD readout renders top-centre. Parse clean. No visuals touched (Stage 3).

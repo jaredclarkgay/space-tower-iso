@@ -26,6 +26,7 @@ GameState="*res://autoloads/game_state.gd"
 SaveManager="*res://autoloads/save_manager.gd"
 AudioManager="*res://autoloads/audio_manager.gd"
 GameDirector="*res://autoloads/game_director.gd"
+TimeOfDay="*res://autoloads/time_of_day.gd"
 
 [display]
 

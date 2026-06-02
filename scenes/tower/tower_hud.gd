@@ -71,6 +71,7 @@ var _title: Label
 var _objective_label: RichTextLabel
 var _move_label: RichTextLabel
 var _here_label: RichTextLabel
+var _clock_label: Label          # debug time-of-day readout
 
 var _res_panel: PanelContainer
 var _backpack_value: Label
@@ -93,6 +94,7 @@ func _ready() -> void:
 	_build_title()
 	_build_wayfinding()
 	_build_resources()
+	_build_debug_clock()
 	_displayed_cash = int(_gs.cash)
 	# Objective line tracks the arc phase, not the floor.
 	var gd: Node = get_node_or_null("/root/GameDirector")
@@ -133,6 +135,10 @@ func _set_objective(phase: int) -> void:
 
 
 func _process(delta: float) -> void:
+	# Debug time-of-day readout (always on, every floor + the exterior).
+	if _clock_label:
+		var tod: Node = get_node_or_null("/root/TimeOfDay")
+		_clock_label.text = ("TIME  " + tod.hour_string()) if tod else ""
 	# Resources only matter on the Garden; skip the work elsewhere.
 	if _res_panel == null or not _res_panel.visible:
 		return
@@ -180,6 +186,25 @@ func _build_title() -> void:
 	_title.add_theme_constant_override("outline_size", 7)
 	_title.text = "GARDEN"
 	box.add_child(_title)
+
+
+# --- Debug clock ----------------------------------------------------------
+
+# Top-centre time-of-day readout. Debug affordance for the day/night clock —
+# clear of the title (top-left) and resources (top-right).
+func _build_debug_clock() -> void:
+	_clock_label = Label.new()
+	_clock_label.add_theme_font_size_override("font_size", 16)
+	_clock_label.add_theme_color_override("font_color", AMBER_DIM)
+	_clock_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	_clock_label.add_theme_constant_override("outline_size", 3)
+	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock_label.anchor_left = 0.5
+	_clock_label.anchor_right = 0.5
+	_clock_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_clock_label.offset_top = 14.0
+	_clock_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_clock_label)
 
 
 # --- Wayfinding -----------------------------------------------------------

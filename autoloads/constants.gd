@@ -423,6 +423,17 @@ const CITY_HEIGHT_MIN := 6.0
 const CITY_HEIGHT_MAX := 30.0          # shorter than the tower, so you look DOWN onto them
 const CITY_RNG_SEED := 20260601        # fixed so the skyline layout is stable across runs
 
+# --- Time-of-day (day/night cycle) --------------------------------------
+# Normalized 0..1: 0.0/1.0 = midnight, 0.25 = dawn (~06:00), 0.5 = noon,
+# 0.75 = dusk (~18:00). The TimeOfDay clock derives this from the monotonic
+# sim clock (GameState.sim_time_msec) wrapped by DAY_LENGTH, so sim_speed stays
+# the GLOBAL time-scale knob. Dawn/dusk windows are for the Stage-3 lighting
+# modulation (soft, overlapping bands — gradients, not switches).
+const DAY_LENGTH_MSEC := 240000.0      # one full day/night cycle (~4 min) in sim-ms
+const DAWN_CENTER := 0.25              # sun rising
+const DUSK_CENTER := 0.75              # sun setting
+const TWILIGHT_HALF_WIDTH := 0.07      # half-width of each dawn/dusk transition band
+
 # --- Boot / exterior opening (GameDirector EMPTY_LOT) --------------------
 # The game's new front door: a stand-alone empty lot you open on, in-world
 # inside tower.tscn (no scene swap). BOOT_TO_EXTERIOR picks the START STATE —
