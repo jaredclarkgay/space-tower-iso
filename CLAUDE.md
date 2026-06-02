@@ -41,9 +41,9 @@ This is **multi-floor** and has real mechanics. **Canonical floor order** (0-ind
 
 > **Numbering note (locked Session 9):** Utility is **Floor 0 (the basement)**; numbers count up; the Roof is unnumbered. Internal `level` is 0-indexed to match the display (`base_y = level * FLOOR_3D_STORY_HEIGHT`). Dirs + `GameState` keys + `Floors/` node names are all content-named so the layout reads itself. The original brief's "Garden = Floor 3" and the Session-8-era 1-indexed numbers are **stale**.
 
-Floors connect three ways: a **multi-destination elevator** (`scenes/shared/elevator_platform.gd`, chooser in `elevator_handler.gd`) serving Floors **0, 1, 2, 4, 5**; **straight stairs** for Arboretum ground↔canopy (`scenes/shared/stairs.gd`); and the **corner vacuum-lift hop** (`scenes/shared/vacuum_lift.gd`, ±1 floor) reaching everything 0→Roof. The Canopy has no elevator stop; the Roof is tube-only.
+Floors connect three ways: a **multi-destination elevator** (`scenes/shared/elevator_platform.gd` — the car AND its floor chooser both live here) serving Floors **0, 1, 2, 4, 5**; **straight stairs** for Arboretum ground↔canopy (`scenes/shared/stairs.gd`); and the **corner vacuum-lift hop** (`scenes/shared/vacuum_lift.gd`, ±1 floor) reaching everything 0→Roof. The Canopy has no elevator stop; the Roof is tube-only.
 
-Still genuinely absent (rooms for growth, not constraints): save/load, audio/music, skill-tree unlock logic (visual-only today), a win condition / progression goal, camera-follow on player movement, water/sunlight gating for tree growth (Phase 2B).
+Still genuinely absent — **this is the green-field for the narrative-arc work**: a **phase/quest/objective director** (no in-game step sequencer exists), a **day-night / time-of-day system** (there's only a sim clock driving tree growth), **player-driven construction** (floors are built procedurally at startup, not by the player), a **hire/population system** (Cody is a single scripted NPC; Residential has no residents), a **win condition / progression goal**, and **save/load + audio** (both are no-op stubs). Skill-tree unlocks are visual-only; tree growth has no water/sunlight gating yet. (Note: the living iso camera DOES follow the player — that's done.)
 
 ## House style (carried over from the slice)
 
@@ -55,10 +55,10 @@ Still genuinely absent (rooms for growth, not constraints): save/load, audio/mus
 
 ```sh
 godot --path . --editor      # open in editor
-godot --path . --debug       # run main scene (after Phase 3 lands one)
+godot --path .               # run the main scene (tower.tscn); --debug for the debugger
 ```
 
-Main scene: `res://scenes/tower/tower.tscn` (the unified stacked world), wired in `project.godot` as `run/main_scene`. The per-floor `floor_*.tscn` scenes are now historical (geometry controllers only); the tower instances the floor controllers as offset child nodes. (See the architecture callout at the top.)
+Main scene: `res://scenes/tower/tower.tscn` (the unified stacked world), wired in `project.godot` as `run/main_scene`. **There are no per-floor `.tscn` files** — each floor is a `.gd` controller (e.g. `scenes/garden/iso_floor.gd`) instanced as an offset child `Node3D` of `tower.tscn`, building its geometry procedurally. `tower.tscn` is the only runtime scene. (See the architecture callout at the top.)
 
 The Godot editor app is installed at `/Applications/Godot.app`. The CLI (`godot`) may not be on `$PATH`; alias it or invoke via `/Applications/Godot.app/Contents/MacOS/Godot --path . ...` if needed.
 
@@ -81,7 +81,7 @@ Persistent self-knowledge lives in `agent/`:
 | `failure_log.json` | Append-only log of what didn't work and why. Append at the moment of failure, not later. |
 | `request_queue.json` | Prioritized asks for the operator. Use `request_types` from the queue file. |
 | `session_log.md` | Append-only narrative of work. Headed by date and goal. |
-| `rules/` | Self-authored skill files. Empty until Phase 4 produces something worth keeping. |
+| `rules/` | Self-authored skill files (now ~14, indexed below). Each captures a pattern that took real effort to discover. |
 
 When in doubt, **append rather than guess**. Surfacing an unresolved decision in `request_queue.json` beats picking blindly.
 
@@ -106,7 +106,7 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 | Number-key / single-key input that works on some machines but not macOS | `rules/godot_input_keynum_macos.md` |
 | Stairs between Arboretum ground ↔ canopy (Floors 2 ↔ 3) | `scenes/shared/stairs.gd` (the spiral staircase was deleted — see F-019; straight stairs replaced it) |
 | Tiled slab with holes (elevator + stair aperture + tree holes) | `scenes/arboretum_canopy/arboretum_canopy.gd` `_build_tiled_slab_with_holes` |
-| Multi-destination elevator / floor chooser | `scenes/shared/elevator_handler.gd` |
+| Multi-destination elevator / floor chooser | `scenes/shared/elevator_platform.gd` (the car + its chooser State machine) |
 | Cross-floor entities (tree crown on the floor above, glowing spine pipes) | `scenes/arboretum_ground/arboretum_ground.gd` + `scenes/shared/floor_chrome.gd` `build_passive_spine_pipes` |
 | Adding a floor / the look-out camera / placeholder cityscape | `scenes/residential/` + `scenes/sky_lounge/` (blank-floor template), `scenes/shared/cityscape.gd`, look-out mode in `scenes/garden/iso_camera.gd` (`_update_lookout`) |
 
@@ -141,7 +141,7 @@ update, so empty-session clears don't spam.
 | `docs/space-tower-mvp-spec-v2.md` | MVP scope for the full game (out of scope here, but anchors expectations). |
 | `docs/rgb-floor5-design-brief.md` | The RGB experience — describes what the slice must NOT erode. |
 | `docs/builder-agent-design-v1.md` | Agent loop, request types, session log shape. |
-| `docs/player-journey-map-v3-final.html` | Step 07 "The Garden of Eden" — the visual reference for Floor 3. |
+| `docs/player-journey-map-v3-final.html` | Step 07 "The Garden of Eden" — the visual reference for the **Garden** (now Floor 1). |
 | `docs/floor_design_system.md` | **Universal floor rules.** Footprint, walls, camera, lighting, HUD, and interaction grammar every floor inherits. Read before adding a new floor. |
 
 ## History — the original slice (all done)
