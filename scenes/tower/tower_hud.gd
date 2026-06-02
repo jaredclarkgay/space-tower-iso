@@ -46,12 +46,26 @@ const WAYFIND := {
 }
 const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [Tab] survey   [E] ride elevator"
 
+# Per-phase objective line, driven off GameDirector.phase_changed. Reflects the
+# arc phase (not the floor), so it persists across the exterior and every floor.
+# Placeholder copy — reword freely.
+const OBJECTIVE := {
+	0: "Survey your empty lot.",                       # EMPTY_LOT
+	1: "Choose a partner to break ground with.",       # HIRE_PARTNER
+	2: "Raise the tower, floor by floor.",             # BUILD_STRUCTURE
+	3: "Fit out each floor inside.",                   # BUILD_INTERIORS
+	4: "Bring every floor to life.",                   # ACTIVATE_FLOORS
+	5: "Share what you grow with the world.",          # SHARE
+	6: "Settle into the rhythm of day and night.",     # TEMPORAL
+}
+
 var _garden_group: Control
 var _utility_group: Control
 var _schematic: Node
 
 var _eyebrow: Label
 var _title: Label
+var _objective_label: RichTextLabel
 var _move_label: RichTextLabel
 var _here_label: RichTextLabel
 
@@ -77,6 +91,12 @@ func _ready() -> void:
 	_build_wayfinding()
 	_build_resources()
 	_displayed_cash = int(_gs.cash)
+	# Objective line tracks the arc phase, not the floor.
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd:
+		if gd.has_signal("phase_changed"):
+			gd.phase_changed.connect(_set_objective)
+		_set_objective(int(gd.current_phase))
 
 
 # Called by tower_controller when the player's current floor changes.
@@ -97,6 +117,13 @@ func set_floor(level: int, display_name: String) -> void:
 		_utility_group.visible = (level == 0)
 	if _res_panel:
 		_res_panel.visible = (level == 1)
+
+
+# Updates the arc objective line. Connected to GameDirector.phase_changed and
+# seeded once in _ready.
+func _set_objective(phase: int) -> void:
+	if _objective_label:
+		_objective_label.text = _format_hint("[OBJECTIVE]  " + String(OBJECTIVE.get(phase, "")))
 
 
 func _process(delta: float) -> void:
@@ -170,6 +197,15 @@ func _build_wayfinding() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_child(vbox)
+
+	# Arc objective (driven by GameDirector.phase_changed) sits above the controls.
+	_objective_label = _hint_label()
+	_objective_label.add_theme_color_override("default_color", AMBER)
+	vbox.add_child(_objective_label)
+
+	var obj_rule := HSeparator.new()
+	obj_rule.add_theme_stylebox_override("separator", _divider_style())
+	vbox.add_child(obj_rule)
 
 	_move_label = _hint_label()
 	_move_label.text = _format_hint(MOVE_LINE)
