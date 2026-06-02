@@ -1024,3 +1024,41 @@ anywhere, no `phase` field in `game_state.gd`.
   bound to Space (keycode 32) which is also `ui_accept`, so a focused button would be
   auto-activated by the first jump press (failure F-008 class; see
   `rules/godot_button_focus.md`).
+
+### Step 2 — minimal exterior empty lot (`EMPTY_LOT`) + boot flag
+
+Built the game's new front door: a stand-alone empty dirt lot you open on, in-world
+inside `tower.tscn` (decision D-002 — no scene swap, `run/main_scene` unchanged). A
+boot flag picks the START STATE within the one scene.
+
+- **`constants.gd`** — `BOOT_TO_EXTERIOR` (true = open on the lot; false = dev
+  straight-to-Garden) + `LOT_CENTER`/`LOT_SIZE`/`LOT_GROUND_Y`/`LOT_DIRT_COLOR`. Lot
+  staged at x=+40, clear of the tower stack (x~0), so the exterior needs zero
+  special-casing of floor collision / the elevator shaft.
+- **`scenes/shared/empty_lot.gd`** (new, mirrors `cityscape.gd`) — flat dirt PlaneMesh
+  + a thin StaticBody3D collider (layer 2, like the slabs) so the player stands on it;
+  `spawn_position()` returns the lot centre at the surface.
+- **`tower.tscn`** — `EmptyLot` node under the root + `empty_lot_path` export.
+- **`tower_controller.gd`** — boot branch in `_ready`: if `BOOT_TO_EXTERIOR` and the
+  director is at `EMPTY_LOT`, spawn on the lot and set `_exterior=true`; else the
+  existing Garden spawn (factored into `_spawn_in_garden()`, shared). `_update()` early-
+  routes to `_update_exterior()` while `_exterior`: hides all floors + cityscape, shows
+  the lot, drives pivot.Y to the lot (camera XZ-follow is automatic via iso_camera),
+  pushes a neutral "EXTERIOR / EMPTY LOT" header (`set_floor(-1, …)` hides every floor
+  panel for free), and a new `_preset_for(-1)` open-daylight environment. Added a public
+  `enter_tower()` (clears exterior, hides lot, drops to the Garden spawn) — the
+  continuous-world handoff, stubbed now, called by the Step 3 hire.
+
+**HUD sentinels:** `_hud_level` initial value is -1, so the exterior-pushed marker uses
+-2 (distinct from -1 = force-repush and from real levels >=0) — otherwise the first
+exterior frame wouldn't push the header.
+
+**Verify (windowed harness):** exterior boot → `_exterior=true`, player at LOT_CENTER
+(40,0,0); `2_lot.png` shows the dirt lot + player under the iso camera, daylight sky, no
+tower. Dev path (phase forced past EMPTY_LOT, same branch BOOT_TO_EXTERIOR=false hits)
+→ `_exterior=false`, player at the Garden spawn (0,6,-6); `2_tower.png` is the normal
+Floor 1 / Garden, unregressed. Headless parse clean; no errors.
+
+**Minor follow-up (not blocking):** the always-on wayfinding chrome still reads
+"E ride elevator" on the lot — out of place; fold into the Step 4 HUD objective work or
+a later polish.

@@ -22,6 +22,7 @@ extends Node3D
 @export var world_environment_path: NodePath
 @export var env_light_path: NodePath
 @export var cityscape_path: NodePath
+@export var empty_lot_path: NodePath
 
 # Floors present in the tower. `node` is relative to this controller, `level`
 # is 0=basement (Utility) and counts UP; `name` is the HUD header text (the part
@@ -47,6 +48,11 @@ var _hud: Node
 var _world_env: WorldEnvironment
 var _env_light: DirectionalLight3D
 var _cityscape: Node3D
+var _empty_lot: Node3D
+# True while the game is on the exterior empty lot (GameDirector EMPTY_LOT): the
+# tower is hidden and the normal per-floor gating is bypassed. Cleared by
+# enter_tower() when the player heads inside (the continuous-world handoff).
+var _exterior: bool = false
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
@@ -66,6 +72,7 @@ func _ready() -> void:
 	_world_env = get_node_or_null(world_environment_path)
 	_env_light = get_node_or_null(env_light_path)
 	_cityscape = get_node_or_null(cityscape_path)
+	_empty_lot = get_node_or_null(empty_lot_path)
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
 	for f in _FLOORS:
@@ -83,13 +90,71 @@ func _ready() -> void:
 		var slab: StaticBody3D = _find_slab_body(node)
 		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab})
 	# The tower owns the player spawn (derived from the floor heights), not the
-	# .tscn — keeps it correct if the story height changes.
+	# .tscn — keeps it correct if the story height changes. Boot picks the start
+	# STATE within this one scene (decision D-002): the real opening drops onto
+	# the exterior empty lot; the dev fallback boots straight to the Garden.
 	if _player and not _floors.is_empty():
-		var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
-		_player.global_position = Vector3(0.0, spawn_y, -6.0)
-		if _player.has_method("set_spawn_here"):
-			_player.set_spawn_here()
+		var gd: Node = get_node_or_null("/root/GameDirector")
+		var to_exterior: bool = bool(_c.BOOT_TO_EXTERIOR) and gd != null and int(gd.current_phase) == 0 and _empty_lot != null
+		if to_exterior:
+			_exterior = true
+			_player.global_position = _empty_lot.spawn_position()
+			if _player.has_method("set_spawn_here"):
+				_player.set_spawn_here()
+		else:
+			_spawn_in_garden()
+			if _empty_lot:
+				_empty_lot.visible = false
 	_update(true)
+
+
+# Today's Garden spawn (derived from the floor heights). Shared by the dev boot
+# and the exterior->tower handoff so both land in the exact same spot.
+func _spawn_in_garden() -> void:
+	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
+	_player.global_position = Vector3(0.0, spawn_y, -6.0)
+	if _player.has_method("set_spawn_here"):
+		_player.set_spawn_here()
+
+
+# Hand off from the exterior empty lot into the tower (called by the Step 3
+# hire). The continuous-world transition: clear exterior mode, hide the lot,
+# drop the player at the Garden spawn. No scene swap.
+func enter_tower() -> void:
+	if not _exterior:
+		return
+	_exterior = false
+	if _empty_lot:
+		_empty_lot.visible = false
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	_spawn_in_garden()
+	_hud_level = -1   # force the HUD to re-push the floor header
+	_update(true)
+
+
+# The empty-lot world: hide the tower + cityscape, keep the lot solid, frame the
+# camera on the dirt, neutral exterior header (no floor panels). XZ follow is the
+# camera's own job (iso_camera); we only set pivot.Y + the outdoor environment.
+func _update_exterior(snap: bool) -> void:
+	_current_level = -1   # exterior daylight preset; recomputed on enter_tower
+	for f in _floors:
+		var node: Node3D = f.node
+		if node.has_method("set_structure_visible"):
+			node.set_structure_visible(false)
+		else:
+			node.visible = false
+	if _cityscape:
+		_cityscape.visible = false
+	if _empty_lot:
+		_empty_lot.visible = true
+	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):
+		var target_y: float = float(_c.LOT_GROUND_Y) + _PIVOT_CHEST
+		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
+	if _hud and _hud.has_method("set_floor") and _hud_level != -2:
+		_hud_level = -2   # exterior-header marker (distinct from -1 force-repush + real levels)
+		_hud.set_floor(-1, "EXTERIOR / EMPTY LOT")
+	_drive_environment(snap)
 
 
 func _process(delta: float) -> void:
@@ -108,6 +173,10 @@ func _process(delta: float) -> void:
 
 func _update(snap: bool) -> void:
 	if _player == null or _floors.is_empty():
+		return
+	# Exterior empty lot owns the world: tower hidden, no per-floor gating.
+	if _exterior:
+		_update_exterior(snap)
 		return
 	# Change floors when GROUNDED or while RIDING the elevator — never mid-jump.
 	# Freezing it mid-jump is what lets a jump arc up through the ceiling and
@@ -191,6 +260,7 @@ func _update(snap: bool) -> void:
 # Per-floor environment preset: ambient colour/energy, background, sun energy.
 func _preset_for(level: int) -> Dictionary:
 	match level:
+		-1: return {"amb": Color(0.86, 0.88, 0.92), "energy": 1.40, "bg": Color(0.50, 0.62, 0.80), "sun": 1.60}  # Exterior empty lot (open daylight)
 		0: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45}  # Utility (basement)
 		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95}  # Garden
 		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25}  # Arboretum (ground)

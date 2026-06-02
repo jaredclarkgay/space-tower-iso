@@ -423,6 +423,17 @@ const CITY_HEIGHT_MIN := 6.0
 const CITY_HEIGHT_MAX := 30.0          # shorter than the tower, so you look DOWN onto them
 const CITY_RNG_SEED := 20260601        # fixed so the skyline layout is stable across runs
 
+# --- Boot / exterior opening (GameDirector EMPTY_LOT) --------------------
+# The game's new front door: a stand-alone empty lot you open on, in-world
+# inside tower.tscn (no scene swap). BOOT_TO_EXTERIOR picks the START STATE —
+# real opening boots onto the lot; the dev fallback boots straight to the
+# Garden so existing-floor work still launches in one step.
+const BOOT_TO_EXTERIOR := true
+const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (which sits at x~0)
+const LOT_SIZE := 24.0                        # m — dirt plane side length
+const LOT_GROUND_Y := 0.0                     # top surface = player feet datum
+const LOT_DIRT_COLOR := Color(0.33, 0.26, 0.19)
+
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
 # Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension
