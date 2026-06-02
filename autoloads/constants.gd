@@ -467,6 +467,8 @@ const SITE_PATH_COLOR := Color(0.46, 0.44, 0.38)
 const SITE_PATH_WIDTH := 3.4               # m — path strip width out from each doorway
 const SITE_PATH_LENGTH := 16.0             # m — how far the path runs from the wall
 const EXTERIOR_WALK_CAM_TWEEN_DUR := 1.2   # s — dollhouse -> ground-follow ease on topping out
+const EXTERIOR_WALK_CAM_SIZE := 34.0       # ortho size while circling the tower (wide enough to read it)
+const EXTERIOR_WALK_CAM_LIFT := 12.0       # pivot height — frames the tower above the player at the base
 const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (which sits at x~0)
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum

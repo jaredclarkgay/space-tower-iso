@@ -53,8 +53,13 @@ var built_level := 99
 
 # True while in the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE): the
 # tower_controller fully owns the camera (iso_camera bows out) and the player is
-# hidden. Cleared on occupy (the player drops into the Garden).
+# hidden/frozen. Also used as the brief camera-ease lock at the start of the walk.
 var constructing := false
+
+# True while walking the finished tower's exterior (after the build, before walking
+# in). The tower_controller owns the camera as a wide pulled-back follow (iso_camera
+# bows out) so the whole tower reads; the player is FREE to move. Cleared on entry.
+var exterior_walk := false
 
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not

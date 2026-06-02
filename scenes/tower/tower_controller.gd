@@ -296,7 +296,8 @@ func _build_next_floor() -> void:
 func _begin_exterior_walk() -> void:
 	_constructing = false
 	_exterior_walk = true
-	_gs.set("constructing", true)             # hold camera + player for the ease-down
+	_gs.set("exterior_walk", true)            # camera owned by the controller for the whole walk
+	_gs.set("constructing", true)             # hold the player for the ease-down only
 	_gs.built_level = _top_level
 	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 	if _player:
@@ -338,14 +339,14 @@ func _update_exterior_walk(snap: bool) -> void:
 		_cityscape.visible = false
 	if _empty_lot:
 		_empty_lot.visible = false
-	_current_level = -1                       # daylight preset (iso_camera tracks the player itself)
+	_current_level = -1                       # daylight preset; the controller drives the camera
 	if _hud and _hud.has_method("set_explore") and _hud_level != -6:
 		_hud_level = -6
 		_hud.set_explore()
 	_drive_environment(snap)
-	# Once the ease-down is done (control handed back), crossing into the footprint
-	# through a doorway enters the building.
-	if not bool(_gs.get("constructing")) and _player:
+	# Once the ease-down is done, crossing into the footprint (only reachable through
+	# a doorway gap) enters the building.
+	if _cam_tween_t >= 1.0 and _player:
 		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 		var p: Vector3 = _player.global_position
 		if absf(p.x) < half * 0.9 and absf(p.z) < half * 0.9:
@@ -356,6 +357,7 @@ func _update_exterior_walk(snap: bool) -> void:
 # BUILD_INTERIORS, and resume normal interior play.
 func _enter_building() -> void:
 	_exterior_walk = false
+	_gs.set("exterior_walk", false)
 	_gs.set("constructing", false)
 	_gs.built_level = _top_level
 	if _site_ground:
@@ -389,17 +391,26 @@ func _process(delta: float) -> void:
 	# Construct-from-empty: raise the next floor (topping out auto-starts the walk).
 	if _constructing and Input.is_action_just_pressed(&"build_floor") and int(_gs.built_level) < _top_level:
 		_build_next_floor()
-	# Ease the camera from the dollhouse down to the ground when the walk begins.
-	if _exterior_walk and _cam_tween_t < 1.0:
-		_cam_tween_t = minf(_cam_tween_t + delta / float(_c.EXTERIOR_WALK_CAM_TWEEN_DUR), 1.0)
-		var e: float = smoothstep(0.0, 1.0, _cam_tween_t)
-		if _pivot and _player:
-			var ground := Vector3(_player.global_position.x, float(_c.LOT_GROUND_Y) + _PIVOT_CHEST, _player.global_position.z)
-			_pivot.global_position = _cam_from_pos.lerp(ground, e)
-		if _camera:
-			_camera.size = lerpf(_cam_from_size, 16.0, e)
-		if _cam_tween_t >= 1.0:
-			_gs.set("constructing", false)   # hand the camera + player back (iso_camera follows)
+	# Exterior walk: the controller owns a wide, pulled-back follow so the whole tower
+	# reads as the player circles it. The ease-down interpolates from the dollhouse
+	# framing; afterward it tracks the player at a fixed lift + size.
+	if _exterior_walk and _player:
+		var target_pos := Vector3(_player.global_position.x, float(_c.EXTERIOR_WALK_CAM_LIFT), _player.global_position.z)
+		var target_size := float(_c.EXTERIOR_WALK_CAM_SIZE)
+		if _cam_tween_t < 1.0:
+			_cam_tween_t = minf(_cam_tween_t + delta / float(_c.EXTERIOR_WALK_CAM_TWEEN_DUR), 1.0)
+			var e: float = smoothstep(0.0, 1.0, _cam_tween_t)
+			if _pivot:
+				_pivot.global_position = _cam_from_pos.lerp(target_pos, e)
+			if _camera:
+				_camera.size = lerpf(_cam_from_size, target_size, e)
+			if _cam_tween_t >= 1.0:
+				_gs.set("constructing", false)   # unfreeze the player (camera stays controller-owned)
+		else:
+			if _pivot:
+				_pivot.global_position = _pivot.global_position.lerp(target_pos, 0.12)
+			if _camera:
+				_camera.size = lerpf(_camera.size, target_size, 0.12)
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0

@@ -1359,3 +1359,15 @@ Build the tower (dollhouse) → step out and explore its exterior on foot → wa
 the four ground-floor doorways → occupy the Garden. Commits f14935b + this stage. Feel-pass
 follow-ups (C-001): exterior-walk camera could pull back to show more of the tower; a fade on the
 doorway entry; richer paths/landscaping.
+
+### Stage F feel pass — pulled-back exterior-walk camera
+The exterior walk framed the player too tightly (size 16, tower off-frame) because the camera
+handed back to iso_camera (its default zoom). Fix: the controller OWNS a wide follow for the whole
+walk. Split flags: `GameState.exterior_walk` (camera owned by controller, player FREE) vs
+`constructing` (camera owned + player frozen, now only the ease-down lock). iso_camera bows out on
+either. The `_process` camera block eases dollhouse→target then steady-follows the player at
+`EXTERIOR_WALK_CAM_LIFT` (12) + `EXTERIOR_WALK_CAM_SIZE` (34) so the whole tower reads as you
+circle it. Entry gate moved to `_cam_tween_t >= 1.0`.
+Verified (windowed): approach shot shows the player on the path with the tower rising above + the
+doorway; follow keeps the tower framed from other sides (cutaway from some angles — the accepted
+v1 look); walking into the footprint still drops into the Garden (BUILD_INTERIORS). Parse clean.
