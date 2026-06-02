@@ -56,6 +56,7 @@ var _exterior: bool = false
 var _floors: Array = []        # [{node, level, name, base_y}]
 var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
+var _ext_hud_phase: int = -99   # last arc phase the exterior header showed (-99 = none)
 var _pulse_level: int = 0       # last level the camera-arrival pulse saw
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
@@ -142,7 +143,7 @@ func enter_exterior() -> void:
 		_player.global_position = _empty_lot.spawn_position()
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
-	_hud_level = -3   # force the exterior header to re-push (distinct from -2/-1)
+	_ext_hud_phase = -99   # force the exterior header to re-push on (re-)entry
 	_update(true)
 
 
@@ -164,9 +165,15 @@ func _update_exterior(snap: bool) -> void:
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):
 		var target_y: float = float(_c.LOT_GROUND_Y) + _PIVOT_CHEST
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
-	if _hud and _hud.has_method("set_floor") and _hud_level != -2:
-		_hud_level = -2   # exterior-header marker (distinct from -1 force-repush + real levels)
-		_hud.set_floor(-1, "EXTERIOR / EMPTY LOT")
+	# Phase-aware exterior header (re-pushed when the exterior phase changes, e.g.
+	# EMPTY_LOT -> HIRE_PARTNER). set_floor(-1, ...) also hides every floor panel.
+	if _hud and _hud.has_method("set_floor"):
+		var gd: Node = get_node_or_null("/root/GameDirector")
+		var ph: int = int(gd.current_phase) if gd else 0
+		if ph != _ext_hud_phase:
+			_ext_hud_phase = ph
+			_hud_level = -2   # mark non-real so the floor path re-pushes on enter_tower
+			_hud.set_floor(-1, "EXTERIOR / CHOOSE A PARTNER" if ph == 1 else "EXTERIOR / EMPTY LOT")
 	_drive_environment(snap)
 
 

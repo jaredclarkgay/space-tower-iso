@@ -1142,3 +1142,18 @@ Cody + all interiors untouched. Decisions D-001/D-002 logged resolved, D-003 def
   [Tab] survey") — wrong on the exterior. Added `MOVE_LINE_EXTERIOR` (move/sprint/jump/turn/
   zoom only) + a `WAYFIND[-1]` here-line ("your plot of land · bring on a partner to break
   ground"); `set_floor` picks them when `level < 0`. The lot HUD now reads coherently.
+
+### Follow-up — the two flagged low-priority items, fixed
+
+1. **Debug-advance key hardened for the macOS keynum quirk** (`rules/godot_input_keynum_macos.md`).
+   `debug_advance_phase` now has TWO events — one `keycode=93`, one `physical_keycode=93` — so
+   the action fires whether the OS populates keycode or physical (a `keycode=93`-only binding
+   silently misses macOS events that arrive `keycode=0` + `physical=93`). Verified with
+   `InputMap.event_is_action`: matches both event shapes (true/true). (Note: synthetic
+   `push_input`/`parse_input_event` of key events doesn't reliably drive `is_action_just_pressed`
+   in a headless-launched window — `event_is_action` is the authoritative binding check; real OS
+   input updates the action.)
+2. **Phase-aware exterior header.** `tower_controller._update_exterior` now drives the header off
+   the arc phase (re-pushing when it changes), tracked by `_ext_hud_phase`: EMPTY_LOT →
+   "EXTERIOR / EMPTY LOT", HIRE_PARTNER → "EXTERIOR / CHOOSE A PARTNER" (was a static
+   "EMPTY LOT" through both beats). `enter_exterior` resets the tracker so re-entry re-pushes.
