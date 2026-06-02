@@ -56,6 +56,12 @@ var _top_level: int = 0          # highest floor level (Roof) — the build targ
 # True during the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE). Like
 # _exterior, it's a world-presentation mode that bypasses the normal per-floor gating.
 var _constructing: bool = false
+# True while exploring the finished tower's exterior on foot (after the build,
+# before walking in). All built floors stay visible; the player walks the site.
+var _exterior_walk: bool = false
+var _cam_tween_t: float = 1.0    # 0..1 dollhouse->ground camera ease at the start of the walk
+var _cam_from_pos: Vector3 = Vector3.ZERO
+var _cam_from_size: float = 14.0
 # True while the game is on the exterior empty lot (GameDirector EMPTY_LOT): the
 # tower is hidden and the normal per-floor gating is bypassed. Cleared by
 # enter_tower() when the player heads inside (the continuous-world handoff).
@@ -262,7 +268,7 @@ func _frame_construction(snap: bool) -> void:
 # Raise the next floor with a rise-from-below ceremony; reframe to the taller stack.
 func _build_next_floor() -> void:
 	if int(_gs.built_level) >= _top_level:
-		return                                 # topped out — occupy handoff is Stage D
+		return                                 # already topped out
 	_gs.built_level = int(_gs.built_level) + 1
 	var lvl: int = int(_gs.built_level)
 	var node: Node3D = null
@@ -277,16 +283,81 @@ func _build_next_floor() -> void:
 	var tw := create_tween()
 	tw.tween_property(node, "position:y", base_y, float(_c.CONSTRUCT_RISE_DUR)) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Topped out: once the last floor settles, step out to explore the exterior.
+	if int(_gs.built_level) >= _top_level:
+		tw.finished.connect(_begin_exterior_walk)
 	_hud_level = -99                          # force the construction header to re-push (N changed)
 	_update(true)
 
 
-# Occupy the finished tower: leave the dollhouse, reveal + spawn the player in the
-# Garden, advance the arc to BUILD_INTERIORS, and resume normal interior play.
-func _occupy() -> void:
+# Leave the dollhouse and put the player on the ground outside the tower to explore.
+# The camera eases from the dollhouse framing down to a ground follow (the tween),
+# during which the player is held (constructing lock); then control hands back.
+func _begin_exterior_walk() -> void:
 	_constructing = false
+	_exterior_walk = true
+	_gs.set("constructing", true)             # hold camera + player for the ease-down
+	_gs.built_level = _top_level
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+	if _player:
+		_player.visible = true
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
+		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), -(half + 6.0))  # on the -Z path
+		if _player.has_method("set_spawn_here"):
+			_player.set_spawn_here()
+	if _site_ground:
+		_site_ground.visible = true
+	_cam_from_pos = _pivot.global_position if _pivot else Vector3.ZERO
+	_cam_from_size = _camera.size if _camera else 14.0
+	_cam_tween_t = 0.0
+	_hud_level = -5                           # force the explore header
+	_update(true)
+
+
+# The exterior walk: the finished tower stands on its site, the player walks the
+# ground (iso_camera follows once the ease-down completes), and crossing into the
+# footprint through any doorway enters the building.
+func _update_exterior_walk(snap: bool) -> void:
+	for f in _floors:
+		var node: Node3D = f.node
+		var built: bool = int(f.level) <= int(_gs.built_level)
+		var slab: StaticBody3D = f.get("slab")
+		if slab:
+			slab.collision_layer = 2 if (built and int(f.level) == 0) else 0   # only the ground floor is solid
+		if node.has_method("set_structure_visible"):
+			node.set_structure_visible(built)
+			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if built else 0.0)
+			if node.has_method("set_apertures_visible"):
+				node.set_apertures_visible(built)
+		else:
+			node.visible = built
+	if _site_ground:
+		_site_ground.visible = true
+	if _cityscape:
+		_cityscape.visible = false
+	if _empty_lot:
+		_empty_lot.visible = false
+	_current_level = -1                       # daylight preset (iso_camera tracks the player itself)
+	if _hud and _hud.has_method("set_explore") and _hud_level != -6:
+		_hud_level = -6
+		_hud.set_explore()
+	_drive_environment(snap)
+	# Once the ease-down is done (control handed back), crossing into the footprint
+	# through a doorway enters the building.
+	if not bool(_gs.get("constructing")) and _player:
+		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+		var p: Vector3 = _player.global_position
+		if absf(p.x) < half * 0.9 and absf(p.z) < half * 0.9:
+			_enter_building()
+
+
+# Walk-in: enter the finished tower. Drop into the Garden, advance the arc to
+# BUILD_INTERIORS, and resume normal interior play.
+func _enter_building() -> void:
+	_exterior_walk = false
 	_gs.set("constructing", false)
-	_gs.built_level = _top_level              # whole tower present from here on
+	_gs.built_level = _top_level
 	if _site_ground:
 		_site_ground.visible = false
 	if _player:
@@ -315,12 +386,20 @@ func _process(delta: float) -> void:
 		var tod: Node = get_node_or_null("/root/TimeOfDay")
 		if tod and tod.has_method("start"):
 			tod.start()
-	# Construct-from-empty: raise the next floor, or occupy once topped out.
-	if _constructing and Input.is_action_just_pressed(&"build_floor"):
-		if int(_gs.built_level) < _top_level:
-			_build_next_floor()
-		else:
-			_occupy()
+	# Construct-from-empty: raise the next floor (topping out auto-starts the walk).
+	if _constructing and Input.is_action_just_pressed(&"build_floor") and int(_gs.built_level) < _top_level:
+		_build_next_floor()
+	# Ease the camera from the dollhouse down to the ground when the walk begins.
+	if _exterior_walk and _cam_tween_t < 1.0:
+		_cam_tween_t = minf(_cam_tween_t + delta / float(_c.EXTERIOR_WALK_CAM_TWEEN_DUR), 1.0)
+		var e: float = smoothstep(0.0, 1.0, _cam_tween_t)
+		if _pivot and _player:
+			var ground := Vector3(_player.global_position.x, float(_c.LOT_GROUND_Y) + _PIVOT_CHEST, _player.global_position.z)
+			_pivot.global_position = _cam_from_pos.lerp(ground, e)
+		if _camera:
+			_camera.size = lerpf(_cam_from_size, 16.0, e)
+		if _cam_tween_t >= 1.0:
+			_gs.set("constructing", false)   # hand the camera + player back (iso_camera follows)
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -336,6 +415,10 @@ func _update(snap: bool) -> void:
 	# Construction dollhouse owns the world: external framing, all built floors shown.
 	if _constructing:
 		_update_constructing(snap)
+		return
+	# Exterior walk: the finished tower stands on its site; the player walks in.
+	if _exterior_walk:
+		_update_exterior_walk(snap)
 		return
 	# Exterior empty lot owns the world: tower hidden, no per-floor gating.
 	if _exterior:

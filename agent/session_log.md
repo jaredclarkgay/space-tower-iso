@@ -1336,3 +1336,26 @@ play. Decisions: walking through any doorway drops into the GARDEN (Floor 1); to
   occupy. Constants: DOOR_WIDTH/HEIGHT, SITE_GROUND_*, SITE_PATH_*, EXTERIOR_WALK_CAM_TWEEN_DUR.
 Verified (windowed): each Floor-0 wall has 2 collision shapes (the doorway gap); site ground +
 4 paths render under the built tower. Parse clean.
+
+### Stage F — exterior-walk mode + camera tween + walk-in entry
+- `tower_controller._exterior_walk` mode. Topping out: the last floor's rise-tween `finished`
+  chains `_begin_exterior_walk()` — reveal the player on the ground outside the −Z doorway, show
+  the site ground, hold the camera+player (`gs.constructing` lock) and ease the camera from the
+  dollhouse framing down to a ground follow over `EXTERIOR_WALK_CAM_TWEEN_DUR` (1.2 s, smoothstep,
+  driven in `_process`); on completion release the lock so `iso_camera` follows + the player moves.
+- `_update_exterior_walk`: all built floors visible (the standing tower), only the GROUND floor's
+  slab solid, site ground shown, daylight env; HUD `set_explore()` ("YOUR TOWER / STEP INSIDE ·
+  walk through any doorway to enter"). Entry: once control's handed back, crossing into the
+  footprint (`|x|,|z| < half·0.9`, only reachable through a doorway gap) calls `_enter_building()`.
+- `_enter_building()` (replaces `_occupy`): drop into the Garden via `_spawn_in_garden()`, advance
+  to `BUILD_INTERIORS`, hide the site ground, resume normal play. The `[B]` key now only builds.
+- Walls block (StaticBody default layer 1; player mask is {1,2}); the doorway gap has no collision.
+Verified (windowed): build to top → auto exterior walk (player on the ground at the doorway,
+camera eased down) → walk into the footprint → drops into the normal Garden (BUILD_INTERIORS),
+site ground hidden, unregressed.
+
+### Walk-in occupy — DONE (Stages E-F)
+Build the tower (dollhouse) → step out and explore its exterior on foot → walk in through any of
+the four ground-floor doorways → occupy the Garden. Commits f14935b + this stage. Feel-pass
+follow-ups (C-001): exterior-walk camera could pull back to show more of the tower; a fade on the
+doorway entry; richer paths/landscaping.

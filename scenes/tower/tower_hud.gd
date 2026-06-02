@@ -146,6 +146,24 @@ func set_construction(built: int, top: int) -> void:
 		_res_panel.visible = false
 
 
+# Exterior-walk header + prompt (explore the finished tower, then walk in).
+func set_explore() -> void:
+	if _eyebrow:
+		_eyebrow.text = "YOUR TOWER"
+	if _title:
+		_title.text = "STEP INSIDE"
+	if _here_label:
+		_here_label.text = _format_hint("walk through any doorway to enter")
+	if _move_label:
+		_move_label.text = _format_hint(MOVE_LINE_EXTERIOR)
+	if _garden_group:
+		_garden_group.visible = false
+	if _utility_group:
+		_utility_group.visible = false
+	if _res_panel:
+		_res_panel.visible = false
+
+
 # Updates the arc objective line. Connected to GameDirector.phase_changed and
 # seeded once in _ready.
 func _set_objective(phase: int) -> void:
