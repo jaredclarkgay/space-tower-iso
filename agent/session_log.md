@@ -1131,3 +1131,14 @@ sequences the arc end to end; the two real opening beats (EMPTY_LOT + HIRE_PARTN
 old direct-to-Garden boot is preserved behind `BOOT_TO_EXTERIOR`; the hire has zero mechanical
 consequence; GameState stays pure data (the director mirrors into it); exactly one new autoload;
 Cody + all interiors untouched. Decisions D-001/D-002 logged resolved, D-003 deferrals queued.
+
+### Step 5 follow-up — verified real clicks + fixed the exterior wayfinding wart
+
+- **Verified real mouse input** routes to the hire card (not just direct handler calls):
+  pushed genuine `InputEventMouseButton` events at the cell rects through the CanvasLayer +
+  `mouse_filter` stack — CTA click → HIRE_PARTNER, name click → `partner_name="REESE"`, phase
+  2, `_exterior=false`. The hire beat works in-game.
+- **Fixed:** the lot wayfinding still showed the interior MOVE_LINE ("[E] ride elevator …
+  [Tab] survey") — wrong on the exterior. Added `MOVE_LINE_EXTERIOR` (move/sprint/jump/turn/
+  zoom only) + a `WAYFIND[-1]` here-line ("your plot of land · bring on a partner to break
+  ground"); `set_floor` picks them when `level < 0`. The lot HUD now reads coherently.

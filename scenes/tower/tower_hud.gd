@@ -43,8 +43,11 @@ const WAYFIND := {
 	3: "take the stairs back down     ·     the glass floor frames the grove below",
 	4: "[E]  ride the elevator     ·     nobody's moved in yet — the units are still empty",
 	5: "[E]  ride the elevator     ·     walk up to the glass to look out over the city",
+	-1: "your plot of land     ·     bring on a partner to break ground",   # exterior empty lot
 }
 const MOVE_LINE := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom   [Tab] survey   [E] ride elevator"
+# The lot has no elevator/survey context — trim the move line for the exterior.
+const MOVE_LINE_EXTERIOR := "[WASD] move   [Shift] sprint   [Space] jump   [Q/R] turn   [Wheel] zoom"
 
 # Per-phase objective line, driven off GameDirector.phase_changed. Reflects the
 # arc phase (not the floor), so it persists across the exterior and every floor.
@@ -111,6 +114,9 @@ func set_floor(level: int, display_name: String) -> void:
 		_eyebrow.text = "FLOOR %d" % level
 		_title.text = display_name.to_upper()
 	_here_label.text = _format_hint(String(WAYFIND.get(level, "")))
+	# The exterior lot has no elevator — show the trimmed move line out there.
+	if _move_label:
+		_move_label.text = _format_hint(MOVE_LINE_EXTERIOR if level < 0 else MOVE_LINE)
 	if _garden_group:
 		_garden_group.visible = (level == 1)
 	if _utility_group:
