@@ -51,6 +51,11 @@ var partner_name := ""
 # until construction lowers it (dev / CONSTRUCT_FROM_EMPTY=false keeps today's boot).
 var built_level := 99
 
+# True while in the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE): the
+# tower_controller fully owns the camera (iso_camera bows out) and the player is
+# hidden. Cleared on occupy (the player drops into the Garden).
+var constructing := false
+
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the

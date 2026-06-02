@@ -127,6 +127,25 @@ func set_floor(level: int, display_name: String) -> void:
 		_res_panel.visible = (level == 1)
 
 
+# Construction-view header + build prompt (BUILD_STRUCTURE dollhouse). Driven by
+# tower_controller; hides the per-floor gameplay panels.
+func set_construction(built: int, top: int) -> void:
+	if _eyebrow:
+		_eyebrow.text = "UNDER CONSTRUCTION"
+	if _title:
+		_title.text = ("FLOOR %d OF %d" % [built, top]) if built < top else "STRUCTURE COMPLETE"
+	if _here_label:
+		_here_label.text = _format_hint("[B] raise the next floor" if built < top else "ready to occupy")
+	if _move_label:
+		_move_label.text = _format_hint(MOVE_LINE_EXTERIOR)
+	if _garden_group:
+		_garden_group.visible = false
+	if _utility_group:
+		_utility_group.visible = false
+	if _res_panel:
+		_res_panel.visible = false
+
+
 # Updates the arc objective line. Connected to GameDirector.phase_changed and
 # seeded once in _ready.
 func _set_objective(phase: int) -> void:

@@ -265,9 +265,10 @@ func _physics_process(delta: float) -> void:
 	# GameState autoload preserves cross-scene state.
 	# (Debug floor cycling is handled by the tower controller now.)
 
-	# While riding the elevator, mid vacuum-lift hop, OR operating the crane, that
-	# system owns the player's transform — skip our own movement/physics entirely.
-	if _gs and (_gs.get("riding_elevator") or _gs.get("tube_hopping") or _gs.get("driving_crane")):
+	# While riding the elevator, mid vacuum-lift hop, operating the crane, OR during
+	# the external construction view (player hidden, no floor collision), that mode
+	# owns the transform — skip our own movement/physics entirely.
+	if _gs and (_gs.get("riding_elevator") or _gs.get("tube_hopping") or _gs.get("driving_crane") or _gs.get("constructing")):
 		return
 
 	# When the Cody dialogue or the Schematics modal is open, lock the

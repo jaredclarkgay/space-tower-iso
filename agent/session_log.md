@@ -1282,3 +1282,21 @@ all slabs col=2; built=2 → floors 0-2 col=2, Residential/Sky Lounge col=0 (abs
 - `vacuum_lift.gd`: up-hop `up_ok` also requires `(level+1) <= built_level` — can't hop up to
   an unbuilt floor. Down unaffected.
 Verified (windowed): elevator serves [0,1,2,4,5] at 99, [0,1,2] at built_level 2, [0,1] at 1.
+
+### Stage C — construction dollhouse view + build action + ceremony
+- `GameState.constructing` flag; `iso_camera` bows out entirely when set (tower_controller owns
+  the camera). `Constants` CONSTRUCT_CAM_* + rise-ceremony knobs; `build_floor` input (B, robust
+  two-event binding).
+- `tower_controller`: `_constructing` mode. `enter_construction()` (player hidden + frozen,
+  built_level=0, camera owns framing); `_update_constructing` shows every BUILT floor as a
+  cutaway (no ceiling-hide), unbuilt absent, collisions off; `_frame_construction` drives the
+  pivot to tower-centre + widens the ortho size as the stack grows (the dollhouse); `_build_next_floor`
+  raises the next floor with a rise-from-below TRANS_BACK tween + reframes. `begin_build_structure()`
+  branches on CONSTRUCT_FROM_EMPTY (else today's enter_tower). Caches `_camera`, `_top_level`.
+- `tower_hud.set_construction(built, top)` — "UNDER CONSTRUCTION / FLOOR n OF 6" + "[B] raise the
+  next floor" ("STRUCTURE COMPLETE / ready to occupy" at the top).
+- `hire_partner` now calls `begin_build_structure()`. `iso_player` freezes during `constructing`;
+  `elevator_platform` bows out (no prompts/riding).
+Verified (windowed): hire → dollhouse foundation (clean, no stray prompts) → B builds floors
+0→6 with the rise ceremony; topped-out view is the full tower as a cutaway (Roof+crane down to
+Utility), framing widened to fit. Parse clean. Occupy handoff is Stage D.

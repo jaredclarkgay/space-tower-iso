@@ -63,6 +63,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
+	# Construction dollhouse view owns the world + camera; no riding, no prompts.
+	if bool(_gs.get("constructing")):
+		if _prompt_root:
+			_prompt_root.visible = false
+		_show_chooser(false)
+		return
 	# Float the prompt stack a fixed height above the player (works whether the
 	# car is at their floor or being called from another). The "E" + label are
 	# small offsets around this anchor and the whole group scales as one (see

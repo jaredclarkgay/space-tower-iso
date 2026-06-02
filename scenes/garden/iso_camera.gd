@@ -120,6 +120,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Construction dollhouse view: tower_controller fully owns the camera (pivot +
+	# ortho size) while the structure is raised externally. Bow out entirely.
+	if bool(_gs.get("constructing")):
+		return
 	# Sky Lounge look-out mode owns the camera exclusively while active (or easing
 	# back). It drives the pivot + base tilt/distance/size and renders via
 	# _apply_orbit, then returns so no other mode fights it.

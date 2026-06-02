@@ -113,8 +113,8 @@ func _on_name_input(event: InputEvent, nm: String) -> void:
 		_gs.partner_name = nm
 		_gd.set_phase(_PHASE_BUILD_STRUCTURE)
 		var tower: Node = get_tree().get_first_node_in_group("tower_controller")
-		if tower and tower.has_method("enter_tower"):
-			tower.enter_tower()
+		if tower and tower.has_method("begin_build_structure"):
+			tower.begin_build_structure()   # construct-from-empty, or straight to Garden if the flag's off
 		accept_event()
 
 

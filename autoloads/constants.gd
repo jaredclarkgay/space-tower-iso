@@ -452,6 +452,12 @@ const BOOT_TO_EXTERIOR := true
 # in an external dollhouse view, then occupies it. false = the whole tower is
 # present and the hire drops straight into the Garden (today's dev boot).
 const CONSTRUCT_FROM_EMPTY := true
+# Construction dollhouse camera + the rise-from-below build ceremony.
+const CONSTRUCT_CAM_SIZE_MIN := 18.0       # ortho size with just the foundation
+const CONSTRUCT_CAM_SIZE_PER_FLOOR := 5.0  # widen the view as the stack grows
+const CONSTRUCT_CAM_CENTER_LIFT := 1.5     # raise the framed centre a touch above mid-stack
+const CONSTRUCT_RISE_DROP := 4.5           # m a new floor rises from
+const CONSTRUCT_RISE_DUR := 0.6            # s for the rise-and-settle
 const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (which sits at x~0)
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum

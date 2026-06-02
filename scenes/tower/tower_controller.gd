@@ -49,6 +49,11 @@ var _world_env: WorldEnvironment
 var _env_light: DirectionalLight3D
 var _cityscape: Node3D
 var _empty_lot: Node3D
+var _camera: Camera3D            # the iso Camera3D under the pivot (driven during construction)
+var _top_level: int = 0          # highest floor level (Roof) — the build target
+# True during the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE). Like
+# _exterior, it's a world-presentation mode that bypasses the normal per-floor gating.
+var _constructing: bool = false
 # True while the game is on the exterior empty lot (GameDirector EMPTY_LOT): the
 # tower is hidden and the normal per-floor gating is bypassed. Cleared by
 # enter_tower() when the player heads inside (the continuous-world handoff).
@@ -74,6 +79,7 @@ func _ready() -> void:
 	_env_light = get_node_or_null(env_light_path)
 	_cityscape = get_node_or_null(cityscape_path)
 	_empty_lot = get_node_or_null(empty_lot_path)
+	_camera = _pivot.get_node_or_null("Camera3D") if _pivot else null
 	add_to_group("tower_controller")   # so the hire panel can reach enter_tower()
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
@@ -91,6 +97,7 @@ func _ready() -> void:
 		# ceiling you can bonk (3 → 4).
 		var slab: StaticBody3D = _find_slab_body(node)
 		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab})
+	_top_level = int(_floors[_floors.size() - 1].level) if not _floors.is_empty() else 0
 	# The tower owns the player spawn (derived from the floor heights), not the
 	# .tscn — keeps it correct if the story height changes. Boot picks the start
 	# STATE within this one scene (decision D-002): the real opening drops onto
@@ -177,6 +184,98 @@ func _update_exterior(snap: bool) -> void:
 	_drive_environment(snap)
 
 
+# --- Construct-from-empty (BUILD_STRUCTURE) -------------------------------
+
+# Entry from the hire: CONSTRUCT_FROM_EMPTY -> raise the tower in the dollhouse
+# view; else drop straight into the finished Garden (today's dev path).
+func begin_build_structure() -> void:
+	if bool(_c.CONSTRUCT_FROM_EMPTY):
+		enter_construction()
+	else:
+		enter_tower()
+
+
+# Enter the external dollhouse: foundation only, player hidden, camera owns the
+# framing. The player raises the tower from here with the build action.
+func enter_construction() -> void:
+	_constructing = true
+	_exterior = false
+	_gs.set("constructing", true)
+	_gs.built_level = 0                       # the basement/foundation is the ground to build on
+	if _empty_lot:
+		_empty_lot.visible = false
+	if _player:
+		_player.visible = false
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
+		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), 0.0)
+	_hud_level = -99                          # force the construction header to push
+	_update(true)
+
+
+# The dollhouse world: show every BUILT floor (no ceiling-hide), unbuilt absent,
+# player hidden, camera framing the rising stack from outside. No physics needed.
+func _update_constructing(snap: bool) -> void:
+	_current_level = -1                       # exterior daylight preset for _drive_environment
+	for f in _floors:
+		var node: Node3D = f.node
+		var built: bool = int(f.level) <= int(_gs.built_level)
+		var slab: StaticBody3D = f.get("slab")
+		if slab:
+			slab.collision_layer = 0          # external view — no walking, no collision
+		if node.has_method("set_structure_visible"):
+			node.set_structure_visible(built)
+			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if built else 0.0)
+			if node.has_method("set_apertures_visible"):
+				node.set_apertures_visible(built)
+		else:
+			node.visible = built
+	if _cityscape:
+		_cityscape.visible = false
+	if _empty_lot:
+		_empty_lot.visible = false
+	_frame_construction(snap)
+	if _hud and _hud.has_method("set_construction") and _hud_level != -4:
+		_hud_level = -4                       # construction-header marker
+		_hud.set_construction(int(_gs.built_level), _top_level)
+	_drive_environment(snap)
+
+
+# Pulled-back iso framing centred on the tower, raised + widened as the stack grows.
+func _frame_construction(snap: bool) -> void:
+	if _pivot == null:
+		return
+	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
+	var center_y: float = float(_gs.built_level) * story * 0.5 + float(_c.CONSTRUCT_CAM_CENTER_LIFT)
+	var target := Vector3(0.0, center_y, 0.0)
+	_pivot.global_position = target if snap else _pivot.global_position.lerp(target, 0.10)
+	if _camera:
+		var size: float = float(_c.CONSTRUCT_CAM_SIZE_MIN) + float(_gs.built_level) * float(_c.CONSTRUCT_CAM_SIZE_PER_FLOOR)
+		_camera.size = size if snap else lerpf(_camera.size, size, 0.10)
+
+
+# Raise the next floor with a rise-from-below ceremony; reframe to the taller stack.
+func _build_next_floor() -> void:
+	if int(_gs.built_level) >= _top_level:
+		return                                 # topped out — occupy handoff is Stage D
+	_gs.built_level = int(_gs.built_level) + 1
+	var lvl: int = int(_gs.built_level)
+	var node: Node3D = null
+	for f in _floors:
+		if int(f.level) == lvl:
+			node = f.node
+			break
+	if node == null:
+		return
+	var base_y: float = float(lvl) * float(_c.FLOOR_3D_STORY_HEIGHT)
+	node.position.y = base_y - float(_c.CONSTRUCT_RISE_DROP)
+	var tw := create_tween()
+	tw.tween_property(node, "position:y", base_y, float(_c.CONSTRUCT_RISE_DUR)) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_hud_level = -99                          # force the construction header to re-push (N changed)
+	_update(true)
+
+
 func _process(delta: float) -> void:
 	# Debug: backslash cycles the player up through the floors (wraps at the
 	# top). Temporary traversal aid until the elevator platform lands (2b).
@@ -193,6 +292,9 @@ func _process(delta: float) -> void:
 		var tod: Node = get_node_or_null("/root/TimeOfDay")
 		if tod and tod.has_method("start"):
 			tod.start()
+	# Construct-from-empty: raise the next floor.
+	if _constructing and Input.is_action_just_pressed(&"build_floor"):
+		_build_next_floor()
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -204,6 +306,10 @@ func _process(delta: float) -> void:
 
 func _update(snap: bool) -> void:
 	if _player == null or _floors.is_empty():
+		return
+	# Construction dollhouse owns the world: external framing, all built floors shown.
+	if _constructing:
+		_update_constructing(snap)
 		return
 	# Exterior empty lot owns the world: tower hidden, no per-floor gating.
 	if _exterior:
