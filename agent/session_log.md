@@ -974,3 +974,53 @@ the back of the head with the city beyond — in the body, not through the eyes.
 - **"Drag to look" retires itself.** Once the player actually starts looking
   (look angle deviates from entry), the "drag to look" line slides off +x and
   fades (`sky_lounge` `_hint_anim`); the "E/Esc back inside" line stays.
+
+## Session 10 — 2026-06-01 — GameDirector spine, Step 1: decision log + autoload scaffold
+
+**Goal:** stand up `GameDirector`, the missing phase/state director (handoff system
+gap (a)), as the 5th autoload — scaffold only this step. No exterior, no boot flag,
+no hire UI, no HUD wiring, no phase stubs (those are steps 2–5). Existing interior
+systems (Cody, Garden, Utility, Arboretum) untouched.
+
+**Trust note:** a `Downloads/CLAUDE.md` draft handed in at session start listed
+`game_director.gd` + "construct-from-empty" as already shipped — neither was in code.
+Trusted code → git log → session_log → repo CLAUDE.md (accurate). Verified clean
+green-field before building: no `GameDirector`/`phase_changed`/`EMPTY_LOT` symbols
+anywhere, no `phase` field in `game_state.gd`.
+
+### What shipped (uncommitted — operator reviews + commits)
+- **`autoloads/game_director.gd`** (new). `Phase` enum
+  `EMPTY_LOT → HIRE_PARTNER → BUILD_STRUCTURE → BUILD_INTERIORS → ACTIVATE_FLOORS →
+  SHARE → TEMPORAL`; `current_phase` (defaults `EMPTY_LOT`); `phase_changed(phase)`
+  signal; `set_phase()` (idempotent guard, mirrors + emits) as the manual entry point
+  the hire beat + debug affordance will call in later steps; `_mirror()` publishes into
+  `GameState.phase`. Transition GATES deferred to steps 3/5. Litmus honored:
+  GameState = "what is true in the world" (pure data); GameDirector = "what should
+  happen next and when". Director reads + mirrors GameState, never a parallel copy.
+- **`autoloads/game_state.gd`** — added one scalar `var phase := 0` (mirror of
+  `GameDirector.Phase.EMPTY_LOT`). Literal `0`, not a `GameDirector.Phase` ref, so
+  GameState keeps zero load-order dependency on the director (GameState loads first;
+  the director overwrites in its own `_ready`).
+- **`project.godot`** — registered `GameDirector` in `[autoload]` AFTER `AudioManager`
+  (the four originals untouched). `run/main_scene` unchanged (`tower.tscn`).
+- **`agent/request_queue.json`** — logged D-001 (5th autoload, resolved), D-002
+  (exterior is in-world inside tower.tscn, no scene swap, resolved), D-003 (deferrals:
+  construct-from-empty / consequential hire / time_of_day-wrapping / interior-beat
+  mapping — queued).
+
+### Verify (per rules/godot_screenshot_harness.md)
+- `--headless --import` → `game_director.gd.uid` generated.
+- Headless parse/smoke on `tower.tscn` (`--quit-after 90`): silent = clean.
+- Windowed `_director_harness` (gitignored): `current_phase=0` (EMPTY_LOT),
+  `GameState.phase=0`, `phase_changed` signal + `set_phase` present, `RESULT ok=true`.
+  Boot PNG (`_shots/director/1_boot.png`) shows the normal Floor 1 / Garden launch —
+  unregressed. No errors.
+
+### Open / next
+- Step 2: minimal in-world `EMPTY_LOT` exterior + boot flag in `constants.gd` (old
+  direct-to-tower boot behind the flag); reuse the `scenes/shared/cityscape.gd`
+  ground-plane pattern.
+- Step 3 watch-out: the five hire-name buttons must set `focus_mode = 0` — `jump` is
+  bound to Space (keycode 32) which is also `ui_accept`, so a focused button would be
+  auto-activated by the first jump press (failure F-008 class; see
+  `rules/godot_button_focus.md`).

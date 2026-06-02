@@ -34,6 +34,13 @@ var backpack_count := 0
 # the player drops a backpack into a tube; never decremented by gameplay
 # yet (no purchases wired up).
 var cash := 0
+
+# Mirror of GameDirector.current_phase (a GameDirector.Phase value), published
+# by the director so pollers read the arc phase without a direct dependency.
+# GameDirector owns it; GameState only stores it. Literal default (no
+# GameDirector ref) keeps GameState free of a load-order dependency.
+var phase := 0   # GameDirector.Phase.EMPTY_LOT
+
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the
