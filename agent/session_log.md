@@ -1199,3 +1199,18 @@ cyclic-axis sibling of GameDirector); (2) derive from `sim_time_msec` with its o
 Verified (windowed): driving `sim_time_msec` to 0/0.25/0.5/0.75/1.25×day →
 time_of_day 0.0/0.25/0.5/0.75/0.25 → "00:00/06:00/12:00/18:00/06:00" (wraps correctly);
 HUD readout renders top-centre. Parse clean. No visuals touched (Stage 3).
+
+### Stage 2 — TEMPORAL latches the clock on (one-way), starts at a set hour
+Decision: the day starts at a fixed hour on latch (anchored, repeatable "first light").
+
+- `time_of_day.gd`: `running` now defaults FALSE; the clock SELF-LATCHES by subscribing to
+  `GameDirector.phase_changed` and calling `start()` when it sees `Phase.TEMPORAL` (the
+  director never commands the clock). One-way: stays on under every later phase. `start()`
+  captures `_start_offset_msec` so the first day begins at `CLOCK_START_FRAC` (07:00)
+  regardless of elapsed sim-time.
+- `constants.gd`: `CLOCK_START_FRAC := 7/24`.
+- `tower_hud.gd`: debug readout shows `TIME --:--` while dormant.
+
+Verified (windowed): boot dormant (--:--, time_of_day 0); at TEMPORAL → running, 07:00; +6h
+sim → 13:00; debug-wrap phase back to EMPTY_LOT → clock STILL running (one-way); +6h → 19:00.
+Parse clean. Still no visuals (Stage 3).

@@ -430,6 +430,7 @@ const CITY_RNG_SEED := 20260601        # fixed so the skyline layout is stable a
 # the GLOBAL time-scale knob. Dawn/dusk windows are for the Stage-3 lighting
 # modulation (soft, overlapping bands — gradients, not switches).
 const DAY_LENGTH_MSEC := 240000.0      # one full day/night cycle (~4 min) in sim-ms
+const CLOCK_START_FRAC := 7.0 / 24.0   # the clock latches on at ~07:00 (morning) at TEMPORAL
 const DAWN_CENTER := 0.25              # sun rising
 const DUSK_CENTER := 0.75              # sun setting
 const TWILIGHT_HALF_WIDTH := 0.07      # half-width of each dawn/dusk transition band

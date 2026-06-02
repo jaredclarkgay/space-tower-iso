@@ -138,7 +138,7 @@ func _process(delta: float) -> void:
 	# Debug time-of-day readout (always on, every floor + the exterior).
 	if _clock_label:
 		var tod: Node = get_node_or_null("/root/TimeOfDay")
-		_clock_label.text = ("TIME  " + tod.hour_string()) if tod else ""
+		_clock_label.text = ("TIME  " + tod.hour_string()) if (tod and tod.running) else "TIME  --:--"
 	# Resources only matter on the Garden; skip the work elsewhere.
 	if _res_panel == null or not _res_panel.visible:
 		return

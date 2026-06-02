@@ -11,23 +11,47 @@ extends Node
 # Constants.DAY_LENGTH_MSEC — so sim_speed stays the GLOBAL time-scale. time_of_day
 # is 0..1: 0.0/1.0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk.
 #
-# Stage 2 will gate `running` behind the TEMPORAL latch (default it false + flip on
-# via start() when the director enters Phase.TEMPORAL). For now it free-runs so the
-# ticking value is testable.
+# Dormant until the narrative reaches Phase.TEMPORAL: the clock SELF-LATCHES by
+# subscribing to GameDirector.phase_changed and flipping its own `running` on when
+# it sees TEMPORAL (the director never commands the clock — it only announces the
+# phase). The latch is ONE-WAY: once on, it stays on under every later phase.
 
 signal tick(t: float)   # normalized 0..1 time-of-day, emitted each frame while running
 
-var running: bool = true
+var running: bool = false
+var _start_offset_msec: float = 0.0   # anchors the first day to CLOCK_START_FRAC
 
 @onready var _gs: Node = get_node("/root/GameState")
 @onready var _c: Node = get_node("/root/Constants")
+
+
+func _ready() -> void:
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_signal("phase_changed"):
+		gd.phase_changed.connect(_on_phase_changed)
+
+
+func _on_phase_changed(p: int) -> void:
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if not running and gd != null and int(p) == int(gd.Phase.TEMPORAL):
+		start()
+
+
+# Latch the clock on (one-way), anchoring the first day to CLOCK_START_FRAC so it
+# always switches on at the same hour regardless of how much sim time has elapsed.
+func start() -> void:
+	if running:
+		return
+	_start_offset_msec = float(_gs.sim_time_msec) - float(_c.DAY_LENGTH_MSEC) * float(_c.CLOCK_START_FRAC)
+	running = true
 
 
 func _process(_delta: float) -> void:
 	if not running:
 		return
 	var day_len: float = float(_c.DAY_LENGTH_MSEC)
-	var t: float = fmod(float(_gs.sim_time_msec), day_len) / day_len
+	# (sim - offset) is always >= day_len*CLOCK_START_FRAC >= 0 (sim is monotonic).
+	var t: float = fmod(float(_gs.sim_time_msec) - _start_offset_msec, day_len) / day_len
 	_gs.time_of_day = t
 	tick.emit(t)
 
