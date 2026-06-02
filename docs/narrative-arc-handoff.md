@@ -1,85 +1,79 @@
-# Space Tower Iso — Narrative-Arc Handoff
+# Space Tower Iso — Narrative-Arc Handoff (corrected)
 
-**Purpose:** a single, code-verified snapshot for the planning session that is piecing together the game's full narrative arc in Godot. Everything below was checked against the actual files (not the docs) on 2026-06-01, end of Session 9.
+**Purpose:** a single, code-verified snapshot for the planning session piecing together the game's full narrative arc in Godot. Checked against the actual files on 2026-06-01, end of Session 9.
 
-**Trust order when sources disagree:** the **code → `git log` → `agent/session_log.md` → `CLAUDE.md`**. `CLAUDE.md` was re-audited and corrected this session (commit `72ee172`), so it's re-synced — but if prose ever conflicts with code, the code wins.
+**Trust order when sources disagree:** code → `git log` → `agent/session_log.md` → `CLAUDE.md`. CLAUDE.md was re-audited + corrected this session (`72ee172`); if prose ever conflicts with code, the code wins.
+
+**Corrections applied in this revision (2026-06-01 follow-up):** the original conflated the *human partner hire* (a new exterior beat) with *Cody* (the already-built interior robot). They are separate; see §A.4(d), §A.5 steps 1–2, §B.4, and §C. The exterior step mappings were corrected to reflect that **no exterior space exists yet**, and §D was updated (autoload greenlit; exterior-shape + construct-from-empty added).
 
 ---
 
 ## A. Project inventory (verified)
 
-**1. STACK** — **Godot 4.6**, **GDScript** only. **GL Compatibility** renderer (keeps web export possible later). `project.godot`: `config/features=("4.6","GL Compatibility")`, `run/main_scene=res://scenes/tower/tower.tscn`. No C#/GDExtension/plugins.
+**1. STACK** — Godot 4.6, GDScript only. GL Compatibility renderer (web export possible later). `run/main_scene=res://scenes/tower/tower.tscn`. No C#/GDExtension/plugins.
 
-**2. RENDERING (isometric)** — A **3D scene graph viewed through an orthographic `Camera3D`** locked to an iso angle (−30° X tilt, 45°/−135° yaw), parented to a `CameraPivot` that snaps in 90° steps. **Not** 2D tiles / CSS / sprite-stacking. **Verticality = real height in one continuous 3D world:** every floor is an offset child `Node3D` under `Floors/` at `y = level * 6 m`. No scene-swapping — you **walk / ride / vacuum-hop / fall** between floors; `tower_controller.gd` gates visibility to the current floor + everything below.
+**2. RENDERING (isometric)** — A 3D scene graph viewed through an orthographic `Camera3D` locked to an iso angle (−30° X tilt, 45°/−135° yaw) on a `CameraPivot` that snaps 90°. NOT 2D tiles/CSS/sprite-stacking. Verticality = real height in one continuous 3D world: every floor is an offset child `Node3D` under `Floors/` at `y = level * 6 m`. No scene-swapping — you walk/ride/vacuum-hop/fall between floors; `tower_controller.gd` gates visibility to the current floor + below.
 
 **3. STRUCTURE**
-- `autoloads/` — 4 globals: `constants.gd` (all tunables), `game_state.gd` (single source of truth), `save_manager.gd` (**no-op stub**), `audio_manager.gd` (**no-op stub**).
-- `scenes/` — one **content-named** dir per floor (`utility, garden, arboretum_ground, arboretum_canopy, residential, sky_lounge, roof`) + `shared/` (cross-floor static builders) + `tower/` (the runtime).
-- `agent/` — Builder-Agent self-knowledge (`rules/` ~14 files, `session_log.md`, `request_queue.json`, `project_knowledge.json`, `competency_map.json`, `failure_log.json`). `docs/` — design docs incl. `player-journey-map-v3-final.html`, `space-tower-project-knowledge-v3.md`, `floor_design_system.md`. `references/` — cloned Godot iso demo (reference/license only). `tools/` — `anim_capture` dev tool.
-- **There are NO per-floor `.tscn` files.** Each floor is a `.gd` controller (e.g. `scenes/garden/iso_floor.gd`) instanced as an offset child of `tower.tscn`, building its geometry procedurally. **`tower.tscn` is the only runtime scene.**
-- **State** lives entirely in the `GameState` autoload. **No screen/scene swapping** — "screens" are floors you physically traverse; the HUD is one `CanvasLayer` whose per-floor groups toggle on the current level.
-- **Key files (one line each):**
-  - `scenes/tower/tower.tscn` — the whole stacked world (sole runtime scene).
-  - `scenes/tower/tower_controller.gd` — positions floors at `y = level*6`, tracks current floor, gates visibility + slab collision, drives camera-pivot height + per-floor environment.
-  - `autoloads/game_state.gd` — single source of truth: player/camera, per-floor state, food/cash/backpack, transit + look-out flags, sim clock.
-  - `autoloads/constants.gd` — all tunables (camera, geometry, utility systems, plant types, vacuum, look-out, cityscape).
-  - `scenes/shared/floor_chrome.gd` — static builders every floor calls (slab + shaft grate, walls, extension grid, elevator core, spine pipes).
-  - `scenes/shared/elevator_platform.gd` — the rideable elevator car **and its floor chooser** (`State { IDLE, MOVING, CHOOSING }`); serves Floors 0,1,2,4,5.
-  - `scenes/shared/vacuum_lift.gd` — ±1-floor vacuum-hop traversal.
-  - `scenes/garden/iso_player.gd` — articulated player (walk/jump/plant/harvest + look-out pose).
-  - `scenes/garden/iso_camera.gd` — iso camera (follow/survey/modes) + the Sky-Lounge POV look-out.
-  - `scenes/garden/iso_robot.gd` — Cody GX-5, the one scripted NPC (arrival ceremony + dialogue tree).
+- `autoloads/` — 4 globals: `constants.gd` (tunables), `game_state.gd` (single source of truth), `save_manager.gd` (no-op stub), `audio_manager.gd` (no-op stub).
+- `scenes/` — content-named dir per floor (`utility, garden, arboretum_ground, arboretum_canopy, residential, sky_lounge, roof`) + `shared/` (cross-floor builders) + `tower/` (runtime).
+- `agent/` — Builder-Agent knowledge (`rules/` ~14, `session_log.md`, `request_queue.json`, etc.). `docs/` — design docs. `references/` — cloned Godot demo (reference only). `tools/` — dev tool.
+- There are NO per-floor `.tscn` files. Each floor is a `.gd` controller instanced as an offset child of `tower.tscn`, built procedurally. `tower.tscn` is the only runtime scene.
+- State lives entirely in `GameState`. No screen/scene swapping — "screens" are floors you traverse; HUD is one `CanvasLayer` whose per-floor groups toggle on current level.
+- Key files: `tower.tscn` (whole world); `tower_controller.gd` (positions floors, tracks current floor, gates visibility/collision, drives camera + environment); `game_state.gd` (source of truth); `constants.gd` (tunables); `shared/floor_chrome.gd` (static builders every floor calls); `shared/elevator_platform.gd` (rideable car + its floor chooser, serves 0,1,2,4,5); `shared/vacuum_lift.gd` (±1-floor hop); `garden/iso_player.gd` (articulated player); `garden/iso_camera.gd` (iso camera + Sky-Lounge POV); `garden/iso_robot.gd` (Cody, the one scripted NPC).
 
 **4. EXISTING SYSTEMS (vs. the arc's needs)**
-- **(a) Phase/state director — NONE.** No in-game step sequencer / quest / objective system. Closest is *ad hoc per-floor scripted flow* (Utility activation sequence; Cody's arrival triggered by a harvest count).
-- **(b) Day/night / time — PARTIAL.** `GameState.sim_time_msec` + `sim_speed` is a **monotonic sim clock that drives tree growth only**; "sunlight" is static spotlights. **No day/night cycle, no time-of-day, no hour field, no wrap.**
-- **(c) Build/placement — PARTIAL.** Player **placement exists for crops** (seed→plot, sapling). **Floors are built procedurally at startup, not by the player.** The Roof is a static "under construction" vista with a *cosmetic* crane (no lifting).
-- **(d) Hire/character — PARTIAL.** **One scripted NPC (Cody).** No hire/roster mechanic; Residential is explicitly empty.
+- (a) Phase/state director — NONE. Closest is ad hoc per-floor scripted flow (Utility activation; Cody arrival on harvest count).
+- (b) Day/night / time — PARTIAL. `GameState.sim_time_msec` + `sim_speed` is a monotonic sim clock that drives tree growth only. No day/night, no time-of-day, no hour field, no wrap.
+- (c) Build/placement — PARTIAL. Crop placement exists (seed→plot, sapling). Floors are built procedurally at startup, not by the player. Roof crane is cosmetic.
+- (d) Hire/character — PARTIAL, and PREVIOUSLY MISDESCRIBED. The one scripted NPC is **Cody GX-5 — the INTERIOR robot counterpart** met on the Garden floor (already built: arrival ceremony, dialogue tree, Schematics modal). **Cody is NOT the partner hire.** The intended **human-partner hire is a separate, unbuilt EXTERIOR beat** (see §A.5 step 2). No hire/roster mechanic exists; Residential is empty.
 
 **5. THE 7 STEPS — what's implemented**
-1. **Empty lot + resource → partial.** No empty-lot→build, but the **Utility/basement floor** is the resource layer (pull breaker, connect+activate 6 sources; lit spine-pipes propagate up). Implemented.
-2. **Hire a partner → partial.** Cody arrives as the partner (scripted, not a hire choice).
-3. **Build structure layer by layer → not implemented.** Floors pre-built at startup; Roof crane is cosmetic.
-4. **Build each floor interior → not a mechanic.** Garden + Arboretum interiors exist; **Residential + Sky Lounge are blank wired shells** awaiting fill.
-5. **Activate floors with characters → partial.** "Activate" exists only as the Utility systems flow; floors aren't populated with characters.
-6. **Share → stub only.** Vacuum tubes "sell produce → cash" (`food_count`/`cash`), but **nothing consumes the output** (no diner/population).
-7. **Temporal day/night flow → partial.** Only the growth sim clock; **no day/night.**
+1. **Empty lot + resource** → NOT built as an exterior. **No exterior / ground-level space exists** in the iso build (interior tower only). The Utility/basement floor is *interior* infrastructure (pull breaker + activate 6 sources: water, power, atmosphere, data, waste, cargo; lit spine-pipes propagate up) — a separate beat, **not** the exterior step 1.
+2. **Hire a partner** → NOT built. This is a **NEW EXTERIOR beat** among the very first moments of the game: hire one of five **human** helpers ("pick 1 of 5, this is your biz partner"). **Cody** (the interior Garden robot) is a *different*, already-built counterpart and is **not** this step.
+3. **Build structure layer by layer** → not implemented (floors pre-built; Roof crane cosmetic). Intended mechanic = construct-from-empty (player-built floors) — see §C / §D.
+4. **Build each floor interior** → not a mechanic (Garden + Arboretum have interiors; Residential + Sky Lounge are blank wired shells).
+5. **Activate floors with characters** → partial ("activate" = Utility systems flow only; floors not populated with characters).
+6. **Share** → stub only (tubes sell produce → cash, but nothing consumes it).
+7. **Temporal day/night flow** → partial (growth sim clock only; no day/night).
 
-**6. RUN**
-- Open editor: `godot --path . --editor` (binary on this Mac: `/Applications/Godot.app/Contents/MacOS/Godot`).
-- Run game: `godot --path .` (launches `tower.tscn`) or `--debug`.
-- **No build/export configured** (no `export_presets.cfg`). GL Compatibility keeps web export viable later.
-- Verify visually with a **windowed screenshot harness** (NOT `--headless`, which renders nothing) — see `agent/rules/godot_screenshot_harness.md`.
+**6. RUN** — Open editor: `godot --path . --editor` (`/Applications/Godot.app/Contents/MacOS/Godot`). Run: `godot --path .` or `--debug`. No build/export configured (no `export_presets.cfg`). Verify visually with a windowed screenshot harness (NOT `--headless`) — see `agent/rules/godot_screenshot_harness.md`.
 
-**7. LEFTOVERS / STALE** — `SaveManager` + `AudioManager` are no-op stubs. `references/godot_iso_demo/` + `tools/anim_capture.*` are not game code. **No orphan floor scenes** (`tower.tscn` is the sole runtime scene). (Prior CLAUDE.md staleness — incl. a dead `elevator_handler.gd` reference — was corrected in `72ee172`.)
+**7. LEFTOVERS / STALE** — `SaveManager` + `AudioManager` are no-op stubs. `references/godot_iso_demo/` + `tools/anim_capture.*` aren't game code. No orphan floor scenes. (Prior CLAUDE.md staleness incl. a dead `elevator_handler.gd` ref was fixed in `72ee172`.)
 
 ---
 
-## B. Resolved contradictions (the three the planner flagged)
+## B. Resolved contradictions
 
-**1. `elevator_handler` — the inventory was right; CLAUDE.md was wrong (now fixed).** There is **no `elevator_handler.gd`** in the repo. The car *and* chooser both live in **`scenes/shared/elevator_platform.gd`** (a `State { IDLE, MOVING, CHOOSING }` machine; chooser UI = `_build_chooser_ui()` / `_set_chooser_text()`). CLAUDE.md's two references were stale scene-swap-era prose, corrected this session.
+**1. `elevator_handler`** — There is NO `elevator_handler.gd`. The car + chooser both live in `scenes/shared/elevator_platform.gd` (`State { IDLE, MOVING, CHOOSING }`). CLAUDE.md's references were stale, now fixed. The inventory was right.
 
-**2. The "four-autoload locked" constraint — true today, but it's a convention, not enforced.** `project.godot` declares exactly four autoloads (`Constants, GameState, SaveManager, AudioManager`); CLAUDE.md calls them "the only globals." Nothing in code prevents a 5th. **Recommendation: add a 5th autoload (`GameDirector`)** for the phase sequencer — see Section C. (This relaxes a constraint Jared set, so it needs his explicit yes; once given, the CLAUDE.md constraint line gets updated.)
+**2. "Four-autoload locked" constraint** — True today, but it's a convention, not code-enforced. Recommendation: add a 5th autoload (`GameDirector`) for the phase sequencer (§C). **Status: Jared has greenlit the 5th autoload.**
 
-**3. GameState has a clock — but it's a growth timer, not a day/night cycle.** Confirmed in `game_state.gd`: `var sim_time_msec: float` + `var sim_speed: float`, advanced every frame (`sim_time_msec += delta * 1000.0 * sim_speed`). It's *monotonic* (ms since start), built to decouple growth from real engine time. **A `time_of_day` system must INTRODUCE the day/night concept** (derive a wrapping phase from `sim_time_msec`, or run its own clock) — it can't just read an existing field. Reuse `sim_speed` as the one global time-scale knob.
+**3. GameState clock** — `sim_time_msec` + `sim_speed` exist but are a *monotonic growth timer*, not a day/night cycle. A `time_of_day` system must INTRODUCE day/night (derive a *wrapping* phase from `sim_time_msec` or run its own clock); reuse `sim_speed` as the global time-scale knob.
+
+**4. Human partner vs. Cody (NEW)** — Two distinct counterparts, previously conflated into one `HIRE_PARTNER` beat. The hire is a **NEW exterior** moment: choose one of five **human** helpers, near the start of the game, outside. **Cody GX-5 is the already-built INTERIOR robot** met on the Garden floor — he is *not* the hire and must not be migrated, modified, or re-wired into the director. Confirmed by Jared (Session 9 follow-up). The original §A.5/§C "Cody = HIRE_PARTNER" mapping is discarded.
 
 ---
 
 ## C. `GameDirector` — proposed 5th autoload
 
-**One-liner:** the global **sequencer** that owns *where in the 7-step arc the game is* and the rules that advance it; `GameState` stays pure data, scenes stay renderers.
+One-liner: the global sequencer that owns *where in the 7-step arc the game is* and the rules that advance it; `GameState` stays pure data, scenes stay renderers.
 
-- **Registration:** `autoloads/game_director.gd`, added to `project.godot [autoload]` after `AudioManager`.
-- **Owns:** a `Phase` enum for the 7 steps (`EMPTY_LOT → HIRE_PARTNER → BUILD_STRUCTURE → BUILD_INTERIORS → ACTIVATE_FLOORS → SHARE → TEMPORAL`), a `current_phase`, and the **transition gates** (the condition that advances each step).
-- **Reads** `GameState` to evaluate gates (e.g. `utility.pipe_active` all-on, `plants_harvested ≥ N`, floor-built flags) and **emits a `phase_changed(phase)` signal** + sets one `GameState.phase` field for pollers.
-- **Consumers (react to the signal, don't poll):** `tower_hud.gd` (per-phase objective/wayfinding line), floor controllers (gate/enable content for the active phase), `tower_controller.gd` (phase-driven environment; later the day/night driver).
-- **Migration (proof the pattern works on existing content):** hoist today's scattered scripted beats into the director — the Utility "activate 6 systems" completion and **Cody's harvest-threshold arrival** become *director transitions* instead of floor-local logic.
-- **Time tie-in:** the `TEMPORAL` phase / any `time_of_day` drives off `GameState.sim_time_msec` / `sim_speed` — `GameDirector` flips it on.
-- **Litmus test for the split:** *"what is true in the world"* → `GameState`. *"what should happen next and when"* → `GameDirector`.
+- Registration: `autoloads/game_director.gd`, after `AudioManager` in `project.godot [autoload]`.
+- Owns: a `Phase` enum (`EMPTY_LOT → HIRE_PARTNER → BUILD_STRUCTURE → BUILD_INTERIORS → ACTIVATE_FLOORS → SHARE → TEMPORAL`), `current_phase`, and the transition gates.
+  - `EMPTY_LOT` + `HIRE_PARTNER` are the **new exterior opening beats** (no exterior exists yet — they get built fresh).
+  - `BUILD_STRUCTURE`'s intended mechanic is **construct-from-empty** (player builds the tower up, floors spawned in build order rather than pre-placed) — a larger architectural change deferred to its own phase (§D).
+- Reads `GameState` to evaluate gates (`utility.pipe_active` all-on, `plants_harvested ≥ N`, floor-built flags) and emits `phase_changed(phase)` + sets one `GameState.phase` field for pollers.
+- Consumers (react to the signal): `tower_hud.gd` (per-phase objective line), floor controllers (gate content for active phase), `tower_controller.gd` (phase-driven environment; later day/night).
+- **Migration (corrected):** the early phases are NEW beats, **not** migrations of existing interior systems. **Do NOT fold Cody's arrival into `HIRE_PARTNER`** — Cody is an already-built interior Garden beat and stays untouched. Existing interior beats (Utility activation, etc.) *may later* be mapped onto mid/late phases, but that is a separate, logged decision — don't assume it now.
+- Time tie-in: the `TEMPORAL` phase / `time_of_day` drives off `sim_time_msec` / `sim_speed` (introducing a wrapping day/night per §B.3).
+- Litmus: *"what is true in the world"* → `GameState`. *"what should happen next and when"* → `GameDirector`.
 
 ---
 
-## D. Open decisions for Jared (the operator)
+## D. Open decisions for Jared
 
-1. **Relax the "four autoloads only" constraint** to allow `GameDirector` as a 5th? (Required for Section C; recommended.)
-2. **The worldbuilding / narrative direction itself** (logged as `Q-005` in `agent/request_queue.json`): who lives in Residential, what the Sky Lounge becomes, and what the city/world *is* (replacing the placeholder `scenes/shared/cityscape.gd`). The two blank floors + placeholder skyline are deliberately empty, waiting for this.
+1. **Fifth autoload — GREENLIT.** Relax the "four autoloads only" convention to allow `GameDirector` (required for §C). Log the resolution in `request_queue.json` for the record.
+2. **Worldbuilding / narrative direction (`Q-005`):** who lives in Residential, what the Sky Lounge becomes, what the city/world is (replacing placeholder `cityscape.gd`). Still open.
+3. **Exterior shape — RESOLVED (Jared, Session 9 follow-up): IN-WORLD, no scene swap.** The exterior empty lot is an **in-world space inside `tower.tscn`** — NOT a separate intro scene, and **no `change_scene_to_file`**. `run/main_scene` stays `tower.tscn`. A boot flag in `constants.gd` selects the START STATE *within the same scene* (real opening → `EMPTY_LOT` phase + exterior spawn; dev fallback → straight to the tower, today's Garden spawn) — it does NOT point at a different scene. "Handing off into the tower" = the player traverses in (or the camera moves up to Floor 0), reusing the existing camera/player/HUD, NOT a load. Reuse the ground-plane pattern already in `scenes/shared/cityscape.gd`. Because it's the same scene, `tower_hud.gd` persists, so the per-phase objective line works during the exterior beats with no separate HUD. This honors the one-continuous-world architecture (`rules/stacked_tower_invariants.md`).
+4. **Construct-from-empty (DECIDED, DEFERRED):** Jared has chosen this as the `BUILD_STRUCTURE` direction — floors become player-built. It touches `tower_controller._FLOORS` + the elevator `SERVED` list, so it is built as **its own phase after** the director spine, with its own logged decision. Not part of the spine phase.
