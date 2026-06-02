@@ -187,6 +187,12 @@ func _process(delta: float) -> void:
 	# back to EMPTY_LOT returns to the lot).
 	if Input.is_action_just_pressed(&"debug_advance_phase"):
 		_debug_advance_phase()
+	# Debug: [ starts the day/night clock now (it normally only latches at the
+	# TEMPORAL phase), so the lighting swing is testable without walking the arc.
+	if Input.is_action_just_pressed(&"debug_start_clock"):
+		var tod: Node = get_node_or_null("/root/TimeOfDay")
+		if tod and tod.has_method("start"):
+			tod.start()
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
