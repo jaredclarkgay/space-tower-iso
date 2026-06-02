@@ -276,6 +276,22 @@ func _build_next_floor() -> void:
 	_update(true)
 
 
+# Occupy the finished tower: leave the dollhouse, reveal + spawn the player in the
+# Garden, advance the arc to BUILD_INTERIORS, and resume normal interior play.
+func _occupy() -> void:
+	_constructing = false
+	_gs.set("constructing", false)
+	_gs.built_level = _top_level              # whole tower present from here on
+	if _player:
+		_player.visible = true
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_method("set_phase"):
+		gd.set_phase(gd.Phase.BUILD_INTERIORS)
+	_spawn_in_garden()
+	_hud_level = -1                           # force the floor header to push (iso_camera resumes)
+	_update(true)
+
+
 func _process(delta: float) -> void:
 	# Debug: backslash cycles the player up through the floors (wraps at the
 	# top). Temporary traversal aid until the elevator platform lands (2b).
@@ -292,9 +308,12 @@ func _process(delta: float) -> void:
 		var tod: Node = get_node_or_null("/root/TimeOfDay")
 		if tod and tod.has_method("start"):
 			tod.start()
-	# Construct-from-empty: raise the next floor.
+	# Construct-from-empty: raise the next floor, or occupy once topped out.
 	if _constructing and Input.is_action_just_pressed(&"build_floor"):
-		_build_next_floor()
+		if int(_gs.built_level) < _top_level:
+			_build_next_floor()
+		else:
+			_occupy()
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0

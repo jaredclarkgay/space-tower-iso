@@ -135,7 +135,7 @@ func set_construction(built: int, top: int) -> void:
 	if _title:
 		_title.text = ("FLOOR %d OF %d" % [built, top]) if built < top else "STRUCTURE COMPLETE"
 	if _here_label:
-		_here_label.text = _format_hint("[B] raise the next floor" if built < top else "ready to occupy")
+		_here_label.text = _format_hint("[B] raise the next floor" if built < top else "[B] step inside")
 	if _move_label:
 		_move_label.text = _format_hint(MOVE_LINE_EXTERIOR)
 	if _garden_group:

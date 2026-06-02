@@ -1300,3 +1300,19 @@ Verified (windowed): elevator serves [0,1,2,4,5] at 99, [0,1,2] at built_level 2
 Verified (windowed): hire → dollhouse foundation (clean, no stray prompts) → B builds floors
 0→6 with the rise ceremony; topped-out view is the full tower as a cutaway (Roof+crane down to
 Utility), framing widened to fit. Parse clean. Occupy handoff is Stage D.
+
+### Stage D — occupy handoff
+- Build key, once topped out (built_level == top), triggers `_occupy()` instead of building:
+  clears `constructing`, reveals the player, sets built_level = top (whole tower present),
+  advances the arc to `BUILD_INTERIORS`, spawns in the Garden, and `iso_camera` resumes. HUD
+  complete-prompt now "[B] step inside".
+Verified (windowed): hire → build 0→6 → "[B] step inside" → drops into the normal Floor 1 /
+Garden, player visible, full tower present, elevator serves [0,1,2,4,5], objective "Fit out each
+floor inside.", normal play unregressed. Parse clean.
+
+### Construct-from-empty — DONE (Stages A-D)
+The arc now delivers its promise: hire a partner → raise the tower floor-by-floor in an external
+dollhouse view → step inside to occupy the finished Garden. `CONSTRUCT_FROM_EMPTY=false` keeps
+today's straight-to-Garden dev boot. Commits 5ebddaf, b5c43f1, ebc8fa4, + this stage.
+Follow-ups logged (C-001): true shell/interior split for BUILD_INTERIORS, build cost/economy,
+crane-driven placement, partner figure on-site, camera/ceremony feel pass, smoother occupy cut.
