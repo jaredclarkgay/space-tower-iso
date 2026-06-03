@@ -325,7 +325,7 @@ func _update_exterior_walk(snap: bool) -> void:
 		var built: bool = int(f.level) <= int(_gs.built_level)
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
-			slab.collision_layer = 2 if (built and int(f.level) == 0) else 0   # only the ground floor is solid
+			slab.collision_layer = 0   # the player walks on the site ground (y=0); the Garden is at grade, basement below
 		if node.has_method("set_structure_visible"):
 			node.set_structure_visible(built)
 			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if built else 0.0)

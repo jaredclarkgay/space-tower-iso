@@ -216,12 +216,41 @@ func _build_walls_and_windows() -> void:
 	# a thin top trim.
 	# Encoded as (axis_label, transform-position-fn, length-axis):
 	#   wall +X (east), wall -X (west), wall +Z (south), wall -Z (north)
+	# The Garden is the ground floor (GROUND_LEVEL): each wall gets a centred
+	# doorway so you walk straight in from the exterior site (the door you see is
+	# the door you use). The gap has no collision; the fall-catch covers stepping
+	# out during interior play (same accepted edge the basement had).
 	for side in ["+x", "-x", "+z", "-z"]:
-		_build_one_wall(side, half)
+		_build_one_wall(side, half, true)
 		_build_window_spotlight(side, half)
 
 
-func _build_one_wall(side: String, half: float) -> void:
+# One mesh-or-collision wall segment. `along` is the centre offset ALONG the wall;
+# `thick` runs perpendicular into the room. Mirrors FloorChrome._wall_piece so the
+# doored Garden walls line up with the shared doored walls elsewhere.
+func _wall_seg(body: StaticBody3D, mat, wall_along_x: bool, perp_pos: float,
+		along: float, along_len: float, y_center: float, y_height: float,
+		thick: float, collide_only: bool) -> void:
+	var pos := Vector3(along, y_center, perp_pos) if wall_along_x else Vector3(perp_pos, y_center, along)
+	var size := Vector3(along_len, y_height, thick) if wall_along_x else Vector3(thick, y_height, along_len)
+	if collide_only:
+		var col := CollisionShape3D.new()
+		var cs := BoxShape3D.new()
+		cs.size = size
+		col.shape = cs
+		col.position = pos
+		body.add_child(col)
+	else:
+		var m := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = size
+		m.mesh = box
+		m.material_override = mat
+		m.position = pos
+		body.add_child(m)
+
+
+func _build_one_wall(side: String, half: float, doored: bool = false) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Wall_" + side
 	add_child(body)
@@ -230,47 +259,37 @@ func _build_one_wall(side: String, half: float) -> void:
 	var perp_pos: float = half if side in ["+x", "+z"] else -half
 	var length: float = _c.FLOOR_3D_SIZE
 	var thick: float = _c.WALL_THICKNESS
+	var glass_h: float = _c.WALL_HEIGHT - _c.WALL_BASE_HEIGHT - 0.12
+	var base_mat := _make_material(Color(0.32, 0.32, 0.36))
+	# Doored: base/collision/glass are split into two flanks around a centred gap.
+	var dw: float = _c.DOOR_WIDTH if doored else 0.0
+	var side_len: float = (length - dw) * 0.5
+	var side_ctr: float = (dw + side_len) * 0.5
 
-	# Solid base (full length).
-	var base := MeshInstance3D.new()
-	base.name = "Base"
-	var base_size: Vector3
-	if wall_along_x:
-		base_size = Vector3(length, _c.WALL_BASE_HEIGHT, thick)
+	if doored:
+		for sgn in [-1.0, 1.0]:
+			var a: float = sgn * side_ctr
+			_wall_seg(body, base_mat, wall_along_x, perp_pos, a, side_len, _c.WALL_BASE_HEIGHT * 0.5, _c.WALL_BASE_HEIGHT, thick, false)       # base
+			_wall_seg(body, null, wall_along_x, perp_pos, a, side_len, _c.WALL_HEIGHT * 0.5, _c.WALL_HEIGHT, thick, true)                       # collision (full height)
+			_wall_seg(body, _make_window_material(), wall_along_x, perp_pos, a, side_len - 0.2, _c.WALL_BASE_HEIGHT + glass_h * 0.5, glass_h, 0.05, false)  # glass
+		# Door frame: jambs flanking the opening + a lintel above it (mesh only).
+		var frame_mat := _make_material(Color(0.30, 0.30, 0.34))
+		for sgn2 in [-1.0, 1.0]:
+			_wall_seg(body, frame_mat, wall_along_x, perp_pos, sgn2 * dw * 0.5, 0.18, _c.DOOR_HEIGHT * 0.5, _c.DOOR_HEIGHT, thick * 1.1, false)
+		var lintel_h: float = _c.WALL_HEIGHT - _c.DOOR_HEIGHT
+		_wall_seg(body, frame_mat, wall_along_x, perp_pos, 0.0, dw, _c.DOOR_HEIGHT + lintel_h * 0.5, lintel_h, thick * 1.1, false)
 	else:
-		base_size = Vector3(thick, _c.WALL_BASE_HEIGHT, length)
-	var bm := BoxMesh.new()
-	bm.size = base_size
-	base.mesh = bm
-	base.material_override = _make_material(Color(0.32, 0.32, 0.36))
-	base.position = Vector3(
-		0.0 if wall_along_x else perp_pos,
-		_c.WALL_BASE_HEIGHT * 0.5,
-		perp_pos if wall_along_x else 0.0
-	)
-	body.add_child(base)
+		_wall_seg(body, base_mat, wall_along_x, perp_pos, 0.0, length, _c.WALL_BASE_HEIGHT * 0.5, _c.WALL_BASE_HEIGHT, thick, false)            # base
+		_wall_seg(body, null, wall_along_x, perp_pos, 0.0, length, _c.WALL_HEIGHT * 0.5, _c.WALL_HEIGHT, thick, true)                            # collision
+		_wall_seg(body, _make_window_material(), wall_along_x, perp_pos, 0.0, length - 0.4, _c.WALL_BASE_HEIGHT + glass_h * 0.5, glass_h, 0.05, false)  # glass
 
-	# Collision (full wall height, full length): the simple rectangle keeps
-	# the player in. Player won't notice the windows aren't physically open.
-	var col := CollisionShape3D.new()
-	var col_shape := BoxShape3D.new()
-	if wall_along_x:
-		col_shape.size = Vector3(length, _c.WALL_HEIGHT, thick)
-	else:
-		col_shape.size = Vector3(thick, _c.WALL_HEIGHT, length)
-	col.shape = col_shape
-	col.position = Vector3(
-		0.0 if wall_along_x else perp_pos,
-		_c.WALL_HEIGHT * 0.5,
-		perp_pos if wall_along_x else 0.0
-	)
-	body.add_child(col)
-
-	# Vertical posts at fixed intervals along the wall's length.
+	# Vertical posts at fixed intervals — skip any that fall within the doorway gap.
 	var post_count := int(length / _c.WALL_POST_SPACING) + 1
 	for k in range(post_count):
 		var t: float = float(k) / float(post_count - 1)   # 0..1 inclusive
 		var along: float = -length * 0.5 + t * length
+		if doored and absf(along) < dw * 0.5 + 0.2:
+			continue
 		var post := MeshInstance3D.new()
 		post.name = "Post_%d" % k
 		var post_mesh := BoxMesh.new()
@@ -284,7 +303,7 @@ func _build_one_wall(side: String, half: float) -> void:
 		)
 		body.add_child(post)
 
-	# Thin top trim (full length).
+	# Thin top trim (full length — spans above the doorway like the shared walls).
 	var trim := MeshInstance3D.new()
 	trim.name = "TopTrim"
 	var trim_mesh := BoxMesh.new()
@@ -300,25 +319,6 @@ func _build_one_wall(side: String, half: float) -> void:
 		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(trim)
-
-	# Window panels — one continuous semi-transparent strip filling the gap
-	# between the base and the top trim. Posts will visually segment it.
-	var glass := MeshInstance3D.new()
-	glass.name = "Glass"
-	var glass_mesh := BoxMesh.new()
-	var glass_h: float = _c.WALL_HEIGHT - _c.WALL_BASE_HEIGHT - 0.12
-	if wall_along_x:
-		glass_mesh.size = Vector3(length - 0.4, glass_h, 0.05)
-	else:
-		glass_mesh.size = Vector3(0.05, glass_h, length - 0.4)
-	glass.mesh = glass_mesh
-	glass.material_override = _make_window_material()
-	glass.position = Vector3(
-		0.0 if wall_along_x else perp_pos,
-		_c.WALL_BASE_HEIGHT + glass_h * 0.5,
-		perp_pos if wall_along_x else 0.0
-	)
-	body.add_child(glass)
 
 
 func _build_window_spotlight(side: String, half: float) -> void:
