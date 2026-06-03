@@ -204,20 +204,31 @@ func begin_build_structure() -> void:
 		enter_tower()
 
 
-# Enter the external dollhouse: foundation only, player hidden, camera owns the
-# framing. The player raises the tower from here with the build action.
+# Enter construction: the builder stands back on the site at grade and watches
+# the tower rise floor-by-floor (the build action), then walks in. The camera is
+# controller-owned (iso_camera bows out); the builder is frozen until top-out.
 func enter_construction() -> void:
 	_constructing = true
+	_exterior_walk = false
 	_exterior = false
-	_gs.set("constructing", true)
-	_gs.built_level = 0                       # the basement/foundation is the ground to build on
+	_gs.set("constructing", true)             # freezes the builder; iso_camera bows out
+	_gs.set("exterior_walk", false)
+	_gs.built_level = 0                        # the basement/foundation (below grade) is the ground to build on
 	if _empty_lot:
 		_empty_lot.visible = false
+	if _site_ground:
+		_site_ground.visible = true           # the builder stands on the site
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 	if _player:
-		_player.visible = false
+		_player.visible = true                # the builder is present, watching it go up
 		if _player is CharacterBody3D:
 			(_player as CharacterBody3D).velocity = Vector3.ZERO
-		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), 0.0)
+		# Stand back beyond the -Z doorway, facing the build site.
+		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), -(half + float(_c.CONSTRUCT_VIEW_BACK)))
+		if _player.has_method("set_spawn_here"):
+			_player.set_spawn_here()
+		if _player.has_method("set_facing_yaw"):
+			_player.call("set_facing_yaw", 0.0)   # face +Z, toward the rising tower
 	_hud_level = -99                          # force the construction header to push
 	_update(true)
 
@@ -252,17 +263,40 @@ func _update_constructing(snap: bool) -> void:
 	_drive_environment(snap)
 
 
-# Pulled-back iso framing centred on the tower, raised + widened as the stack grows.
+# Grounded exterior framing: pivot on the tower centre, lifted toward the middle
+# of the VISIBLE (above-grade) stack and widened as it grows, so the builder at
+# the base and the rising floors both stay in frame.
 func _frame_construction(snap: bool) -> void:
 	if _pivot == null:
 		return
-	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
-	var center_y: float = float(_gs.built_level) * story * 0.5 + float(_c.CONSTRUCT_CAM_CENTER_LIFT)
+	# Visible stack runs from grade (the Garden, GROUND_LEVEL) up to the built top.
+	var top_built: int = maxi(int(_gs.built_level), int(_c.GROUND_LEVEL))
+	var top_y: float = _base_y_for_level(top_built)        # world y of the highest built floor
+	var center_y: float = top_y * 0.5 + float(_c.CONSTRUCT_CAM_CENTER_LIFT)
 	var target := Vector3(0.0, center_y, 0.0)
 	_pivot.global_position = target if snap else _pivot.global_position.lerp(target, 0.10)
 	if _camera:
-		var size: float = float(_c.CONSTRUCT_CAM_SIZE_MIN) + float(_gs.built_level) * float(_c.CONSTRUCT_CAM_SIZE_PER_FLOOR)
+		var raised: int = maxi(int(_gs.built_level) - int(_c.GROUND_LEVEL) + 1, 1)
+		var base_size: float = float(_c.CONSTRUCT_CAM_SIZE_MIN) + float(raised) * float(_c.CONSTRUCT_CAM_SIZE_PER_FLOOR)
+		var size: float = _aspect_fit(base_size)
 		_camera.size = size if snap else lerpf(_camera.size, size, 0.10)
+
+
+# Grow an orthographic size so a window narrower than the design aspect never
+# clips the framed subject horizontally (KEEP_HEIGHT ortho frames vertically, so
+# a tall/narrow window otherwise crops the sides). Recomputed live → resize-safe.
+func _aspect_fit(base_size: float) -> float:
+	var vp := get_viewport()
+	if vp == null:
+		return base_size
+	var sz: Vector2 = vp.get_visible_rect().size
+	if sz.y <= 0.0:
+		return base_size
+	var aspect: float = sz.x / sz.y
+	var design: float = float(_c.CONSTRUCT_DESIGN_ASPECT)
+	if aspect > 0.0 and aspect < design:
+		return base_size * (design / aspect)
+	return base_size
 
 
 # Raise the next floor with a rise-from-below ceremony; reframe to the taller stack.
@@ -297,14 +331,12 @@ func _begin_exterior_walk() -> void:
 	_constructing = false
 	_exterior_walk = true
 	_gs.set("exterior_walk", true)            # camera owned by the controller for the whole walk
-	_gs.set("constructing", true)             # hold the player for the ease-down only
+	_gs.set("constructing", true)             # hold the player for the hand-off ease only
 	_gs.built_level = _top_level
-	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 	if _player:
-		_player.visible = true
+		_player.visible = true                # already standing on the site — keep them put, just release
 		if _player is CharacterBody3D:
 			(_player as CharacterBody3D).velocity = Vector3.ZERO
-		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), -(half + 6.0))  # on the -Z path
 		if _player.has_method("set_spawn_here"):
 			_player.set_spawn_here()
 	if _site_ground:

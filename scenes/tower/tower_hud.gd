@@ -73,6 +73,13 @@ var _move_label: RichTextLabel
 var _here_label: RichTextLabel
 var _clock_label: Label          # debug time-of-day readout
 
+# Big central call-to-action shown only while building / exploring the exterior.
+var _build_prompt: Control
+var _build_prompt_box: Control
+var _build_prompt_key: RichTextLabel
+var _build_prompt_sub: Label
+var _last_built: int = -1
+
 var _res_panel: PanelContainer
 var _backpack_value: Label
 var _cash_value: Label
@@ -95,6 +102,7 @@ func _ready() -> void:
 	_build_wayfinding()
 	_build_resources()
 	_build_debug_clock()
+	_build_central_prompt()
 	_displayed_cash = int(_gs.cash)
 	# Objective line tracks the arc phase, not the floor.
 	var gd: Node = get_node_or_null("/root/GameDirector")
@@ -125,10 +133,13 @@ func set_floor(level: int, display_name: String) -> void:
 		_utility_group.visible = (level == 0)
 	if _res_panel:
 		_res_panel.visible = (level == 1)
+	_hide_central_prompt()                    # interior play: no build CTA
+	_last_built = -1
 
 
-# Construction-view header + build prompt (BUILD_STRUCTURE dollhouse). Driven by
-# tower_controller; hides the per-floor gameplay panels.
+# Construction-view header + the big central build prompt (BUILD_STRUCTURE). Driven
+# by tower_controller; hides the per-floor gameplay panels. The central prompt
+# punches on each new floor so the build reads as responsive, not frozen.
 func set_construction(built: int, top: int) -> void:
 	if _eyebrow:
 		_eyebrow.text = "UNDER CONSTRUCTION"
@@ -144,9 +155,17 @@ func set_construction(built: int, top: int) -> void:
 		_utility_group.visible = false
 	if _res_panel:
 		_res_panel.visible = false
+	# Central CTA — the thing the playtest was missing.
+	if built < top:
+		_set_central_prompt("[B]", "PRESS  B  TO RAISE YOUR TOWER", "Floor %d of %d" % [mini(built + 1, top), top])
+	else:
+		_set_central_prompt("", "YOUR TOWER IS COMPLETE", "press B to step outside")
+	if built > _last_built and _last_built >= 0:
+		_punch_central_prompt()               # confirm beat on each new floor
+	_last_built = built
 
 
-# Exterior-walk header + prompt (explore the finished tower, then walk in).
+# Exterior-walk header + the big central "step inside" prompt.
 func set_explore() -> void:
 	if _eyebrow:
 		_eyebrow.text = "YOUR TOWER"
@@ -162,6 +181,104 @@ func set_explore() -> void:
 		_utility_group.visible = false
 	if _res_panel:
 		_res_panel.visible = false
+	_set_central_prompt("", "STEP INSIDE", "walk through any doorway to enter")
+	_last_built = -1
+
+
+# --- Central build prompt -------------------------------------------------
+
+func _build_central_prompt() -> void:
+	_build_prompt = Control.new()
+	_build_prompt.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_build_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_build_prompt.visible = false
+	add_child(_build_prompt)
+
+	# A centred banner low on the screen (a translucent panel so it stays legible
+	# over the rising tower), with its own scale pivot for the per-build punch.
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.05, 0.06, 0.05, 0.62)
+	ps.border_color = PANEL_BORDER
+	ps.border_width_left = 2
+	ps.border_width_top = 3
+	ps.border_width_right = 2
+	ps.border_width_bottom = 2
+	ps.set_corner_radius_all(12)
+	ps.set_content_margin_all(0)
+	ps.shadow_color = Color(0, 0, 0, 0.45)
+	ps.shadow_size = 14
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 0.84
+	panel.anchor_bottom = 0.84
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_build_prompt.add_child(panel)
+	_build_prompt_box = panel                 # scale-punch the whole banner
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 2)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(vbox)
+
+	_build_prompt_key = RichTextLabel.new()
+	_build_prompt_key.bbcode_enabled = true
+	_build_prompt_key.fit_content = true
+	_build_prompt_key.scroll_active = false
+	_build_prompt_key.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_build_prompt_key.add_theme_font_size_override("normal_font_size", 34)
+	_build_prompt_key.add_theme_color_override("default_color", TITLE)
+	_build_prompt_key.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(_build_prompt_key)
+
+	_build_prompt_sub = Label.new()
+	_build_prompt_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_build_prompt_sub.add_theme_font_size_override("font_size", 20)
+	_build_prompt_sub.add_theme_color_override("font_color", AMBER)
+	_build_prompt_sub.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_build_prompt_sub.add_theme_constant_override("outline_size", 4)
+	_build_prompt_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(_build_prompt_sub)
+
+
+# `key` is an optional [KEY] token rendered as a big tinted keycap before the line.
+func _set_central_prompt(key: String, line: String, sub: String) -> void:
+	if _build_prompt == null:
+		return
+	_build_prompt.visible = true
+	var body: String = _format_hint(line)
+	if key != "":
+		body = _format_hint(key) + "   " + body
+	_build_prompt_key.text = "[center]" + body + "[/center]"
+	_build_prompt_sub.text = sub
+
+
+func _hide_central_prompt() -> void:
+	if _build_prompt:
+		_build_prompt.visible = false
+
+
+# Scale-punch the prompt so each raised floor lands with a confirm beat.
+func _punch_central_prompt() -> void:
+	if _build_prompt_box == null:
+		return
+	await get_tree().process_frame
+	_build_prompt_box.pivot_offset = _build_prompt_box.size * 0.5
+	_build_prompt_box.scale = Vector2(1.18, 1.18)
+	create_tween().tween_property(_build_prompt_box, "scale", Vector2.ONE, 0.35) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 # Updates the arc objective line. Connected to GameDirector.phase_changed and

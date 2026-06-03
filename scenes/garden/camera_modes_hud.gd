@@ -73,6 +73,12 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	# The camera-mode buttons are dead while the controller owns the camera
+	# (construction + exterior walk) — hide them so they don't read as broken.
+	var owned: bool = bool(_gs.get("constructing")) or bool(_gs.get("exterior_walk"))
+	visible = not owned
+	if owned:
+		return
 	_refresh()
 
 

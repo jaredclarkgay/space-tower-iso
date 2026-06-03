@@ -457,12 +457,16 @@ const BOOT_TO_EXTERIOR := true
 # in an external dollhouse view, then occupies it. false = the whole tower is
 # present and the hire drops straight into the Garden (today's dev boot).
 const CONSTRUCT_FROM_EMPTY := true
-# Construction dollhouse camera + the rise-from-below build ceremony.
-const CONSTRUCT_CAM_SIZE_MIN := 18.0       # ortho size with just the foundation
-const CONSTRUCT_CAM_SIZE_PER_FLOOR := 5.0  # widen the view as the stack grows
-const CONSTRUCT_CAM_CENTER_LIFT := 1.5     # raise the framed centre a touch above mid-stack
+# Construction: the builder stands back on the site and watches the tower rise
+# floor-by-floor (B), then walks in. Grounded exterior framing centred on the
+# tower, widening as the stack grows.
+const CONSTRUCT_VIEW_BACK := 7.0           # m the builder stands beyond the -Z doorway to watch
+const CONSTRUCT_CAM_SIZE_MIN := 20.0       # ortho size with just the ground / first floor
+const CONSTRUCT_CAM_SIZE_PER_FLOOR := 4.0  # widen the view as the stack grows
+const CONSTRUCT_CAM_CENTER_LIFT := 2.5     # raise the framed centre above the mid-stack
 const CONSTRUCT_RISE_DROP := 4.5           # m a new floor rises from
 const CONSTRUCT_RISE_DUR := 0.6            # s for the rise-and-settle
+const CONSTRUCT_DESIGN_ASPECT := 1.7778    # 16:9 — framing widens below this so a narrow window never clips
 # Walk-in occupy: ground-floor doorways (one per side) + the exterior site ground.
 const DOOR_WIDTH := 3.0                     # m — doorway opening width (centred on each wall)
 const DOOR_HEIGHT := 3.0                    # m — doorway opening height (lintel above)
