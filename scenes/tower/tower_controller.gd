@@ -428,7 +428,7 @@ func _process(delta: float) -> void:
 	# framing; afterward it tracks the player at a fixed lift + size.
 	if _exterior_walk and _player:
 		var target_pos := Vector3(_player.global_position.x, float(_c.EXTERIOR_WALK_CAM_LIFT), _player.global_position.z)
-		var target_size := float(_c.EXTERIOR_WALK_CAM_SIZE)
+		var target_size := _aspect_fit(float(_c.EXTERIOR_WALK_CAM_SIZE))
 		if _cam_tween_t < 1.0:
 			_cam_tween_t = minf(_cam_tween_t + delta / float(_c.EXTERIOR_WALK_CAM_TWEEN_DUR), 1.0)
 			var e: float = smoothstep(0.0, 1.0, _cam_tween_t)
