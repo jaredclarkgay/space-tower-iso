@@ -96,7 +96,7 @@ func _ready() -> void:
 		var node: Node3D = get_node_or_null(NodePath(f.node))
 		if node == null:
 			continue
-		var base_y: float = float(int(f.level)) * story
+		var base_y: float = float(int(f.level) - int(_c.GROUND_LEVEL)) * story
 		node.position.y = base_y          # geometry (built local) rides up with the node
 		# Regular floors build their slab as a StaticBody3D named "SlabBody"
 		# (FloorChrome.build_slab). We toggle its collision per current floor so
@@ -278,7 +278,7 @@ func _build_next_floor() -> void:
 			break
 	if node == null:
 		return
-	var base_y: float = float(lvl) * float(_c.FLOOR_3D_STORY_HEIGHT)
+	var base_y: float = _base_y_for_level(lvl)
 	node.position.y = base_y - float(_c.CONSTRUCT_RISE_DROP)
 	var tw := create_tween()
 	tw.tween_property(node, "position:y", base_y, float(_c.CONSTRUCT_RISE_DUR)) \

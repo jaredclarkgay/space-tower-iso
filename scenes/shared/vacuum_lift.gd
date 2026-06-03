@@ -54,7 +54,7 @@ func _story() -> float:
 
 # Player-feet (slab-top) world Y for a floor level — matches the tower's spawn math.
 func _surface_y(level: int) -> float:
-	return float(level) * _story() + float(_c.FLOOR_3D_TOP_Y)
+	return float(level - int(_c.GROUND_LEVEL)) * _story() + float(_c.FLOOR_3D_TOP_Y)
 
 
 func _ready() -> void:
@@ -196,7 +196,7 @@ func _floor_node_for_level(level: int) -> Node:
 	var floors: Node = get_node_or_null(NodePath("../Floors"))
 	if floors == null:
 		return null
-	var want_y: float = float(level) * _story()
+	var want_y: float = float(level - int(_c.GROUND_LEVEL)) * _story()
 	for child in floors.get_children():
 		if child is Node3D and absf((child as Node3D).position.y - want_y) < 0.5:
 			return child

@@ -47,7 +47,7 @@ func _story() -> float:
 	return float(_c.FLOOR_3D_STORY_HEIGHT)
 
 func _floor_y(level: int) -> float:
-	return float(level) * _story()
+	return float(level - int(_c.GROUND_LEVEL)) * _story()
 
 
 func _ready() -> void:

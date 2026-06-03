@@ -33,6 +33,11 @@ const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
 const FLOOR_3D_SLAB_THICKNESS := 0.2
 const FLOOR_3D_STORY_HEIGHT := 6.0    # tall floors — room for trees to grow their canopy up onto the floor above
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
+# The floor that sits at WORLD y=0 (the exterior ground datum). The Garden
+# (level 1) is the ground floor; the Utility basement (level 0) drops below
+# grade. World height for a floor is (level - GROUND_LEVEL) * story, so the
+# site ground / empty lot (both at y=0) line up with the Garden with no offset.
+const GROUND_LEVEL := 1
 
 # --- Elevator core geometry ----------------------------------------------
 # Square footprint with the corners cut at 45° — chamfered into a regular
@@ -418,7 +423,7 @@ const CITY_REVEAL_LEVEL := 4           # show the cityscape from this floor up
 const CITY_RING_INNER := 48.0          # m — nearest buildings start out here
 const CITY_RING_OUTER := 95.0          # m — furthest buildings
 const CITY_RING_COUNT := 64            # number of buildings in the ring
-const CITY_GROUND_Y := -2.0            # world y of the city ground plane
+const CITY_GROUND_Y := -8.0            # world y of the city ground plane (one story below the at-grade Garden, GROUND_LEVEL re-anchor)
 const CITY_HEIGHT_MIN := 6.0
 const CITY_HEIGHT_MAX := 30.0          # shorter than the tower, so you look DOWN onto them
 const CITY_RNG_SEED := 20260601        # fixed so the skyline layout is stable across runs

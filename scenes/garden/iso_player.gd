@@ -719,7 +719,7 @@ func _physics_process(delta: float) -> void:
 		_last_ground_pos = global_position
 	elif not transit:
 		var max_drop: float = float(_c.FALL_CATCH_MAX_FLOORS) * float(_c.FLOOR_3D_STORY_HEIGHT)
-		var bottom_y: float = -float(_c.FLOOR_3D_STORY_HEIGHT)   # one story below Floor 1
+		var bottom_y: float = -float(int(_c.GROUND_LEVEL) + 1) * float(_c.FLOOR_3D_STORY_HEIGHT)   # one story below the basement (level 0)
 		if global_position.y < _last_ground_pos.y - max_drop or global_position.y < bottom_y:
 			global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
 			velocity = Vector3.ZERO
