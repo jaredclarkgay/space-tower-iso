@@ -1371,3 +1371,58 @@ circle it. Entry gate moved to `_cam_tween_t >= 1.0`.
 Verified (windowed): approach shot shows the player on the path with the tower rising above + the
 doorway; follow keeps the tower framed from other sides (cutaway from some angles — the accepted
 v1 look); walking into the footprint still drops into the Garden (BUILD_INTERIORS). Parse clean.
+
+## Session 14 — 2026-06-03 — Builder's-eye construction + ground-floor re-anchor (U-001)
+
+**Direction (operator):** the construct dollhouse "reads as the game froze." Through
+clarification the ask sharpened: B *did* work (keep pressing it); the real problems were
+no on-screen "press B" cue, the wrong viewpoint (the player wanted to STAND BACK as a
+visible builder and watch each floor come on), a door mismatch (exit doors on the
+basement, but you entered the Garden), and the basement showing at the start. North star:
+**continuity** + a **builder's-eye** view. Staged 1–4, each screenshot-verified, small
+commits.
+
+### Stage 1 — Re-anchor: the Garden IS the ground floor (`GROUND_LEVEL`)
+`Constants.GROUND_LEVEL := 1`. World-Y for a floor is now `(level - GROUND_LEVEL) * story`,
+so the Garden (1) sits at **y=0** and the Utility basement (0) drops to **y=-6** (below the
+site ground / empty lot, both already at y=0 — they line up with no offset). Updated the
+floor offset (tower_controller), the top-level transit nodes that *hardcoded* `level*story`
+(elevator `_floor_y`, vacuum_lift `_surface_y`/`_floor_node_for_level`), the player
+fall-backstop (one story below the basement), and lowered the cityscape a story. Pure
+coordinate shift. Verified (windowed harness): Garden y=0, basement y=-6, Roof y=30; vacuum
+hops 1<->2/1<->0 + elevator rides to 0/1/2/5 all land grounded — no fall-through (the
+historical risk class). Logged the datum in rules/stacked_tower_invariants.md #1.
+
+### Stage 2 — Door continuity (walk in through the Garden at grade)
+Doorways moved from the basement to the Garden. `iso_floor._build_one_wall` gained a
+`doored` path (new `_wall_seg` helper) mirroring FloorChrome's split — two base/glass/
+collision flanks around a centred gap + jambs/lintel, posts skipped in the gap — so the
+Garden keeps its windowed look but gains a walk-through per side. `utility` back to solid
+(below grade). Exterior walk: the player walks on the site ground (no floor slab forced
+solid). Verified: Garden walls 2 collision flanks (gap), basement 1 (solid); build ->
+exterior walk -> step into the footprint -> Garden at y=0, BUILD_INTERIORS, site hidden.
+
+### Stage 3 — Builder's-eye construction + big prompt + hide dead HUD
+`enter_construction` now REVEALS the builder, stands them back on the site
+(`CONSTRUCT_VIEW_BACK`) facing the build, frozen until top-out (no more empty dollhouse).
+`_frame_construction` is a grounded exterior framing centred on the tower, lifting toward
+the middle of the visible (above-grade) stack and widening as it grows; `_begin_exterior_walk`
+keeps the builder where they stand (no reposition jump) and just releases them. Big central
+CTA banner in tower_hud ("PRESS B TO RAISE YOUR TOWER / Floor N of 6", translucent, low on
+screen, scale-punch confirm per floor; "STEP INSIDE" on top-out; hidden in interior play).
+CameraModesHud hides itself while the controller owns the camera (constructing/exterior_walk)
+so the dead buttons stop reading as broken. Verified across foundation/mid-build/topped-out.
+
+### Stage 4 — Aspect-aware framing (resize hardening)
+`_aspect_fit` grows the ortho size when the viewport is narrower than 16:9 (KEEP_HEIGHT
+otherwise crops the sides) — preserves a fixed horizontal extent, recomputed every frame so
+a live resize tracks smoothly. Applied to construction + exterior-walk framing. Verified at
+540x960 portrait: the full tower stays framed (cam.size ~36 -> ~104), no clipping.
+
+### U-001 — DONE (Stages 1–4). Commits bdcd8f5, 642e41c, 3720414, 11315ea (not pushed).
+Open feel-tunes for later: the foundation shows the basement's elevator-shaft head poking
+through the ground (the only above-grade bit of the below-grade basement) — cosmetic; the
+builder reads small from the back vantage (CONSTRUCT_VIEW_BACK tunable); a fade on the
+doorway entry; the empty-lot opening beat still boots at its own datum (separate area, not
+touched). C-001 follow-ups (true shell/interior split, build cost, crane placement, partner
+on-site) still stand.

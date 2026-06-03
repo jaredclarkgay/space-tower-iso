@@ -19,8 +19,19 @@ sat at world y=0 is wrong once the floor is at y=6/12/18/24.
   subjects' own y (`(p1.y + p2.y)*0.5 + chest`).
 - Floors build their geometry in LOCAL space (slab top at local y=0); the tower
   sets `node.position.y`. So floor controllers / shared builders need ZERO
-  base-y awareness — keep it that way. If you need a world height, compute it
-  from `level*FLOOR_3D_STORY_HEIGHT (+ FLOOR_3D_TOP_Y)`, never a literal.
+  base-y awareness — keep it that way.
+- **World height for a floor is `(level - GROUND_LEVEL) * FLOOR_3D_STORY_HEIGHT`,
+  not `level * story`.** Session 14 re-anchored the tower so the Garden
+  (`GROUND_LEVEL = 1`) sits at world **y=0** and the Utility basement (level 0)
+  drops to y=-6 (below the site ground / empty lot, both at y=0). The top-level
+  transit nodes (`elevator_platform._floor_y`, `vacuum_lift._surface_y` /
+  `_floor_node_for_level`) and `tower_controller`'s floor offset all subtract
+  `GROUND_LEVEL` — they used to hardcode `level * story` (Floor 0 = y=0), the
+  exact "hardcoded world-Y" trap above. If you add a floor-Y computation, derive
+  it from `_base_y_for_level()` (controller) or `(level - GROUND_LEVEL) * story`,
+  never a bare `level * story`. The player fall-backstop is one story below the
+  basement (`-(GROUND_LEVEL+1) * story`). Verified: vacuum hops + elevator rides
+  to floors 0/1/2/5 all land solid post-anchor.
 
 ## 2. Transit-ownership: a system owns the player, and the tower must KEEP TRACKING.
 
