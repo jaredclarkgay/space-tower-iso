@@ -2,6 +2,10 @@
 .godot/
 /android/
 
+# Python bytecode (agent/analysis/ tooling)
+__pycache__/
+*.pyc
+
 # OS noise
 .DS_Store
 *.tmp
