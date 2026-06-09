@@ -22,6 +22,7 @@ extends Node3D
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
+@onready var _tel: Node = get_node_or_null("/root/Telemetry")
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 
@@ -148,6 +149,8 @@ func plant(plot_coord: Vector2i, seed_key: String) -> bool:
 	if plant_type.is_empty():
 		return false
 	_convert_empty_to_planted(plot, plant_type)
+	if _tel:
+		_tel.record("crop_planted", {"x": plot_coord.x, "y": plot_coord.y, "seed": seed_key})
 	return true
 
 
@@ -158,6 +161,8 @@ func harvest_plot(plot: Dictionary, with_feedback: bool = true) -> void:
 	# food_count actually moves in GameState.
 	if with_feedback:
 		_spawn_harvest_feedback(plot)
+	if _tel:
+		_tel.record("crop_harvested", {"by_player": with_feedback, "stage": int(plot.stage)})
 	plot.stage = 0
 	plot.time_in_stage = 0.0
 	_refresh_plot_visuals(plot)

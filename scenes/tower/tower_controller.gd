@@ -15,6 +15,7 @@ extends Node3D
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
+@onready var _tel: Node = get_node_or_null("/root/Telemetry")
 
 @export var player_path: NodePath
 @export var camera_pivot_path: NodePath
@@ -524,6 +525,8 @@ func _update(snap: bool) -> void:
 	if _hud and _hud.has_method("set_floor") and _current_level != _hud_level:
 		_hud_level = _current_level
 		_hud.set_floor(_current_level, _name_for_level(_current_level))
+		if _tel:
+			_tel.record("floor_reached", {"level": _current_level, "name": _name_for_level(_current_level)})
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself.
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):

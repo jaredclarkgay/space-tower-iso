@@ -835,3 +835,10 @@ const TREE_STAGE_NAMES := ["sapling", "young", "maturing", "mature"]
 const LABEL_BASE_PX_BIG := 0.014       # primary letter prompts (E, P)
 const LABEL_BASE_PX_MID := 0.014       # main label lines ("Travel to X", chooser items)
 const LABEL_BASE_PX_SMALL := 0.011     # hints like "[ESC] cancel"
+
+# --- Telemetry (session event stream → user://telemetry/*.jsonl) -----------
+# The Telemetry autoload records what HAPPENED during a session for an offline
+# analysis agent. Recording is cheap and the stream is the agent's whole input,
+# so it's ON by default. ECHO mirrors each event to the console for live dev.
+const TELEMETRY_ENABLED := true
+const TELEMETRY_ECHO := false

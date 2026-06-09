@@ -111,6 +111,9 @@ func _on_cta_input(event: InputEvent) -> void:
 func _on_name_input(event: InputEvent, nm: String) -> void:
 	if _is_left_click(event):
 		_gs.partner_name = nm
+		var _tel: Node = get_node_or_null("/root/Telemetry")
+		if _tel:
+			_tel.record("partner_hired", {"name": nm})
 		_gd.set_phase(_PHASE_BUILD_STRUCTURE)
 		var tower: Node = get_tree().get_first_node_in_group("tower_controller")
 		if tower and tower.has_method("begin_build_structure"):
