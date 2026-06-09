@@ -1,5 +1,11 @@
 # Space Tower Iso — Narrative-Arc Handoff (corrected)
 
+> **⚠️ SUPERSEDED (2026-06-08).** This was a one-time snapshot frozen at Session 9
+> (2026-06-01). It is now stale — e.g. it lists 4 autoloads, but `GameDirector`
+> and `TimeOfDay` shipped since, making 6. For current state use **`STATUS.md`**
+> (repo root); for the arc, trust `autoloads/game_director.gd`. Kept for the
+> historical reasoning in §C/§D only.
+
 **Purpose:** a single, code-verified snapshot for the planning session piecing together the game's full narrative arc in Godot. Checked against the actual files on 2026-06-01, end of Session 9.
 
 **Trust order when sources disagree:** code → `git log` → `agent/session_log.md` → `CLAUDE.md`. CLAUDE.md was re-audited + corrected this session (`72ee172`); if prose ever conflicts with code, the code wins.

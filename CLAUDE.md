@@ -16,6 +16,11 @@
 > separate-scene floors, a scene-swap elevator, or the OLD 1-indexed floor
 > numbers are historical** — trust `scenes/tower/`, the git log, and
 > `agent/session_log.md` for current truth.
+>
+> **Current state at a glance → `STATUS.md` (repo root).** This doc is durable
+> conventions; `STATUS.md` is the always-current snapshot, auto-refreshed by the
+> session-capture hook. Trust order: code → `git log` → `agent/session_log.md` →
+> `STATUS.md` → this file.
 
 ## What this repo is
 

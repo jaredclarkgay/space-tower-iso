@@ -57,9 +57,16 @@ Steps:
    - Confidence shifts in agent/competency_map.json (bump version + last_updated)
 4. Capture only what is NEW and NON-OBVIOUS. Skip routine bug fixes, formatting, dependency
    bumps, and anything derivable from reading the current code or git history.
-5. Stage just the agent/ files. Single 'chore(agent): capture session takeaways' commit.
-   Do NOT push — the operator pushes manually after review.
-6. Be terse. This runs unattended.
+5. Refresh STATUS.md (repo root) — the always-current human-readable snapshot. Re-derive it
+   from the CODE + git log (not from the old STATUS.md prose), keeping its existing section
+   shape: the one-liner, tech/shape, architecture, the floor table, the GameDirector.Phase
+   arc, 'What just shipped' (this session), the open question, and the two 'Next move'
+   sections (Playable / Agentic). Update the 'Last refreshed' line to today + the session.
+   Trust order is code > git log > session_log > STATUS.md; if prose disagrees with code,
+   rewrite the prose. Only change lines the work actually moved — don't churn the file.
+6. Stage the agent/ files AND STATUS.md. Single 'chore(agent): capture session takeaways'
+   commit. Do NOT push — the operator pushes manually after review.
+7. Be terse. This runs unattended.
 
 Transcript for reference: $TRANSCRIPT_PATH"
 
