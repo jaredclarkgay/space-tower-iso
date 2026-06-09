@@ -20,8 +20,12 @@ extends Node
 #         var _tel := get_node_or_null("/root/Telemetry"); if _tel: _tel.record(...)
 #     Sites stay ignorant of files/format; they just say what happened.
 #
-# FORMAT — JSON Lines (one JSON object per line) at
-#   user://telemetry/session_<timestamp>.jsonl
+# FORMAT — JSON Lines (one JSON object per line), one file per session:
+#   dev / from-source runs → res://_telemetry/session_<stamp>.jsonl — lives INSIDE
+#     the project, so the stream is readable everywhere the repo is (your Mac, a
+#     connected session) the instant a play session ends. The folder is gitignored.
+#   exported / web builds   → user://telemetry/session_<stamp>.jsonl — res:// is
+#     read-only there, so we fall back; web export stays intact. (See _resolve_dir.)
 # Append-friendly, crash-tolerant (each line flushed), trivially streamable by an
 # agent. Every record carries:
 #   seq    — monotonic counter within the session
@@ -33,8 +37,6 @@ extends Node
 #
 # Toggle via Constants.TELEMETRY_ENABLED (recording on/off) and
 # Constants.TELEMETRY_ECHO (mirror each event to the console for live dev).
-
-const DIR := "user://telemetry"
 
 var _file: FileAccess = null
 var _session_start_ms: int = 0
@@ -90,11 +92,21 @@ func _on_phase_changed(_p: int) -> void:
 
 
 func _open_session() -> void:
-	DirAccess.make_dir_recursive_absolute(DIR)
+	var dir: String = _resolve_dir()
+	DirAccess.make_dir_recursive_absolute(dir)
 	_session_start_ms = Time.get_ticks_msec()
 	var stamp: String = Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	var path: String = "%s/session_%s.jsonl" % [DIR, stamp]
+	var path: String = "%s/session_%s.jsonl" % [dir, stamp]
 	_file = FileAccess.open(path, FileAccess.WRITE)
+
+
+func _resolve_dir() -> String:
+	# Dev / from-source runs carry the "editor" feature: write INSIDE the project
+	# (res:// globalizes to the repo) so the stream is readable everywhere the repo
+	# is. Exported/web builds lack the feature and res:// is read-only there → user://.
+	if OS.has_feature("editor"):
+		return "res://_telemetry"
+	return "user://telemetry"
 
 
 func _phase_name() -> String:

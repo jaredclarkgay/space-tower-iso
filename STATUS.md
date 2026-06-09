@@ -84,11 +84,15 @@ visible builder who stands back and watches each floor rise, a big central
 "Press B" prompt with confirm beats, hid the dead camera buttons during build,
 and aspect-aware framing (narrow windows no longer clip the tower).
 
-**Since then (uncommitted):** added the `Telemetry` autoload — an append-only
-JSONL event stream (`user://telemetry/session_*.jsonl`) recording phase changes,
-partner hire, crop plant/harvest, and floor-reached, each timestamped from
-session start so "time-to-X" is a downstream delta. The data tap the analysis
-agent will read; gated by `Constants.TELEMETRY_ENABLED` / `TELEMETRY_ECHO`.
+**Since then:** added the `Telemetry` autoload — an append-only JSONL event
+stream recording phase changes, partner hire, crop plant/harvest, and
+floor-reached, each timestamped from session start so "time-to-X" is a
+downstream delta. Dev/from-source runs write into the repo's gitignored
+`_telemetry/` (readable everywhere the repo is); exported/web builds fall back
+to `user://`. Gated by `Constants.TELEMETRY_ENABLED` / `TELEMETRY_ECHO`. First
+lens on the stream: `agent/analysis/session_summary.py` (latest session →
+furthest phase, floors, crops, time-to-X; `--all` aggregates, `--json` for an
+agent).
 
 ## Biggest open question / next direction
 

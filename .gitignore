@@ -6,6 +6,10 @@
 __pycache__/
 *.pyc
 
+# Telemetry session stream — dev runs write here (read by agent/analysis/
+# session_summary.py). Play data, never committed.
+/_telemetry/
+
 # OS noise
 .DS_Store
 *.tmp

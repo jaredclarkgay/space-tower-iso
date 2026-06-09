@@ -45,7 +45,14 @@ PHASE_ORDER = [
     "TEMPORAL",
 ]
 
+# Repo root is two levels up from this file (agent/analysis/session_summary.py).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 DEFAULT_DIRS = [
+    # Dev runs write the stream into the repo itself — readable everywhere the
+    # repo is (your Mac, a connected session) with no copy. Checked first.
+    REPO_ROOT / "_telemetry",
+    # Exported/web builds (or a custom user dir) fall back to Godot's user://.
     Path.home() / "Library/Application Support/Godot/app_userdata/Space-Tower-Iso/telemetry",
     Path.home() / ".local/share/godot/app_userdata/Space-Tower-Iso/telemetry",
 ]
