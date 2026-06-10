@@ -268,18 +268,15 @@ func greet_on_entry() -> void:
 #  4. A big "ROOMBA MK1 / joined the team" banner fades in over the room.
 #  5. After the animation finishes, the state transitions to
 #     AWAITING_ACTIVATION and the player can press E to bring it online.
-func _begin_arrival() -> void:
-	_state = State.ENTERING
-	visible = true
-	rotation.y = 0.0
-
+# Cody's parking spot beside the elevator (floor-local). Snapped to the most
+# camera-facing cardinal face of the shaft so he emerges out of a clean side, not
+# the diagonal corner (which intersects the core). Factored out so both the legacy
+# in-place arrival AND the new elevator roll-out aim at the exact same spot.
+func _park_pos_local() -> Vector3:
 	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
-	# Park on the flat face of the elevator that's most camera-facing, so
-	# Cody isn't hidden behind the shaft AND emerges out of a clean side
-	# rather than the diagonal corner (which intersects the core's geometry).
 	# Camera world position relative to pivot is (sin(yaw), _, cos(yaw)) * d;
-	# we snap that direction to the dominant cardinal axis so Cody comes out
-	# along N/S/E/W. Auto-tracks the operator's CAMERA_YAW_DEG_INITIAL.
+	# snap that direction to the dominant cardinal axis so Cody comes out along
+	# N/S/E/W. Auto-tracks the operator's CAMERA_YAW_DEG_INITIAL.
 	var yaw_rad: float = deg_to_rad(_c.CAMERA_YAW_DEG_INITIAL)
 	var raw_dir := Vector3(sin(yaw_rad), 0.0, cos(yaw_rad))
 	var dir: Vector3
@@ -287,11 +284,19 @@ func _begin_arrival() -> void:
 		dir = Vector3(signf(raw_dir.x), 0.0, 0.0)
 	else:
 		dir = Vector3(0.0, 0.0, signf(raw_dir.z))
-	# 1.0 m clearance from the wall — Cody's chassis radius is ~0.34 m, so
-	# this leaves ~0.66 m visual breathing room and avoids any collision
-	# overlap with the StaticBody3D shaft.
+	# 1.0 m clearance from the wall — Cody's chassis radius is ~0.34 m, so this
+	# leaves ~0.66 m visual breathing room and avoids collision overlap with the
+	# StaticBody3D shaft.
 	var park_offset: float = elev_size * 0.5 + 1.0
-	var park_pos := Vector3(dir.x * park_offset, 0.05, dir.z * park_offset)
+	return Vector3(dir.x * park_offset, 0.05, dir.z * park_offset)
+
+
+func _begin_arrival() -> void:
+	_state = State.ENTERING
+	visible = true
+	rotation.y = 0.0
+
+	var park_pos := _park_pos_local()
 
 	# Rise IN PLACE at the parking spot, NOT up the central shaft. The unified
 	# tower now parks a physical elevator CAR in that shaft (elevator_platform),
@@ -332,6 +337,50 @@ func _finish_arrival() -> void:
 	# release it back to following the player.
 	var t := get_tree().create_timer(1.4)
 	t.timeout.connect(func(): _gs.set("camera_focus_active", false))
+
+
+# --- Cinematic emergence from the elevator (Step 3) ------------------------
+# The conductor (tower_controller) puppets this during Beat 3: Cody boards the
+# car in the basement, rides it up the shaft (conductor feeds his y each frame),
+# then rolls out to his park spot on his own tween. Unlike _begin_arrival (the
+# legacy in-place rise), the conductor owns the camera the whole time — these
+# methods never touch camera_focus_active.
+
+# Board the car at the shaft center, on top of the platform. The conductor keeps
+# updating his y as the car rises (cinematic_set_ride_y). No banner yet.
+func cinematic_board(car_top_world_y: float) -> void:
+	_state = State.ENTERING
+	visible = true
+	rotation.y = 0.0
+	# Floor-local == world here (the Garden sits at world y=0), so the car's
+	# world-Y is a valid local-Y. +0.05 lifts the wheels off the platform top.
+	position = Vector3(0.0, car_top_world_y + 0.05, 0.0)
+	if _spotlight:
+		_spotlight.light_energy = 4.0
+		_spotlight.visible = true
+
+# Called each frame during the car rise so Cody rides up at the shaft center.
+func cinematic_set_ride_y(world_y: float) -> void:
+	position = Vector3(0.0, world_y + 0.05, 0.0)
+
+# Roll out from the shaft center to the park spot along the floor, face the travel
+# direction, drop the banner, and finish into AWAITING_ACTIVATION on completion.
+func cinematic_roll_out() -> void:
+	var park := _park_pos_local()
+	# Face the roll-out direction (dome "front" is +Z; atan2(x,z) gives that yaw).
+	var travel := Vector3(park.x - position.x, 0.0, park.z - position.z)
+	if travel.length_squared() > 0.0001:
+		rotation.y = atan2(travel.x, travel.z)
+	_spawn_arrival_banner()
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	# Settle onto the floor as he rolls out (his ride y is a touch above the slab).
+	tween.tween_property(self, "position", park, float(_c.ARRIVAL_CINE_ROLLOUT_DUR))
+	tween.tween_callback(_finish_arrival)
+
+func is_emergence_done() -> bool:
+	return _state == State.AWAITING_ACTIVATION
 
 
 # Tall translucent emissive column at the elevator. Reads as a beam of

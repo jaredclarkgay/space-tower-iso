@@ -69,6 +69,17 @@ func _physics_process(delta: float) -> void:
 			_prompt_root.visible = false
 		_show_chooser(false)
 		return
+	# Arrival cinematic: the conductor puppets car_y + doors directly. Skip the
+	# normal state machine but still render the conductor's values (mirror the
+	# `constructing` skip above) and hide prompts/chooser.
+	if bool(_gs.get("arrival_cinematic")):
+		if _prompt_root:
+			_prompt_root.visible = false
+		_show_chooser(false)
+		_apply_car_y()
+		_apply_doors()
+		_apply_glow()
+		return
 	# Float the prompt stack a fixed height above the player (works whether the
 	# car is at their floor or being called from another). The "E" + label are
 	# small offsets around this anchor and the whole group scales as one (see
@@ -233,6 +244,44 @@ func _apply_glow() -> void:
 	var hot := Color(1.0, 0.78, 0.20)
 	_glow_mat.emission = base.lerp(hot, _glow_t)
 	_glow_mat.emission_energy_multiplier = lerpf(0.5, 4.0, _glow_t)
+
+
+# --- Cinematic puppet API (driven by the conductor during the arrival) ----
+# The conductor owns car_y + doors frame-by-frame while `arrival_cinematic` is set
+# (the _physics_process gate above skips the normal state machine). These are the
+# entry points it calls; the car starts in the basement with doors shut and rises
+# into the Garden as Cody rides up inside it.
+
+func cinematic_begin() -> void:
+	_car_y = _floor_y(0)        # basement (one floor below the Garden)
+	_door_open_t = 0.0
+	_glow_t = 0.0
+	_state = State.IDLE
+	_apply_car_y()
+	_apply_doors()
+	_apply_glow()
+
+func cinematic_set_car_y(y: float) -> void:
+	_car_y = y
+	_apply_car_y()
+
+func cinematic_set_doors(open_t: float) -> void:
+	_door_open_t = clampf(open_t, 0.0, 1.0)
+	_apply_doors()
+
+func cinematic_floor_y(level: int) -> float:
+	return _floor_y(level)
+
+func cinematic_car_y() -> float:
+	return _car_y
+
+func cinematic_door_t() -> float:
+	return _door_open_t
+
+func cinematic_end() -> void:
+	# Car is already at the Garden with doors open — the natural "just arrived"
+	# state. Nothing to undo; just make sure normal logic resumes cleanly.
+	_state = State.IDLE
 
 
 # --- Build ----------------------------------------------------------------

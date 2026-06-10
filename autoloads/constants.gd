@@ -511,8 +511,14 @@ const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
 const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
 const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
 const ARRIVAL_CINE_ORBIT_DEG := 125.0 # total eased sweep around the player (Beat 3)
-const ARRIVAL_CINE_ORBIT_DUR := 3.2   # seconds for the orbit sweep
+const ARRIVAL_CINE_ORBIT_DUR := 3.6   # seconds for the orbit sweep (covers the emergence: lead+rise+doors+rollout ≈ 3.35s)
 const ARRIVAL_CINE_ORBIT_DIR := -1.0  # +1 / -1 sweep direction (tune for best framing)
+# Cody-emerges-from-the-elevator sub-phasing (Step 3), driven concurrently with the
+# Beat-3 orbit by the conductor. Budget ≈ lead+rise+doors+rollout.
+const ARRIVAL_CINE_EMERGE_LEAD := 0.35   # orbit begins; car waits at the basement, doors shut
+const ARRIVAL_CINE_CAR_RISE_DUR := 1.3   # car (with Cody aboard) lerps basement→garden
+const ARRIVAL_CINE_DOOR_DUR := 0.6       # doors lower open once the car arrives
+const ARRIVAL_CINE_ROLLOUT_DUR := 1.1    # Cody rolls from the shaft center to his park spot
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

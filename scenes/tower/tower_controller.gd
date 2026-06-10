@@ -82,6 +82,12 @@ var _arrival_cine: bool = false
 var _arrival_beat: int = 0
 var _arrival_t: float = 0.0
 var _arrival_walk_started: bool = false   # first-tick guard for begin_scripted_walk
+# Beat-3 elevator-emergence sub-phasing (Step 3). The conductor puppets the
+# elevator car + Cody up the shaft, concurrently with the orbit sweep.
+var _emerge_started: bool = false         # one-shot Beat-3 entry guard
+var _emerge_rollout_started: bool = false # one-shot: roll-out fired
+var _emerge_basement_y: float = 0.0       # car_y at the basement (level 0)
+var _emerge_garden_y: float = 0.0         # car_y at the Garden (level 1)
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -192,6 +198,8 @@ func _begin_arrival_cinematic() -> void:
 	_arrival_beat = 1
 	_arrival_t = 0.0
 	_arrival_walk_started = false
+	_emerge_started = false
+	_emerge_rollout_started = false
 	_gs.set("arrival_cinematic", true)
 	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
 	_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
@@ -558,29 +566,83 @@ func _update_arrival_cinematic(delta: float) -> void:
 		# Hold at the mark, camera settled behind.
 		_apply_arrival_camera(0.0, 0.0)
 		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
-			# Fire Cody's arrival once, then orbit the camera around the player while it
-			# plays. TODO Step 3: replace greet_on_entry with the elevator-car emergence;
-			# Step 4: ease the camera hand-off back to iso_camera.
-			var cody: Node = get_node_or_null("Floors/Garden/IsoRobot")
-			if cody and cody.has_method("greet_on_entry"):
-				cody.greet_on_entry()
 			_arrival_beat = 3
 			_arrival_t = 0.0
 	elif _arrival_beat == 3:
 		# Orbit the camera around the player (elevator core stays composed in-frame),
-		# eased accel/decel, while Cody's in-place arrival plays.
+		# eased accel/decel, while Cody EMERGES from the elevator (car rises from the
+		# basement, doors open, Cody rolls out). The orbit + emergence run concurrently;
+		# the cinematic ends only once BOTH finish so Cody always settles first.
+		_update_emergence(delta)
 		var orbit_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_ORBIT_DUR), 0.0, 1.0)
 		var orbit_deg: float = smoothstep(0.0, 1.0, orbit_p) * float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
 		_apply_arrival_camera(0.0, orbit_deg)
-		if orbit_p >= 1.0:
-			# Orbit done — end the cinematic exactly as Beat 2 did before so iso_camera resumes.
+		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
+		if orbit_p >= 1.0 and emerge_done:
+			# Both the orbit and the emergence are complete — end the cinematic so
+			# iso_camera resumes. TODO Step 4: ease this hand-off.
 			_arrival_cine = false
 			_arrival_beat = 0
 			_gs.set("arrival_cinematic", false)
+			var elevator: Node = get_node_or_null("ElevatorPlatform")
+			if elevator and elevator.has_method("cinematic_end"):
+				elevator.call("cinematic_end")
 			if _player and _player.has_method("clear_scripted_walk"):
 				_player.call("clear_scripted_walk")
 			_hud_level = -1
 			_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes
+
+
+# Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
+# Sub-phased off the beat timer _arrival_t (reset to 0 on Beat-3 entry), running
+# CONCURRENTLY with the orbit sweep. Lead → rise → doors → roll-out.
+func _update_emergence(_delta: float) -> void:
+	var elevator: Node = get_node_or_null("ElevatorPlatform")
+	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	if elevator == null:
+		return
+	# One-shot entry: car to the basement (doors shut), Cody boards on top of it.
+	if not _emerge_started:
+		_emerge_started = true
+		_emerge_basement_y = float(elevator.call("cinematic_floor_y", 0))
+		_emerge_garden_y = float(elevator.call("cinematic_floor_y", 1))
+		elevator.call("cinematic_begin")
+		if robot and robot.has_method("cinematic_board"):
+			robot.call("cinematic_board", _emerge_basement_y)
+
+	var lead: float = float(_c.ARRIVAL_CINE_EMERGE_LEAD)
+	var rise_dur: float = float(_c.ARRIVAL_CINE_CAR_RISE_DUR)
+	var door_dur: float = float(_c.ARRIVAL_CINE_DOOR_DUR)
+	var t: float = _arrival_t
+
+	if t < lead:
+		# Lead: orbit begins; car waits at the basement, doors shut.
+		return
+	var rt: float = t - lead
+	if rt < rise_dur:
+		# Rise: lerp the car basement→garden; Cody rides up at the shaft center.
+		var p: float = clampf(rt / rise_dur, 0.0, 1.0)
+		var car_y: float = lerpf(_emerge_basement_y, _emerge_garden_y, smoothstep(0.0, 1.0, p))
+		elevator.call("cinematic_set_car_y", car_y)
+		if robot and robot.has_method("cinematic_set_ride_y"):
+			robot.call("cinematic_set_ride_y", car_y)
+		return
+	# Car has arrived at the Garden — pin it there.
+	elevator.call("cinematic_set_car_y", _emerge_garden_y)
+	var dt: float = rt - rise_dur
+	if dt < door_dur:
+		# Doors: lower them open; keep Cody riding at the (now stationary) car top.
+		elevator.call("cinematic_set_doors", clampf(dt / door_dur, 0.0, 1.0))
+		if robot and robot.has_method("cinematic_set_ride_y"):
+			robot.call("cinematic_set_ride_y", _emerge_garden_y)
+		return
+	# Doors fully open — roll Cody out (once). He owns his tween from here.
+	elevator.call("cinematic_set_doors", 1.0)
+	if not _emerge_rollout_started:
+		_emerge_rollout_started = true
+		if robot and robot.has_method("cinematic_roll_out"):
+			robot.call("cinematic_roll_out")
 
 
 # Place the behind-the-back follow camera. `lower_t` 0..1 interpolates the lift/back
