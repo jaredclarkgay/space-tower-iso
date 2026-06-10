@@ -144,6 +144,7 @@ update, so empty-session clears don't spam.
 |---|---|
 | `docs/vision.md` | **The north star — the "why" layer.** The Director-and-its-many-mouths principle, who Cody is (companion + primary mouth + theme), and the agentic↔playable convergence. Breaks design-decision ties. |
 | `docs/opening_sequence_spec.md` | Build brief for the opening sequence (meet Cody → utilities-first gate). Where the director→mouth channel is born. |
+| `docs/floor_population_spec.md` | Build brief for the reusable floor lifecycle (blank shell → lush, via component placement). Proven on the Garden first; the mechanic the opening sequence's gate unlocks. |
 | `docs/space-tower-project-knowledge-v3.md` | The canonical brief. Constants, design principles, faction vocab, floor signatures, the Reckoning. |
 | `docs/space-tower-mvp-spec-v2.md` | MVP scope for the full game (out of scope here, but anchors expectations). |
 | `docs/rgb-floor5-design-brief.md` | The RGB experience — describes what the slice must NOT erode. |

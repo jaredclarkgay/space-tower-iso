@@ -99,9 +99,16 @@ at the supported aspect ratios.
 **Step 5 — The payoff + gate lift.** When all six sources go active, the Garden
 powers up — lights/ambience warm in (the controller already eases per-floor mood;
 `tower_controller` environment drive) — `interiors_unlocked` flips true, and Cody
-delivers his confirming director line ("Power's flowing — now let's grow
-something"). Planting unlocks. *Verify:* activate utilities → return → Garden lit
-→ `P` now plants.
+delivers his confirming director line ("Power's flowing — now let's build this
+place out"). *Verify:* activate utilities → return → Garden lit → the gate is
+lifted.
+
+> **Hands off to the floor lifecycle here.** What the lifted gate unlocks is
+> **population**, not planting directly — the player now *places the Garden's
+> components* and the floor crosses to ALIVE, after which planting opens. That
+> mechanic lives in `docs/floor_population_spec.md`; this opener and that spec
+> share one barren-Garden start + one gate, so **build the barren Garden + gate
+> once** (here, Steps 1–2) and let the population spec layer on top.
 
 ## Telemetry (close the analysis loop on the new funnel)
 
