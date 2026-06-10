@@ -8,8 +8,8 @@
 > the present tense.** Use it to brief a fresh agent (or yourself) and to
 > generate prompts that are synced to a real baseline.
 >
-> **Last refreshed:** 2026-06-08 — end of Session 14 (`67a4a1d`) plus an
-> uncommitted telemetry pass. **Nothing pushed yet.**
+> **Last refreshed:** 2026-06-10 — end of Session 15 (`b148b5b`). **Nothing
+> pushed yet.**
 
 ## One-liner
 
@@ -75,24 +75,30 @@ Three traversal methods: multi-destination **elevator** (serves 0, 1, 2, 4, 5),
   are placeholder transitions, not real mechanics. The hire is a name only (no
   mechanical consequence). Save/load + audio are no-ops.
 
-## What just shipped (Session 14 — local only, not pushed)
+## What just shipped (Session 15 — local only, not pushed)
 
-Reworked the construction experience around continuity + a builder's-eye view:
-re-anchored so the Garden is literally the ground floor (basement dropped below
-grade), door continuity (you walk in at grade straight into the Garden), a
-visible builder who stands back and watches each floor rise, a big central
-"Press B" prompt with confirm beats, hid the dead camera buttons during build,
-and aspect-aware framing (narrow windows no longer clip the tower).
+**One persistent place you can enter, leave, and fall off of.** Retired the
+separate empty-lot datum — survey, hire, build, walk-in and walk-back-out now all
+happen on one `site_ground` plane at x=0 (no teleport, no ground swap). The
+ground reads through the Garden doorways from inside (no void), daylight blends
+in near the openings, and the doorway threshold is two-way. New **roof plunge**:
+step off the open roof → the camera follows, the body tumbles, lands on the dirt
+(fall-catch bypassed), knocked flat ~3 s with a swear bubble, then gets back up
+outside. **Containment + phantom-collision fixes:** upper-floor walls sealed with
+invisible collision (11 m) above the visible wall so a charged jump can't clear
+the perimeter; the site-ground collision is now a frame with the footprint cut
+out so the below-grade basement isn't ceilinged. Plus: canopy trees capped so
+crowns never poke through Floor 4; elevator shaft capped at wall height +
+chooser listed high-to-low; feathered ceiling-ping; extension-grid distance
+fade; Utility breaker prompt/arrows fixed to use world position (the basement
+rides at y=-6 after the Session-14 re-anchor).
 
-**Since then:** added the `Telemetry` autoload — an append-only JSONL event
-stream recording phase changes, partner hire, crop plant/harvest, and
-floor-reached, each timestamped from session start so "time-to-X" is a
-downstream delta. Dev/from-source runs write into the repo's gitignored
-`_telemetry/` (readable everywhere the repo is); exported/web builds fall back
-to `user://`. Gated by `Constants.TELEMETRY_ENABLED` / `TELEMETRY_ECHO`. First
-lens on the stream: `agent/analysis/session_summary.py` (latest session →
-furthest phase, floors, crops, time-to-X; `--all` aggregates, `--json` for an
-agent).
+**Earlier (Session 14 + telemetry):** re-anchored so the Garden is literally the
+ground floor (basement below grade), builder's-eye construction with a "Press B"
+prompt, aspect-aware framing. Added the `Telemetry` autoload — append-only JSONL
+event stream (phase changes, hire, plant/harvest, floor-reached, timestamped from
+session start), written to the gitignored `_telemetry/` on dev runs. First lens:
+`agent/analysis/session_summary.py`.
 
 ## Biggest open question / next direction
 

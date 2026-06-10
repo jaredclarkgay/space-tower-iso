@@ -321,6 +321,49 @@
         "scenes/floor_2/iso_player.gd",
         "scenes/tower/tower_controller.gd"
       ]
+    },
+    {
+      "id": "F-024",
+      "phase": "iteration",
+      "date": "2026-06-10",
+      "category": "godot_collision",
+      "summary": "The edge-fall safety net (F invariant #8: plunge then snap back to _last_ground_pos) swallowed the new INTENTIONAL roof plunge — stepping off the open roof either snapped you back to the roof or got caught after FALL_CATCH_MAX_FLOORS, so you could never fall to the dirt on purpose.",
+      "trigger": "Adding a 'step off the roof → tumble to the ground → knocked flat' beat to a world where every ungrounded off-edge drop was caught and rewound. A blanket safety net and a deliberate-fall feature are mutually exclusive unless the net learns the exception.",
+      "fix": "Gate the catch by an explicit roof-plunge predicate computed BEFORE the catch runs: not already falling AND outside the footprint (|x|>half or |z|>half) AND velocity.y<0 AND y above FLOOR_3D_TOP_Y+ROOF_FALL_MIN_HEIGHT (only the open roof is that high outside sealed walls). When it fires, set _roof_falling and skip the fall-catch block entirely for the rest of the descent; is_on_floor() then routes to _land_from_roof_fall() (stun + swear bubble) instead of refreshing _last_ground_pos. Sealed upper-floor walls (F-025) are what GUARANTEE 'high + outside' can only mean the roof.",
+      "rule_added": "rules/stacked_tower_invariants.md #8 (UPDATE: roof plunge is the sanctioned exception to edge-fall-returns; predicate gates it)",
+      "files_touched": [
+        "scenes/garden/iso_player.gd",
+        "autoloads/constants.gd"
+      ]
+    },
+    {
+      "id": "F-025",
+      "phase": "iteration",
+      "date": "2026-06-10",
+      "category": "godot_geometry_stacked",
+      "summary": "Two invisible-collision phantoms surfaced once floors stacked at real offsets. (a) A charged jump apexes ~9 m but the visible+collidable wall was only WALL_HEIGHT 5.2 m, so a jump cleared the perimeter and drifted out of an upper floor. (b) The site-ground collision was a SOLID slab spanning the whole lot at y=0 — but the basement sits a story BELOW at y=-6, so that slab was an invisible ground-CEILING capping the basement room from above.",
+      "trigger": "Containment playtest (jump out of an upper floor) + dropping into the below-grade basement after the GROUND_LEVEL re-anchor (Session 14) put Floor 0 under the site ground plane.",
+      "fix": "(a) build_walls gained seal/seal_height params: invisible collision rises to WALL_SEAL_HEIGHT (11 m) on sealed floors while the MESH stays WALL_HEIGHT. Opt OUT for the basement (underground) and doored grade floors (the Garden) where the tall box would bleed across the doorway opening; doored walls never seal. (b) site_ground collision is now a FRAME with the footprint cut out — four perimeter strips, hole over the footprint — so the exterior ground only exists OUTSIDE the building and the basement below isn't ceilinged. The footprint is floored by the Garden slab at grade instead.",
+      "rule_added": "rules/stacked_tower_invariants.md #9 (invisible collision that helps one floor becomes a phantom for its neighbour — height-cap walls, cut holes in ground planes)",
+      "files_touched": [
+        "scenes/shared/floor_chrome.gd",
+        "scenes/shared/site_ground.gd",
+        "autoloads/constants.gd"
+      ]
+    },
+    {
+      "id": "F-026",
+      "phase": "iteration",
+      "date": "2026-06-10",
+      "category": "godot_geometry_stacked",
+      "summary": "After the GROUND_LEVEL re-anchor (Session 14) dropped the basement to y=-6, the Utility master-breaker interaction prompt and the attention arrows sat at the wrong height — they were positioned from the breaker's LOCAL coordinates (assuming the floor at y=0), so the prompt floated where the floor used to be and E didn't register on the breaker.",
+      "trigger": "Re-anchoring a floor to a non-zero world offset while a HUD/3D overlay still derives positions from that floor's local space.",
+      "fix": "Position the prompt + arrows from the breaker's WORLD position (global_transform.origin / to_global), not its local offset, so they track the floor wherever it rides in the stack. Any local-space placement is a latent bug the moment its floor stops sitting at y=0.",
+      "rule_added": "none (consequence of GROUND_LEVEL re-anchor; lesson folded into invariant #1's world-vs-local note + session log)",
+      "files_touched": [
+        "scenes/utility/utility.gd",
+        "scenes/utility/utility_arrows_hud.gd"
+      ]
     }
   ]
 }

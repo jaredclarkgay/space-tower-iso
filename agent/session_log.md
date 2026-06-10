@@ -1426,3 +1426,61 @@ builder reads small from the back vantage (CONSTRUCT_VIEW_BACK tunable); a fade 
 doorway entry; the empty-lot opening beat still boots at its own datum (separate area, not
 touched). C-001 follow-ups (true shell/interior split, build cost, crane placement, partner
 on-site) still stand.
+
+## Session 15 — 2026-06-10 — One persistent place: enter, leave, fall off (continuity + roof plunge)
+
+**Direction (operator):** make it ONE believable site you can enter, leave, and
+fall off of — retire the separate empty-lot datum so survey → hire → build →
+walk-in → walk-back-out all happen on one ground plane at x=0 (no teleport / no
+ground swap), and reward stepping off the open roof with a real plunge. Shipped
+as one commit `b148b5b` (not pushed) after windowed-harness verification.
+
+### Continuity — one site, two-way threshold
+EmptyLot retired; everything plays on the single `site_ground` plane. The ground
+reads through the Garden doorways from inside (no void), daylight blends in near
+the openings, and the doorway threshold is two-way (walk back out). `site_ground`
+now exposes `set_paths_visible()` so the controller hides the doorway paths
+during the survey and shows them from the build onward (the plane itself is
+always present — that's the continuity).
+
+### Roof plunge (new beat, F-024)
+Step off the open roof → camera follows the fall, body tumbles head-over-heels
+(`ROOF_FALL_TUMBLE_SPEED`), lands on the dirt (fall-catch BYPASSED), knocked flat
+~3 s (`ROOF_FALL_HURT_DURATION`) with a billboarded `#$@%!` swear bubble, then
+eases groggily back upright. The blanket edge-fall safety net (invariant #8) had
+to learn this one exception: a predicate (`outside footprint AND velocity.y<0 AND
+y > FLOOR_3D_TOP_Y + ROOF_FALL_MIN_HEIGHT`) sets `_roof_falling` and skips the
+catch for the whole descent. New `_hurt_t` stun state in `iso_player`.
+
+### Containment + phantom-collision fixes (F-025)
+- **Walls seal.** Invisible collision rises to `WALL_SEAL_HEIGHT` (11 m) above
+  the 5.2 m visible wall so a ~9 m charged jump can't clear an upper-floor
+  perimeter (`build_walls(..., seal, seal_height)`). Opt out on the basement
+  (underground) + doored Garden (would bleed into the doorway). Basement sealed
+  only UP TO the Garden floor so it doesn't intrude on the Garden's doorways.
+- **Site ground is a frame.** Collision cut out over the footprint (4 perimeter
+  strips + hole) so the basement at y=-6 isn't ceilinged by an invisible exterior
+  ground plane; the footprint is floored by the Garden slab at grade.
+
+### Utility fixes (F-026 — fallout of the Session-14 GROUND_LEVEL re-anchor)
+Master-breaker prompt/interact + attention arrows now use the breaker's WORLD
+position (basement rides at y=-6) so the prompt sits on the breaker and E works —
+they were positioned from local coords assuming a y=0 floor. Entering the
+building triggers right at the footprint EDGE so you can't drop through the
+doorway gap.
+
+### Smaller polish
+- Canopy trees capped at `slab_y + 3` (`_resolve_height` `tall_max`) so even a
+  max-genome crown settles on the Canopy and never pokes up through Floor 4.
+- Elevator shaft capped at `WALL_HEIGHT` (was a full story) so it tops flush with
+  the walls instead of poking into the floor above (extends F-022); chooser lists
+  floors high-to-low (top on top, basement at the bottom).
+- Ceiling-ping radius 2.6→1.95 (0.75×) with feathered radial falloff; wall-bump
+  glow only when you jump above the wall trying to LEAVE; extension grid fades by
+  distance from the current floor (full → 10% over four floors).
+
+### DONE — commit b148b5b (not pushed). F-024/F-025/F-026 logged; invariants
+#9 (phantom collision) + #10 (world-vs-local on offset floors) + #8 roof-plunge
+exception added to `rules/stacked_tower_invariants.md`. Open: true shell/interior
+split + build economy still stand (C-001); cosmetic — basement elevator-shaft
+head still pokes through the lot at the foundation beat.

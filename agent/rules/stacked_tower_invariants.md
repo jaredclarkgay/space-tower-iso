@@ -118,6 +118,44 @@ a floor below first (dropping through the Canopy tree-hole apertures onto the
 Arboretum slab) land normally — the slab catches you before the threshold. Don't
 make this a short snap; the operator wants the fall to play.
 
+**Exception — the roof plunge (F-024).** Stepping off the OPEN roof is a
+sanctioned full fall to the dirt (no catch, no rewind). It's gated by a predicate
+checked BEFORE the catch: `not _roof_falling AND outside the footprint AND
+velocity.y<0 AND y > FLOOR_3D_TOP_Y + ROOF_FALL_MIN_HEIGHT`. Once it fires,
+`_roof_falling` skips the catch for the whole descent and `is_on_floor()` routes
+to the stun/swear-bubble landing. A blanket safety net and a deliberate fall are
+mutually exclusive — the net has to learn the one exception. This only works
+because of #9: sealed walls mean "high + outside the footprint" can ONLY be the
+roof.
+
+## 9. Invisible collision that helps one floor becomes a phantom for its neighbour.
+
+Once floors sit at real world offsets, any collider you add for one floor reaches
+into the space of another. Two cases bit us (F-025):
+- **Walls too SHORT.** A charged jump apexes ~9 m; the visible+collidable wall
+  was 5.2 m, so jumps cleared the perimeter and drifted out. Fix: raise the
+  *collision* box to `WALL_SEAL_HEIGHT` (11 m) while the *mesh* stays
+  `WALL_HEIGHT` (`build_walls(..., seal)`). But the tall box is itself a phantom
+  — opt OUT on the basement (underground) and on doored grade floors (it would
+  bleed across the doorway gap). Doored walls never seal.
+- **Ground plane too SOLID.** The site-ground collision spanned the whole lot at
+  y=0; the basement at y=-6 was then ceilinged by it from above. Fix: make the
+  ground collision a **frame with the footprint cut out** (perimeter strips +
+  hole) so the exterior ground only exists OUTSIDE the building; the footprint is
+  floored by the Garden slab at grade.
+
+Rule of thumb: when you place an invisible collider, ask what's directly *above*
+and *below* it in world space — not just on its own floor.
+
+## 10. World-space, not local, for anything pinned to an offset floor (F-026).
+
+`GROUND_LEVEL` (#1) means a floor's world Y is `(level − GROUND_LEVEL) × story`,
+so only the Garden sits at y=0. Any HUD prompt / attention arrow / 3D overlay
+positioned from a node's LOCAL offset silently breaks the moment its floor rides
+off-grade (the Utility breaker prompt floated a story high after the re-anchor).
+Derive overlay positions from the node's WORLD position (`global_transform.origin`
+/ `to_global`). Local-space placement is a latent bug waiting for a re-anchor.
+
 ## Verifying without a human
 
 Windowed physics harness (NOT `--headless`, which renders nothing): instance
