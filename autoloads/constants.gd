@@ -533,6 +533,22 @@ const ARRIVAL_CINE_EMERGE_FOCUS_DUR := 1.1
 # JOB 2 — Beat-4 resume ease: the conductor eases the camera from the cinematic
 # pose to iso's RESTING pose before releasing, killing the jump-cut hand-off.
 const ARRIVAL_CINE_RESUME_DUR := 1.1
+# --- Close-camera enhancements (3 asks) ---
+# ASK 1 — over-the-shoulder WALK-IN (Beat 1/2): much closer, lower, offset to one
+# side so we look PAST the character's shoulder as he walks toward the elevator.
+const ARRIVAL_CINE_OTS_BACK := 3.2       # camera distance behind the player (much closer than CAM_BACK)
+const ARRIVAL_CINE_OTS_LIFT := 1.9       # camera height above the player (lower than CAM_LIFT)
+const ARRIVAL_CINE_OTS_SHOULDER := 2.2   # lateral offset (behind-and-to-one-side, not dead-centre)
+const ARRIVAL_CINE_OTS_SIZE := 6.5       # tight ortho size so the figure reads LARGE
+const ARRIVAL_CINE_OTS_LOOK_AHEAD := 2.2 # aim the OTS look-at this far ahead of the player (opens the view ahead, pushes him to a frame edge)
+# ASK 2 — close orbit on the PAIR once Cody settles. Tighter than EMERGE_SIZE.
+const ARRIVAL_CINE_PAIR_SIZE := 9.5      # close framing for the player↔Cody pair (both read + breathing room)
+const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height so both bodies sit in the upper frame
+# ASK 3 — leisurely orbit around the pair while the conversation runs. Bounded to a
+# gentle ping-pong on the character side of the core (full circle would swing the
+# elevator core between camera and the pair).
+const ARRIVAL_CINE_CONVO_ORBIT_RATE := 16.0  # deg/sec phase rate (leisurely turn; ~22s per full ping-pong)
+const ARRIVAL_CINE_CONVO_ORBIT_AMP := 55.0  # arc swept off the settle yaw toward the front (keeps the pair framed in front of the core)
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

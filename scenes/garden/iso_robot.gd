@@ -60,6 +60,10 @@ var _spotlight: SpotLight3D
 # Slippy-style intro dialogue panel parked bottom-left of the screen while
 # Cody is awaiting activation. Dismissed on activation.
 var _arrival_dialogue: Control
+# Set by cinematic_roll_out so _finish_arrival skips the redundant "Activate me
+# with [E]" arrival panel — the arrival cinematic opens the real conversation
+# directly instead. The non-cinematic _begin_arrival path leaves this false.
+var _cinematic_into_dialogue: bool = false
 
 # Conversational dialogue panel — opens when the player presses E near
 # Cody. UI nodes built once on first open, then shown/hidden + repopulated.
@@ -331,6 +335,10 @@ func _begin_arrival() -> void:
 
 func _finish_arrival() -> void:
 	_state = State.AWAITING_ACTIVATION
+	# Cinematic path: the conductor opens the real conversation straight away, so
+	# skip the redundant "Activate me with [E]" arrival panel (and its camera hold).
+	if _cinematic_into_dialogue:
+		return
 	# Dialogue panel appears once Cody has settled in his parking spot.
 	_spawn_arrival_dialogue()
 	# Hold the camera on Cody a beat longer so the player reads the moment, then
@@ -366,6 +374,7 @@ func cinematic_set_ride_y(world_y: float) -> void:
 # Roll out from the shaft center to the park spot along the floor, face the travel
 # direction, drop the banner, and finish into AWAITING_ACTIVATION on completion.
 func cinematic_roll_out() -> void:
+	_cinematic_into_dialogue = true   # _finish_arrival skips the arrival panel; we open the real chat
 	var park := _park_pos_local()
 	# Face the roll-out direction (dome "front" is +Z; atan2(x,z) gives that yaw).
 	var travel := Vector3(park.x - position.x, 0.0, park.z - position.z)

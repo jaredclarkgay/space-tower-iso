@@ -96,6 +96,12 @@ var _arrival_focus_init: bool = false        # seeded on first Beat-3 frame
 # Beat-4 resume ease (JOB 2): before releasing, ease the conductor-owned camera
 # to iso's RESTING pose so iso_camera continues without a jump-cut. Captured at
 # Beat-4 entry; the ease runs over ARRIVAL_CINE_RESUME_DUR then clears the flag.
+# Beat-5 conversation orbit (ASK 3): after the emergence completes, the dialogue
+# auto-opens and a slow close orbit circles the player↔Cody pair until the player
+# ends the conversation; only then does Beat 4 (resume ease) run. _convo_opened is
+# the one-shot auto-open guard; _convo_yaw is the continuously-advancing orbit yaw.
+var _convo_opened: bool = false
+var _convo_yaw: float = 0.0
 var _resume_t: float = 0.0
 var _resume_started: bool = false
 var _resume_from_pivot: Vector3 = Vector3.ZERO
@@ -216,6 +222,8 @@ func _begin_arrival_cinematic() -> void:
 	_emerge_started = false
 	_emerge_rollout_started = false
 	_arrival_focus_init = false
+	_convo_opened = false
+	_convo_yaw = 0.0
 	_resume_started = false
 	_resume_t = 0.0
 	_gs.set("arrival_cinematic", true)
@@ -608,18 +616,70 @@ func _update_arrival_cinematic(delta: float) -> void:
 			_arrival_focus_init = true
 			_arrival_focus = pp
 		_arrival_focus = _arrival_focus.lerp(focus_target, 0.18)
-		var size_target: float = lerpf(13.0, float(_c.ARRIVAL_CINE_EMERGE_SIZE), fe)
+		# ASK 2: pull the orbit in CLOSE — ease toward the tight pair size so the car/
+		# Cody (and the nearby player) read big as they emerge, not survey-distant.
+		var size_target: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), fe)
 		_apply_arrival_camera(0.0, orbit_deg, _arrival_focus, size_target)
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
 		if orbit_p >= 1.0 and emerge_done:
-			# Both the orbit and the emergence are complete — hand to Beat 4, which eases
-			# the camera to iso's resting pose before releasing (JOB 2: no jump-cut).
-			_arrival_beat = 4
+			# ASK 3: the intro animation is complete — go STRAIGHT into the conversation.
+			# Auto-open Cody's dialogue (once) and hand to Beat 5, a slow close orbit
+			# around the pair that runs for as long as the player stays in the chat.
+			if robot and not _convo_opened and robot.has_method("open_dialogue"):
+				_convo_opened = true
+				robot.call("open_dialogue")
+			_convo_yaw = 0.0   # time accumulator for the conversation-orbit ping-pong (starts at the settle yaw)
+			_arrival_beat = 5
 			_arrival_t = 0.0
-			_resume_started = false
+	elif _arrival_beat == 5:
+		_update_conversation_orbit(delta)
 	elif _arrival_beat == 4:
 		_update_resume_ease(delta)
+
+
+# Beat 5 (ASK 3) — conversation orbit: the dialogue auto-opened at the end of Beat 3;
+# keep arrival_cinematic TRUE (player frozen, iso_camera bowed out, the robot's own
+# _input still drives the choices) and slowly circle the player↔Cody PAIR at the close
+# pair size for as long as the player stays in the chat. When they end it
+# (GameState.dialogue_open goes false), hand to Beat 4 (the existing resume ease).
+func _update_conversation_orbit(delta: float) -> void:
+	# Slow leisurely orbit around the pair midpoint. Bounded to the SOUTH hemisphere
+	# (where both characters sit IN FRONT of the elevator core) as a gentle ping-pong,
+	# so a long chat keeps circling the two of them without the core ever swinging
+	# between camera and the pair. _convo_yaw accumulates time; yaw is a sine of it.
+	_convo_yaw += delta
+	# Settle yaw the emergence landed on (where the pair is well framed in front of the
+	# core); swing a bounded arc OFF it toward the front (0°, more south = pair stays in
+	# front of the core), as a smooth (1−cos) ping-pong so a long chat keeps circling.
+	var settle: float = float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
+	var amp: float = float(_c.ARRIVAL_CINE_CONVO_ORBIT_AMP) * (-float(_c.ARRIVAL_CINE_ORBIT_DIR))
+	var phase: float = _convo_yaw * deg_to_rad(float(_c.ARRIVAL_CINE_CONVO_ORBIT_RATE))
+	var yaw: float = settle + amp * (1.0 - cos(phase)) * 0.5
+	var mid: Vector3 = _pair_midpoint()
+	if not _arrival_focus_init:
+		_arrival_focus_init = true
+		_arrival_focus = mid
+	_arrival_focus = _arrival_focus.lerp(mid, 0.18)
+	_apply_arrival_camera(0.0, yaw, _arrival_focus, float(_c.ARRIVAL_CINE_PAIR_SIZE))
+	# Exit once the conversation that auto-opened has been closed by the player.
+	if _convo_opened and not bool(_gs.get("dialogue_open")):
+		_arrival_beat = 4
+		_arrival_t = 0.0
+		_resume_started = false
+
+
+# World focus for the conversation orbit — the player↔Cody midpoint, lifted to torso
+# height so both bodies sit in the upper frame (clear of the bottom-left dialogue
+# panel). Falls back to the player if Cody isn't reachable.
+func _pair_midpoint() -> Vector3:
+	var pp: Vector3 = _player.global_position
+	var robot: Node3D = get_node_or_null("Floors/Garden/IsoRobot")
+	if robot == null:
+		return pp + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), 0.0)
+	var cp: Vector3 = robot.global_position
+	var mid := Vector3((pp.x + cp.x) * 0.5, pp.y, (pp.z + cp.z) * 0.5)
+	return mid + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), 0.0)
 
 
 # Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
@@ -752,23 +812,39 @@ func _update_resume_ease(delta: float) -> void:
 func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0, focus: Vector3 = Vector3.INF, size: float = -1.0) -> void:
 	if _pivot == null or _player == null:
 		return
-	var back: float = lerpf(float(_c.ARRIVAL_CINE_CAM_BACK), float(_c.ARRIVAL_CINE_CAM_BACK) * 1.6, lower_t)
-	var lift: float = lerpf(float(_c.ARRIVAL_CINE_CAM_LIFT), float(_c.ARRIVAL_CINE_CAM_LIFT) * 1.8, lower_t)
+	# Beat 1/2 (size < 0) is the close over-the-shoulder WALK-IN; Beat 3+ passes an
+	# explicit size for the orbit/pair framing and must stay a clean centred circle.
+	var ots: bool = size < 0.0
+	# OTS targets: much closer + lower than the old CAM_BACK/CAM_LIFT, lerped from a
+	# slightly higher/farther start (lower_t=1) down to the tight targets (lower_t=0).
+	var back_t: float = float(_c.ARRIVAL_CINE_OTS_BACK) if ots else float(_c.ARRIVAL_CINE_CAM_BACK)
+	var lift_t: float = float(_c.ARRIVAL_CINE_OTS_LIFT) if ots else float(_c.ARRIVAL_CINE_CAM_LIFT)
+	var back: float = lerpf(back_t, back_t * 1.6, lower_t)
+	var lift: float = lerpf(lift_t, lift_t * 1.8, lower_t)
+	# Lateral SHOULDER offset — present throughout the OTS walk-in (from half at the
+	# higher/farther start to full once settled) so we always look PAST one shoulder
+	# rather than dead-centre behind.
+	var shoulder: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), float(_c.ARRIVAL_CINE_OTS_SHOULDER) * 0.5, lower_t) if ots else 0.0
 	# Pivot at the focus (eased). Yaw the pivot to orbit the camera AROUND the focus —
-	# the camera sits at pivot-local (0, lift, -back) and looks at the focus, so rotating
-	# the pivot's Y sweeps that behind-the-back position in a clean circle.
+	# the camera sits at pivot-local (shoulder, lift, -back) and looks at the focus, so
+	# rotating the pivot's Y sweeps that behind-the-back position in a clean circle.
 	var target: Vector3 = _player.global_position if focus == Vector3.INF else focus
 	_pivot.global_position = _pivot.global_position.lerp(target, 0.2)
 	_pivot.rotation = Vector3(0.0, deg_to_rad(orbit_deg), 0.0)
 	if _camera:
-		# Camera south (-Z) of and above the pivot; look back at the focus from
-		# behind/above. He walks +Z (north), so south = behind his back.
-		_camera.position = Vector3(0.0, lift, -back)
-		_camera.look_at(_pivot.global_position + Vector3(0.0, 0.8, 0.0), Vector3.UP)
-		# Tight-ish ortho framing so the player reads big in frame (the iso default
-		# is much wider — that left the figure tiny in a survey-like shot).
-		_camera.size = lerpf(9.0, 13.0, lower_t) if size < 0.0 else size
-		_gs.camera.ortho_size = _camera.size
+		# Camera south (-Z) of and above the pivot, offset to one side for the OTS look;
+		# look back at the focus from behind/above. He walks +Z (north), so south = behind.
+		_camera.position = Vector3(shoulder, lift, -back)
+		# Look target. For the orbit/pair case, aim straight at the focus (clean circle).
+		# For the OTS walk-in, aim slightly AHEAD (where he walks) and toward the shoulder
+		# side so the character sits to one frame edge and the barren Garden + elevator
+		# ahead open up — a real over-the-shoulder framing, not dead-centre behind.
+		var look_local := Vector3(0.0, 0.8, 0.0)
+		if ots:
+			look_local = Vector3(shoulder * 0.45, 0.8, float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD))
+		_camera.look_at(_pivot.global_transform * look_local, Vector3.UP)
+		# Tight ortho framing so the figure reads LARGE (the iso default is far wider).
+		_camera.size = float(_c.ARRIVAL_CINE_OTS_SIZE) if ots else size
 		_gs.camera.ortho_size = _camera.size
 
 
