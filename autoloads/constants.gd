@@ -510,8 +510,8 @@ const ARRIVAL_CINE_CAM_BACK := 7.0    # camera distance BEHIND the player (south
 const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
 const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
 const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
-const ARRIVAL_CINE_ORBIT_DEG := 125.0 # total eased sweep around the player (Beat 3)
-const ARRIVAL_CINE_ORBIT_DUR := 3.6   # seconds for the orbit sweep (covers the emergence: lead+rise+doors+rollout ≈ 3.35s)
+const ARRIVAL_CINE_ORBIT_DEG := 130.0 # total eased sweep around the player (Beat 3); lands near the iso resting yaw (−135°) so the resume ease is short
+const ARRIVAL_CINE_ORBIT_DUR := 2.7   # orbit settles to its final angle BEFORE the roll-out finishes (rollout ends ≈3.35s), so Cody emerges at the stable hero angle rather than mid-sweep
 const ARRIVAL_CINE_ORBIT_DIR := -1.0  # +1 / -1 sweep direction (tune for best framing)
 # Cody-emerges-from-the-elevator sub-phasing (Step 3), driven concurrently with the
 # Beat-3 orbit by the conductor. Budget ≈ lead+rise+doors+rollout.
@@ -519,6 +519,20 @@ const ARRIVAL_CINE_EMERGE_LEAD := 0.35   # orbit begins; car waits at the baseme
 const ARRIVAL_CINE_CAR_RISE_DUR := 1.3   # car (with Cody aboard) lerps basement→garden
 const ARRIVAL_CINE_DOOR_DUR := 0.6       # doors lower open once the car arrives
 const ARRIVAL_CINE_ROLLOUT_DUR := 1.1    # Cody rolls from the shaft center to his park spot
+# Step 4 — the FEEL FINALE.
+# JOB 1: during Beat 3 the camera focus eases off the player toward the
+# player↔elevator-center midpoint so the emergence is hero-framed (not shoved to
+# the edge). 0 = stay on player, 1 = center fully on the elevator.
+const ARRIVAL_CINE_EMERGE_FOCUS_BIAS := 0.62
+# Ortho size eases toward this during the emergence so BOTH the player and the
+# emerging car/Cody fit (the behind/orbit size is ~9–13).
+const ARRIVAL_CINE_EMERGE_SIZE := 13.5
+# Seconds over which the focus + size bias ease in once Beat 3 starts (smooth, no
+# jump when the emergence begins).
+const ARRIVAL_CINE_EMERGE_FOCUS_DUR := 1.1
+# JOB 2 — Beat-4 resume ease: the conductor eases the camera from the cinematic
+# pose to iso's RESTING pose before releasing, killing the jump-cut hand-off.
+const ARRIVAL_CINE_RESUME_DUR := 1.1
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

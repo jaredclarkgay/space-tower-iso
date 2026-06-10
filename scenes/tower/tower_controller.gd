@@ -88,6 +88,21 @@ var _emerge_started: bool = false         # one-shot Beat-3 entry guard
 var _emerge_rollout_started: bool = false # one-shot: roll-out fired
 var _emerge_basement_y: float = 0.0       # car_y at the basement (level 0)
 var _emerge_garden_y: float = 0.0         # car_y at the Garden (level 1)
+# Beat-3 focus point (JOB 1): the camera look-at target eases from the player
+# toward lerp(player, elevator-center, FOCUS_BIAS) during the emergence so the
+# car/Cody roll-out is hero-framed instead of shoved to the frame edge.
+var _arrival_focus: Vector3 = Vector3.ZERO   # current eased look-at target
+var _arrival_focus_init: bool = false        # seeded on first Beat-3 frame
+# Beat-4 resume ease (JOB 2): before releasing, ease the conductor-owned camera
+# to iso's RESTING pose so iso_camera continues without a jump-cut. Captured at
+# Beat-4 entry; the ease runs over ARRIVAL_CINE_RESUME_DUR then clears the flag.
+var _resume_t: float = 0.0
+var _resume_started: bool = false
+var _resume_from_pivot: Vector3 = Vector3.ZERO
+var _resume_from_yaw: float = 0.0
+var _resume_from_cam_pos: Vector3 = Vector3.ZERO
+var _resume_from_cam_basis: Basis = Basis.IDENTITY
+var _resume_from_size: float = 0.0
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -200,6 +215,9 @@ func _begin_arrival_cinematic() -> void:
 	_arrival_walk_started = false
 	_emerge_started = false
 	_emerge_rollout_started = false
+	_arrival_focus_init = false
+	_resume_started = false
+	_resume_t = 0.0
 	_gs.set("arrival_cinematic", true)
 	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
 	_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
@@ -569,29 +587,39 @@ func _update_arrival_cinematic(delta: float) -> void:
 			_arrival_beat = 3
 			_arrival_t = 0.0
 	elif _arrival_beat == 3:
-		# Orbit the camera around the player (elevator core stays composed in-frame),
-		# eased accel/decel, while Cody EMERGES from the elevator (car rises from the
-		# basement, doors open, Cody rolls out). The orbit + emergence run concurrently;
-		# the cinematic ends only once BOTH finish so Cody always settles first.
+		# Orbit the camera (eased accel/decel) while Cody EMERGES from the elevator
+		# (car rises from the basement, doors open, Cody rolls out). The orbit +
+		# emergence run concurrently; Beat 3 ends only once BOTH finish so Cody always
+		# settles first. JOB 1: the camera focus eases off the player toward the
+		# player↔elevator-center midpoint during the emergence so the car/Cody roll-out
+		# is HERO-framed instead of shoved to the frame edge — and the ortho size widens
+		# so both the player and the emerging car fit.
 		_update_emergence(delta)
 		var orbit_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_ORBIT_DUR), 0.0, 1.0)
 		var orbit_deg: float = smoothstep(0.0, 1.0, orbit_p) * float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
-		_apply_arrival_camera(0.0, orbit_deg)
+		# Bias the look-at toward the elevator center (floor center == world (0,y,0)).
+		var pp: Vector3 = _player.global_position
+		var elev_center := Vector3(0.0, pp.y, 0.0)
+		var bias_full: Vector3 = pp.lerp(elev_center, float(_c.ARRIVAL_CINE_EMERGE_FOCUS_BIAS))
+		# Ease the bias in over EMERGE_FOCUS_DUR so the focus glides (no jump on entry).
+		var fe: float = smoothstep(0.0, 1.0, clampf(_arrival_t / float(_c.ARRIVAL_CINE_EMERGE_FOCUS_DUR), 0.0, 1.0))
+		var focus_target: Vector3 = pp.lerp(bias_full, fe)
+		if not _arrival_focus_init:
+			_arrival_focus_init = true
+			_arrival_focus = pp
+		_arrival_focus = _arrival_focus.lerp(focus_target, 0.18)
+		var size_target: float = lerpf(13.0, float(_c.ARRIVAL_CINE_EMERGE_SIZE), fe)
+		_apply_arrival_camera(0.0, orbit_deg, _arrival_focus, size_target)
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
 		if orbit_p >= 1.0 and emerge_done:
-			# Both the orbit and the emergence are complete — end the cinematic so
-			# iso_camera resumes. TODO Step 4: ease this hand-off.
-			_arrival_cine = false
-			_arrival_beat = 0
-			_gs.set("arrival_cinematic", false)
-			var elevator: Node = get_node_or_null("ElevatorPlatform")
-			if elevator and elevator.has_method("cinematic_end"):
-				elevator.call("cinematic_end")
-			if _player and _player.has_method("clear_scripted_walk"):
-				_player.call("clear_scripted_walk")
-			_hud_level = -1
-			_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes
+			# Both the orbit and the emergence are complete — hand to Beat 4, which eases
+			# the camera to iso's resting pose before releasing (JOB 2: no jump-cut).
+			_arrival_beat = 4
+			_arrival_t = 0.0
+			_resume_started = false
+	elif _arrival_beat == 4:
+		_update_resume_ease(delta)
 
 
 # Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
@@ -645,29 +673,102 @@ func _update_emergence(_delta: float) -> void:
 			robot.call("cinematic_roll_out")
 
 
+# Beat 4 (JOB 2) — resume ease: the conductor still owns the camera here. Capture
+# the cinematic pose once, derive iso's RESTING pose (the exact pivot pose +
+# Camera3D local transform iso_camera will adopt the frame after we clear the
+# flag), then smoothstep the live camera from cinematic→iso over RESUME_DUR. Only
+# when the ease COMPLETES do we clear arrival_cinematic, so iso_camera picks up
+# from the identical transform — no jump-cut. The player stays frozen until then.
+func _update_resume_ease(delta: float) -> void:
+	if _pivot == null or _camera == null:
+		return
+	if not _resume_started:
+		_resume_started = true
+		_resume_t = 0.0
+		_resume_from_pivot = _pivot.global_position
+		_resume_from_yaw = _pivot.rotation.y
+		_resume_from_cam_pos = _camera.position
+		_resume_from_cam_basis = _camera.transform.basis
+		_resume_from_size = _camera.size
+
+	# --- iso RESTING-pose target (mirrors iso_camera._ready/_apply_orbit + the
+	#     tower's per-floor pivot.y) so the hand-off lands on the EXACT pose
+	#     iso_camera will hold (zero free-look offset) the next frame. ---
+	# pivot.global_position: iso anchors XZ at the player and Y at the floor chest.
+	var pp: Vector3 = _player.global_position
+	var iso_pivot_y: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
+	var iso_pivot := Vector3(pp.x, iso_pivot_y, pp.z)
+	# pivot yaw: iso's initial heading.
+	var iso_yaw: float = deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))
+	# Camera3D local transform: iso places it at (0, d·sin|θ|, d·cos|θ|) with a -θ X
+	# tilt (replicating _ready / _apply_orbit at zero free-look offset).
+	var tilt_rad: float = deg_to_rad(abs(float(_c.CAMERA_TILT_DEG)))
+	var d: float = float(_c.CAMERA_DISTANCE)
+	var iso_cam_pos := Vector3(0.0, d * sin(tilt_rad), d * cos(tilt_rad))
+	var iso_cam_basis := Basis.from_euler(Vector3(deg_to_rad(float(_c.CAMERA_TILT_DEG)), 0.0, 0.0))
+	var iso_size: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
+
+	_resume_t += delta
+	var e: float = smoothstep(0.0, 1.0, clampf(_resume_t / float(_c.ARRIVAL_CINE_RESUME_DUR), 0.0, 1.0))
+
+	# Ease the live camera cinematic→iso. Pivot global pos + yaw, Camera3D local
+	# position + orientation (slerp the basis), and ortho size.
+	_pivot.global_position = _resume_from_pivot.lerp(iso_pivot, e)
+	var yaw_diff: float = wrapf(iso_yaw - _resume_from_yaw + PI, 0.0, TAU) - PI
+	_pivot.rotation = Vector3(0.0, _resume_from_yaw + yaw_diff * e, 0.0)
+	_camera.position = _resume_from_cam_pos.lerp(iso_cam_pos, e)
+	_camera.transform.basis = _resume_from_cam_basis.slerp(iso_cam_basis, e)
+	_camera.size = lerpf(_resume_from_size, iso_size, e)
+	_gs.camera.ortho_size = _camera.size
+
+	if _resume_t >= float(_c.ARRIVAL_CINE_RESUME_DUR):
+		# Snap to the exact iso pose (kill any residual ease error), then release.
+		_pivot.global_position = iso_pivot
+		_pivot.rotation = Vector3(0.0, iso_yaw, 0.0)
+		_camera.position = iso_cam_pos
+		_camera.transform.basis = iso_cam_basis
+		_camera.size = iso_size
+		_gs.camera.ortho_size = iso_size
+		_arrival_cine = false
+		_arrival_beat = 0
+		_gs.set("arrival_cinematic", false)
+		var elevator: Node = get_node_or_null("ElevatorPlatform")
+		if elevator and elevator.has_method("cinematic_end"):
+			elevator.call("cinematic_end")
+		if _player and _player.has_method("clear_scripted_walk"):
+			_player.call("clear_scripted_walk")
+		_hud_level = -1
+		_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes seamlessly
+
+
 # Place the behind-the-back follow camera. `lower_t` 0..1 interpolates the lift/back
 # from a higher/farther start (lower_t=1) down to the targets (lower_t=0) so the
-# camera drops in behind the player. iso_camera bows out while arrival_cinematic is
-# set, so this owns BOTH the pivot and the Camera3D's local transform each frame.
-func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0) -> void:
+# camera drops in behind the player. `focus` is the world point the pivot eases to
+# (the camera looks at it); during Beat 3 this biases off the player toward the
+# elevator center so the emergence is hero-framed (JOB 1). `size` overrides the
+# default behind/orbit ortho width (-1 = use the lower_t-driven default).
+# iso_camera bows out while arrival_cinematic is set, so this owns BOTH the pivot
+# and the Camera3D's local transform each frame.
+func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0, focus: Vector3 = Vector3.INF, size: float = -1.0) -> void:
 	if _pivot == null or _player == null:
 		return
 	var back: float = lerpf(float(_c.ARRIVAL_CINE_CAM_BACK), float(_c.ARRIVAL_CINE_CAM_BACK) * 1.6, lower_t)
 	var lift: float = lerpf(float(_c.ARRIVAL_CINE_CAM_LIFT), float(_c.ARRIVAL_CINE_CAM_LIFT) * 1.8, lower_t)
-	# Pivot at the player (eased). Yaw the pivot to orbit the camera AROUND the player —
-	# the camera sits at pivot-local (0, lift, -back) and looks at the player, so rotating
+	# Pivot at the focus (eased). Yaw the pivot to orbit the camera AROUND the focus —
+	# the camera sits at pivot-local (0, lift, -back) and looks at the focus, so rotating
 	# the pivot's Y sweeps that behind-the-back position in a clean circle.
-	var pp: Vector3 = _player.global_position
-	_pivot.global_position = _pivot.global_position.lerp(pp, 0.2)
+	var target: Vector3 = _player.global_position if focus == Vector3.INF else focus
+	_pivot.global_position = _pivot.global_position.lerp(target, 0.2)
 	_pivot.rotation = Vector3(0.0, deg_to_rad(orbit_deg), 0.0)
 	if _camera:
-		# Camera south (-Z) of and above the player; look back at the player from
+		# Camera south (-Z) of and above the pivot; look back at the focus from
 		# behind/above. He walks +Z (north), so south = behind his back.
 		_camera.position = Vector3(0.0, lift, -back)
 		_camera.look_at(_pivot.global_position + Vector3(0.0, 0.8, 0.0), Vector3.UP)
 		# Tight-ish ortho framing so the player reads big in frame (the iso default
 		# is much wider — that left the figure tiny in a survey-like shot).
-		_camera.size = lerpf(9.0, 13.0, lower_t)
+		_camera.size = lerpf(9.0, 13.0, lower_t) if size < 0.0 else size
+		_gs.camera.ortho_size = _camera.size
 		_gs.camera.ortho_size = _camera.size
 
 
