@@ -510,6 +510,9 @@ const ARRIVAL_CINE_CAM_BACK := 7.0    # camera distance BEHIND the player (south
 const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
 const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
 const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
+const ARRIVAL_CINE_ORBIT_DEG := 125.0 # total eased sweep around the player (Beat 3)
+const ARRIVAL_CINE_ORBIT_DUR := 3.2   # seconds for the orbit sweep
+const ARRIVAL_CINE_ORBIT_DIR := -1.0  # +1 / -1 sweep direction (tune for best framing)
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.

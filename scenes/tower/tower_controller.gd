@@ -533,9 +533,10 @@ func _exit_building() -> void:
 	_update(true)
 
 
-# Arrival cinematic driver (Beats 1-2). Beat 1: scripted walk in from the doorway to
-# the mark while the camera lowers in behind the player. Beat 2: a short stop-hold,
-# then hand off to Cody's in-place arrival and end the cinematic so iso_camera resumes.
+# Arrival cinematic driver (Beats 1-3). Beat 1: scripted walk in from the doorway to
+# the mark while the camera lowers in behind the player. Beat 2: a short stop-hold.
+# Beat 3: fire Cody's arrival, then orbit the camera around the player; on completion
+# end the cinematic so iso_camera resumes.
 func _update_arrival_cinematic(delta: float) -> void:
 	_arrival_t += delta
 	if _arrival_beat == 1:
@@ -549,20 +550,30 @@ func _update_arrival_cinematic(delta: float) -> void:
 		# Lower the camera in behind the back over CAM_LOWER_DUR (lift/back start higher
 		# + farther, ease to the targets). lower_t = 1 at the start, 0 at the targets.
 		var lower_t: float = clampf(1.0 - _arrival_t / float(_c.ARRIVAL_CINE_CAM_LOWER_DUR), 0.0, 1.0)
-		_apply_arrival_camera(lower_t)
+		_apply_arrival_camera(lower_t, 0.0)
 		if _player and _player.has_method("is_scripted_walk_done") and _player.call("is_scripted_walk_done"):
 			_arrival_beat = 2
 			_arrival_t = 0.0
 	elif _arrival_beat == 2:
 		# Hold at the mark, camera settled behind.
-		_apply_arrival_camera(0.0)
+		_apply_arrival_camera(0.0, 0.0)
 		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
-			# TODO Step 2/3: replace this hand-off with the camera ORBIT + Cody's
-			# elevator-car emergence. For now Cody does his existing in-place arrival
-			# and we end the cinematic here so iso_camera retakes the camera.
+			# Fire Cody's arrival once, then orbit the camera around the player while it
+			# plays. TODO Step 3: replace greet_on_entry with the elevator-car emergence;
+			# Step 4: ease the camera hand-off back to iso_camera.
 			var cody: Node = get_node_or_null("Floors/Garden/IsoRobot")
 			if cody and cody.has_method("greet_on_entry"):
 				cody.greet_on_entry()
+			_arrival_beat = 3
+			_arrival_t = 0.0
+	elif _arrival_beat == 3:
+		# Orbit the camera around the player (elevator core stays composed in-frame),
+		# eased accel/decel, while Cody's in-place arrival plays.
+		var orbit_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_ORBIT_DUR), 0.0, 1.0)
+		var orbit_deg: float = smoothstep(0.0, 1.0, orbit_p) * float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
+		_apply_arrival_camera(0.0, orbit_deg)
+		if orbit_p >= 1.0:
+			# Orbit done — end the cinematic exactly as Beat 2 did before so iso_camera resumes.
 			_arrival_cine = false
 			_arrival_beat = 0
 			_gs.set("arrival_cinematic", false)
@@ -576,16 +587,17 @@ func _update_arrival_cinematic(delta: float) -> void:
 # from a higher/farther start (lower_t=1) down to the targets (lower_t=0) so the
 # camera drops in behind the player. iso_camera bows out while arrival_cinematic is
 # set, so this owns BOTH the pivot and the Camera3D's local transform each frame.
-func _apply_arrival_camera(lower_t: float) -> void:
+func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0) -> void:
 	if _pivot == null or _player == null:
 		return
 	var back: float = lerpf(float(_c.ARRIVAL_CINE_CAM_BACK), float(_c.ARRIVAL_CINE_CAM_BACK) * 1.6, lower_t)
 	var lift: float = lerpf(float(_c.ARRIVAL_CINE_CAM_LIFT), float(_c.ARRIVAL_CINE_CAM_LIFT) * 1.8, lower_t)
-	# Pivot at the player (eased), no rotation — the camera's own local transform
-	# carries the behind/above framing.
+	# Pivot at the player (eased). Yaw the pivot to orbit the camera AROUND the player —
+	# the camera sits at pivot-local (0, lift, -back) and looks at the player, so rotating
+	# the pivot's Y sweeps that behind-the-back position in a clean circle.
 	var pp: Vector3 = _player.global_position
 	_pivot.global_position = _pivot.global_position.lerp(pp, 0.2)
-	_pivot.rotation = Vector3.ZERO
+	_pivot.rotation = Vector3(0.0, deg_to_rad(orbit_deg), 0.0)
 	if _camera:
 		# Camera south (-Z) of and above the player; look back at the player from
 		# behind/above. He walks +Z (north), so south = behind his back.
