@@ -102,7 +102,10 @@ func _ready() -> void:
 	# Slab + walls + extension grid — same construction the Garden uses, so
 	# Floor 1 reads as the same building viewed one story down.
 	FloorChrome.build_slab(self, _c)
-	FloorChrome.build_walls(self, _c)   # basement (below grade): solid walls — walk-in moved to the Garden (GROUND_LEVEL)
+	# Basement: seal the walls UP TO the Garden floor (one story) so you can't drift
+	# out, but no higher — a full seal would bleed into the Garden's doorways above.
+	# The Garden's own walls continue the seal from there.
+	FloorChrome.build_walls(self, _c, false, true, _c.FLOOR_3D_STORY_HEIGHT)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	# Corner vacuum tubes — Floor 1 is the bottom of the served stack; its tubes
@@ -781,7 +784,9 @@ func _update_breaker_prompt() -> void:
 	if _player == null:
 		_breaker_prompt_root.visible = false
 		return
-	var d: float = (_player.global_position - _c.MASTER_BREAKER_POSITION).length()
+	# MASTER_BREAKER_POSITION is LOCAL to this floor (which rides at world y=-6 as
+	# the below-grade basement), so compare against its WORLD position.
+	var d: float = (_player.global_position - to_global(_c.MASTER_BREAKER_POSITION)).length()
 	_breaker_prompt_root.visible = d <= _c.MASTER_BREAKER_INTERACT_RADIUS
 
 
@@ -829,7 +834,10 @@ func _check_master_breaker_interact() -> void:
 	if _player == null:
 		return
 	var pos: Vector3 = _player.global_position
-	var d: float = (pos - _c.MASTER_BREAKER_POSITION).length()
+	# Compare against the breaker's WORLD position — its constant is local to this
+	# floor, which sits at world y=-6 (below-grade basement). Comparing against the
+	# raw local position put the breaker ~6 m out of reach, so E never fired.
+	var d: float = (pos - to_global(_c.MASTER_BREAKER_POSITION)).length()
 	if d > _c.MASTER_BREAKER_INTERACT_RADIUS:
 		return
 	if Input.is_action_just_pressed(&"interact"):

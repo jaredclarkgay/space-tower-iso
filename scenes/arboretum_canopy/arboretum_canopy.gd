@@ -22,6 +22,24 @@ extends Node3D
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 
+# Ceiling-bonk glow: a radial Gaussian falloff so the impact reads as a soft
+# feathered halo, not a hard-edged disc. `intensity` (0..1) drives both the alpha
+# and the emissive punch; the falloff fades to ~0 by the quad edge (circular).
+const CEILING_PING_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_never;
+uniform vec3 glow_color : source_color = vec3(0.8, 0.86, 0.92);
+uniform float intensity = 0.0;
+void fragment() {
+	float d = length(UV - vec2(0.5)) * 2.0;          // 0 center -> 1 at the edge midpoint
+	float a = exp(-d * d * 3.5);                       // soft Gaussian bell
+	a *= 1.0 - smoothstep(0.7, 1.0, d);               // guarantee 0 by the quad edge
+	ALBEDO = glow_color;
+	EMISSION = glow_color * mix(0.4, 2.0, clamp(intensity, 0.0, 1.0));
+	ALPHA = clamp(a, 0.0, 1.0) * clamp(intensity, 0.0, 1.0);
+}
+"""
+
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -39,7 +57,7 @@ var _tiles_node: Node3D
 # Localized "you bonked the ceiling here" glass glow — a disc moved to the hit
 # point and faded by the tower (only a radius around the impact lights up).
 var _ceiling_ping: MeshInstance3D
-var _ceiling_ping_mat: StandardMaterial3D
+var _ceiling_ping_mat: ShaderMaterial
 # Aperture rings — only shown from the floor directly below (aim targets) or on
 # the Canopy itself; hidden from further down so they don't float overhead.
 var _rings_node: Node3D
@@ -95,25 +113,27 @@ func set_ceiling_ping(world_pos: Vector3, intensity: float) -> void:
 	var lp: Vector3 = to_local(world_pos)
 	_ceiling_ping.position = Vector3(lp.x, -0.04, lp.z)
 	_ceiling_ping.visible = true
-	var glass: Color = _c.FLOOR_4_GLASS_COLOR
-	_ceiling_ping_mat.albedo_color = Color(glass.r, glass.g, glass.b, clampf(intensity, 0.0, 1.0))
-	_ceiling_ping_mat.emission_energy_multiplier = lerpf(0.4, 2.0, intensity)
-	var s: float = lerpf(0.7, 1.0, intensity)
+	_ceiling_ping_mat.set_shader_parameter("intensity", clampf(intensity, 0.0, 1.0))
+	var s: float = lerpf(0.85, 1.0, intensity)
 	_ceiling_ping.scale = Vector3(s, 1.0, s)
 
 
 func _build_ceiling_ping() -> void:
 	_ceiling_ping = MeshInstance3D.new()
 	_ceiling_ping.name = "CeilingPing"
-	var disc := CylinderMesh.new()
-	disc.top_radius = float(_c.FLOOR_4_CEILING_PING_RADIUS)
-	disc.bottom_radius = float(_c.FLOOR_4_CEILING_PING_RADIUS)
-	disc.height = 0.03
-	_ceiling_ping.mesh = disc
-	_ceiling_ping_mat = StandardMaterial3D.new()
-	_ceiling_ping_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_ceiling_ping_mat.emission_enabled = true
-	_ceiling_ping_mat.emission = _c.FLOOR_4_GLASS_COLOR
+	# A flat quad carrying the radial-falloff shader (XZ plane, faces up toward the
+	# iso camera). Sized to the ping radius; the shader feathers within it.
+	var r: float = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(r * 2.0, r * 2.0)
+	_ceiling_ping.mesh = quad
+	var sh := Shader.new()
+	sh.code = CEILING_PING_SHADER
+	_ceiling_ping_mat = ShaderMaterial.new()
+	_ceiling_ping_mat.shader = sh
+	var glass: Color = _c.FLOOR_4_GLASS_COLOR
+	_ceiling_ping_mat.set_shader_parameter("glow_color", Vector3(glass.r, glass.g, glass.b))
+	_ceiling_ping_mat.set_shader_parameter("intensity", 0.0)
 	_ceiling_ping.material_override = _ceiling_ping_mat
 	_ceiling_ping.visible = false
 	add_child(_ceiling_ping)

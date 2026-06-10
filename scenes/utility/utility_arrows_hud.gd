@@ -50,9 +50,11 @@ func _draw() -> void:
 	var t: float = Time.get_ticks_msec() / 1000.0
 	var bob: float = sin(t * 2.4) * 4.5
 
-	# Master breaker — PULL when off, hidden after.
+	# Master breaker — PULL when off, hidden after. The system positions are LOCAL
+	# to the floor (which rides at world y=-6 as the basement), so project their
+	# WORLD positions or the arrow floats a whole story above the real target.
 	if not _floor._master_on:
-		var br_pos: Vector3 = _c.MASTER_BREAKER_POSITION + Vector3(0, 1.7, 0)
+		var br_pos: Vector3 = _floor.to_global(_c.MASTER_BREAKER_POSITION + Vector3(0, 1.7, 0))
 		if not _player_in_range(_c.MASTER_BREAKER_POSITION, _c.MASTER_BREAKER_INTERACT_RADIUS):
 			_draw_arrow(br_pos, "PULL", 1.4, bob)
 
@@ -66,7 +68,7 @@ func _draw() -> void:
 		var active: bool = bool(_gs.utility.pipe_active.get(id, false))
 		if active:
 			continue
-		var pos: Vector3 = sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.55, 0)
+		var pos: Vector3 = _floor.to_global(sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.55, 0))
 		if _player_in_range(sys.position, _c.SOURCE_INTERACT_RADIUS):
 			continue
 		var label: String = "ACTIVATE" if connected else "CONNECT"

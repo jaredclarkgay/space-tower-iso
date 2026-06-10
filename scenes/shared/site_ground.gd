@@ -8,6 +8,8 @@ extends Node3D
 
 @onready var _c: Node = get_node("/root/Constants")
 
+var _paths: Array[MeshInstance3D] = []   # the doorway path strips, toggled by the controller
+
 
 func _ready() -> void:
 	var size: float = float(_c.SITE_GROUND_SIZE)
@@ -24,17 +26,27 @@ func _ready() -> void:
 	ground.material_override = mat
 	add_child(ground)
 
+	# Collision is a FRAME with the tower footprint cut out: the exterior ground
+	# only exists outside the building. The footprint itself is floored by the
+	# Garden slab at grade — and leaving the hole open means the basement (which
+	# sits a story BELOW this plane) isn't capped by an invisible ground-ceiling
+	# when you jump down there.
 	var body := StaticBody3D.new()
 	body.name = "SiteGroundBody"
 	body.collision_layer = 2
 	body.collision_mask = 0
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(size, 0.4, size)
-	shape.shape = box
-	body.add_child(shape)
 	body.position = Vector3(0.0, -0.2, 0.0)   # top face flush with y=0
 	add_child(body)
+	var site_half: float = size * 0.5
+	var hole: float = float(_c.FLOOR_3D_SIZE) * 0.5   # footprint half — flush with the Garden slab edge
+	var strip_w: float = site_half - hole             # strip width from footprint edge to site edge
+	if strip_w > 0.01:
+		var mid: float = (hole + site_half) * 0.5
+		# +X / -X strips run the full depth; +Z / -Z strips fill the central gap.
+		_add_coll_strip(body, Vector3(strip_w, 0.4, size), Vector3(mid, 0.0, 0.0))
+		_add_coll_strip(body, Vector3(strip_w, 0.4, size), Vector3(-mid, 0.0, 0.0))
+		_add_coll_strip(body, Vector3(2.0 * hole, 0.4, strip_w), Vector3(0.0, 0.0, mid))
+		_add_coll_strip(body, Vector3(2.0 * hole, 0.4, strip_w), Vector3(0.0, 0.0, -mid))
 
 	# A path strip running out from each doorway (the four wall midpoints).
 	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
@@ -56,3 +68,22 @@ func _ready() -> void:
 		strip.material_override = path_mat
 		strip.position = Vector3(0.0, 0.02, out) if along_x else Vector3(out, 0.02, 0.0)
 		add_child(strip)
+		_paths.append(strip)
+
+
+# The doorway paths only make sense once there are doorways to lead from. The
+# controller hides them during the empty-lot survey and shows them from the build
+# onward. (The ground plane itself is always present — that's the continuity.)
+func set_paths_visible(v: bool) -> void:
+	for p in _paths:
+		p.visible = v
+
+
+# One collision strip of the perimeter frame (local-space box at the given size + center).
+func _add_coll_strip(body: StaticBody3D, box_size: Vector3, center: Vector3) -> void:
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = box_size
+	shape.shape = box
+	shape.position = center
+	body.add_child(shape)

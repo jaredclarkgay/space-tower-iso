@@ -54,6 +54,11 @@ const ELEVATOR_DOOR_OPEN_DURATION := 0.35  # seconds — both directions
 
 # Walls — perimeter framing with translucent window panels.
 const WALL_HEIGHT := 5.2    # scaled with the doubled story height so walls/elevator keep their proportions
+# Invisible collision reaches higher than the visible wall so a charged jump
+# (~9 m apex) can't clear the perimeter and drift out of an upper floor. Visible
+# walls stay WALL_HEIGHT; only the collision box is this tall. (Floors above share
+# the same perimeter, so the extra height overlaps their walls — never a phantom.)
+const WALL_SEAL_HEIGHT := 11.0
 const WALL_BASE_HEIGHT := 0.6
 const WALL_THICKNESS := 0.3
 const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
@@ -65,6 +70,12 @@ const PLAYER_FALL_RESPAWN_Y := -3.0   # below Floor 1 (the bottom floor sits at 
 # tower, up to 5 floors. Falls that land on a floor below first (e.g. through the
 # Canopy tree-hole apertures down to the Arboretum) are NOT caught.
 const FALL_CATCH_MAX_FLOORS := 5
+# Roof jump-off: stepping off the open roof edge lets you plunge all the way to
+# the ground (the fall-catch is bypassed), tumbling on the way down, then you hit
+# the dirt and are knocked flat for this long before getting back up.
+const ROOF_FALL_HURT_DURATION := 3.0    # s knocked-down on landing
+const ROOF_FALL_TUMBLE_SPEED := 8.5     # rad/s the body spins while plunging
+const ROOF_FALL_MIN_HEIGHT := 9.0       # m above grade an off-edge fall must start to count as a roof plunge
 
 # --- Camera (3D orthographic) ---
 const CAMERA_TILT_DEG := -30.0          # X rotation: looks down at the floor
@@ -779,7 +790,7 @@ const FLOOR_4_RING_ALPHA := 0.28                             # rings always fain
 const FLOOR_4_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 4
 const FLOOR_4_CEILING_PULSE_ALPHA := 0.45                    # peak slab glass when you hit the ceiling from below
 const FLOOR_4_CEILING_PULSE_DECAY := 2.5                     # per-second fade of the bonk pulse
-const FLOOR_4_CEILING_PING_RADIUS := 2.6                     # m — radius of the localized glass glow where you bonk the ceiling
+const FLOOR_4_CEILING_PING_RADIUS := 1.95                    # m — radius of the localized glass glow where you bonk the ceiling (0.75× the old 2.6; feathered radial falloff)
 
 # --- Arboretum trees -------------------------------------------------------
 # Trees plant on Floor 3 edge plots and grow continuously over

@@ -61,6 +61,12 @@ var constructing := false
 # bows out) so the whole tower reads; the player is FREE to move. Cleared on entry.
 var exterior_walk := false
 
+# True while the player is plunging off the open roof to the ground. The
+# tower_controller reveals the whole tower + site ground and chases the camera
+# down; the fall-catch is bypassed so it lands instead of respawning. Cleared on
+# impact (which kicks off the knocked-down stun).
+var roof_falling := false
+
 # Number of times the player has manually harvested a plant. Drives the
 # Cody-arrival threshold and the Schematics-button reveal — count, not
 # value, so the unlock pace is steady regardless of which crops the

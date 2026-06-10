@@ -131,6 +131,11 @@ var _is_flipping := false   # true between a charged takeoff and the next landin
 var _flip_airtime_expected := 0.0   # seconds — set on takeoff
 var _flip_airtime_elapsed := 0.0    # seconds — accumulated each airborne frame
 
+# Roof jump-off: plunging off the open roof edge to the ground, then knocked flat.
+var _roof_falling := false          # true while plummeting outside the tower
+var _hurt_t := 0.0                  # seconds of knocked-down stun remaining after impact
+var _tumble := 0.0                  # accumulated tumble spin (rad) while falling
+
 # Harvest state. The player roots in place, scales down to a kneel, and
 # fills a horizontal green bar. Movement input or releasing E cancels.
 var _is_harvesting := false
@@ -296,6 +301,25 @@ func _physics_process(delta: float) -> void:
 		# the look angle in GameState.look_view_*).
 		if looking_out and _gs:
 			_apply_lookout_pose(delta)
+		return
+
+	# Knocked flat after a roof plunge: no control, the body lies crumpled on the
+	# dirt, a swear bubble overhead, then eases back upright as the stun runs out.
+	if _hurt_t > 0.0:
+		_hurt_t = maxf(0.0, _hurt_t - delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		velocity.y = 0.0 if is_on_floor() else (velocity.y - _c.PLAYER_GRAVITY * delta)
+		move_and_slide()
+		if _prompt_root:
+			_prompt_root.visible = false
+		_apply_hurt_pose(delta)
+		if _hurt_t <= 0.0 and _flip_pivot:
+			_flip_pivot.rotation = Vector3.ZERO   # back on your feet
+			_tumble = 0.0
+		_last_ground_pos = global_position
+		if _gs:
+			_gs.player.iso_pos = global_position
 		return
 
 	# When standing in a corner tube mouth, jump is reserved for the vacuum hop
@@ -536,6 +560,12 @@ func _physics_process(delta: float) -> void:
 		_is_flipping = false
 		_flip_pivot.rotation.x = 0.0
 		_flip_airtime_elapsed = 0.0
+	# Tumble while plunging off the roof — a flailing head-over-heels spin with a
+	# little roll, distinct from the controlled tuck-flip.
+	if _roof_falling and _flip_pivot:
+		_tumble += float(_c.ROOF_FALL_TUMBLE_SPEED) * delta
+		_flip_pivot.rotation.x = _tumble
+		_flip_pivot.rotation.z = sin(_tumble * 0.5) * 0.4
 
 	# Remember the airborne vertical speed so the NEXT frame's just_landed can
 	# read the impact velocity (move_and_slide zeroes it on contact).
@@ -716,13 +746,24 @@ func _physics_process(delta: float) -> void:
 	# caught. Legit vertical travel (tube hop / elevator ride) is exempt.
 	var transit: bool = bool(_gs.get("riding_elevator")) or bool(_gs.get("tube_hopping")) if _gs else false
 	if is_on_floor() and not transit:
+		if _roof_falling:
+			_land_from_roof_fall()
 		_last_ground_pos = global_position
 	elif not transit:
-		var max_drop: float = float(_c.FALL_CATCH_MAX_FLOORS) * float(_c.FLOOR_3D_STORY_HEIGHT)
-		var bottom_y: float = -float(int(_c.GROUND_LEVEL) + 1) * float(_c.FLOOR_3D_STORY_HEIGHT)   # one story below the basement (level 0)
-		if global_position.y < _last_ground_pos.y - max_drop or global_position.y < bottom_y:
-			global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
-			velocity = Vector3.ZERO
+		# Off the open roof edge, high up, dropping → a roof plunge: let it fall the
+		# whole way to the dirt (skip the catch) and tumble. Sealed upper-floor walls
+		# mean the only way off the edge this high is the roof.
+		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+		var outside: bool = absf(global_position.x) > half or absf(global_position.z) > half
+		if not _roof_falling and outside and velocity.y < 0.0 \
+				and global_position.y > float(_c.FLOOR_3D_TOP_Y) + float(_c.ROOF_FALL_MIN_HEIGHT):
+			_begin_roof_fall()
+		if not _roof_falling:
+			var max_drop: float = float(_c.FALL_CATCH_MAX_FLOORS) * float(_c.FLOOR_3D_STORY_HEIGHT)
+			var bottom_y: float = -float(int(_c.GROUND_LEVEL) + 1) * float(_c.FLOOR_3D_STORY_HEIGHT)   # one story below the basement (level 0)
+			if global_position.y < _last_ground_pos.y - max_drop or global_position.y < bottom_y:
+				global_position = _last_ground_pos + Vector3(0.0, 0.05, 0.0)
+				velocity = Vector3.ZERO
 
 	# Deep backstop for true out-of-bounds clipping (should never normally fire).
 	if global_position.y < -100.0:
@@ -1138,6 +1179,56 @@ func _update_backpack_visual(delta: float) -> void:
 
 # Red "BACKPACK FULL" floater above the head when E is pressed on a plot
 # but the pack is already at capacity. Cooldown gates rapid re-spawns.
+# --- Roof plunge ---------------------------------------------------------
+
+func _begin_roof_fall() -> void:
+	_roof_falling = true
+	_tumble = 0.0
+	_is_flipping = false
+	if _gs:
+		_gs.set("roof_falling", true)
+
+
+func _land_from_roof_fall() -> void:
+	_roof_falling = false
+	if _gs:
+		_gs.set("roof_falling", false)
+	_hurt_t = float(_c.ROOF_FALL_HURT_DURATION)
+	velocity = Vector3.ZERO
+	_spawn_swear_bubble()
+
+
+# Crumpled on the dirt: tip the body over, then ease it upright through the final
+# stretch of the stun so the recovery reads as groggily getting back up.
+func _apply_hurt_pose(delta: float) -> void:
+	var frac: float = _hurt_t / float(_c.ROOF_FALL_HURT_DURATION)   # 1 at impact → 0 at recovery
+	var lie: float = smoothstep(0.0, 0.4, frac)                     # flat while down, rises in the last 40%
+	if _flip_pivot:
+		_flip_pivot.rotation.x = lerp_angle(_flip_pivot.rotation.x, lie * (PI * 0.46), 10.0 * delta)
+		_flip_pivot.rotation.z = lerp_angle(_flip_pivot.rotation.z, lie * 0.22, 10.0 * delta)
+
+
+# A little comic swear above the head when you hit the ground. Pops up, holds for
+# the stun, then fades.
+func _spawn_swear_bubble() -> void:
+	var label := Label3D.new()
+	label.text = "#$@%!"
+	label.font_size = 66
+	label.outline_size = 12
+	label.modulate = Color(1.0, 0.86, 0.28, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+	label.pixel_size = 0.012
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.position = Vector3(0.0, 1.7, 0.0)
+	add_child(label)
+	var tween := create_tween()
+	tween.tween_property(label, ^"position:y", 2.2, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(maxf(0.2, float(_c.ROOF_FALL_HURT_DURATION) - 0.9))
+	tween.tween_property(label, ^"modulate:a", 0.0, 0.5)
+	tween.finished.connect(label.queue_free)
+
+
 func _spawn_backpack_full_floater() -> void:
 	if _backpack_full_floater_cooldown > 0.0:
 		return

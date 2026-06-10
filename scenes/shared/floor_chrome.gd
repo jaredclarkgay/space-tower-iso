@@ -105,13 +105,17 @@ static func _add_slab_piece(body: StaticBody3D, mat: Material, size: Vector3, po
 # Builds 4 perimeter walls. Each wall: low solid base + collision spanning
 # full height + vertical posts at WALL_POST_SPACING + thin top trim +
 # translucent glass spanning the gap between base and trim.
-static func build_walls(parent: Node3D, c: Node, doorways: bool = false) -> void:
+# `seal` raises the (invisible) collision to WALL_SEAL_HEIGHT so the player can't
+# clear the wall with a charged jump. Leave it off for the basement (underground,
+# no fall-out) and grade floors with doorways (the Garden), where it would bleed
+# into the doorway opening above. Doored walls never seal (they have an opening).
+static func build_walls(parent: Node3D, c: Node, doorways: bool = false, seal: bool = true, seal_height: float = 0.0) -> void:
 	var half: float = c.FLOOR_3D_SIZE * 0.5
 	for side in ["+x", "-x", "+z", "-z"]:
 		if doorways:
 			_build_one_wall_doored(parent, c, side, half)
 		else:
-			_build_one_wall(parent, c, side, half)
+			_build_one_wall(parent, c, side, half, seal, seal_height)
 
 
 # One wall piece (mesh, collision, or both). `a` is the centre offset ALONG the
@@ -264,12 +268,14 @@ static func build_extension_grid(parent: Node3D, c: Node) -> void:
 static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	var size: float = float(c.ELEVATOR_RADIUS) * 2.0 * c.GARDEN_PLOT_SIZE
 	var chamfer: float = c.ELEVATOR_CHAMFER
-	# One story tall so each floor's core TILES seamlessly into a single
-	# continuous shaft in the stacked tower. (It used to be WALL_HEIGHT *
-	# ELEVATOR_HEIGHT_MULT ≈ 7.5 m — taller than the 6 m story — so the core
-	# poked ~1.5 m up into the floor above and its cap landed at head height;
-	# the player's hat clipped it when standing on the car. See F-022.)
-	var height: float = float(c.FLOOR_3D_STORY_HEIGHT)
+	# Capped at WALL_HEIGHT so the core tops out flush with the perimeter walls
+	# instead of poking above them. The top-down iso view hides the floor above,
+	# so anything taller than the walls (the old full-STORY core) reads as a shaft
+	# "floating into the floor above." The <1 m gap below the next floor's slab
+	# tucks under that slab when the tower is stacked, so the shaft still reads as
+	# continuous. (It used to be STORY = 6 m — see F-022 — and before that
+	# WALL_HEIGHT × ELEVATOR_HEIGHT_MULT ≈ 7.5 m, which clipped the player's hat.)
+	var height: float = float(c.WALL_HEIGHT)
 	var side_length: float = size - 2.0 * chamfer
 
 	var body := StaticBody3D.new()
@@ -496,7 +502,7 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 
 # --- Internal --------------------------------------------------------------
 
-static func _build_one_wall(parent: Node3D, c: Node, side: String, half: float) -> void:
+static func _build_one_wall(parent: Node3D, c: Node, side: String, half: float, seal: bool = true, seal_height: float = 0.0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Wall_" + side
 	parent.add_child(body)
@@ -504,6 +510,10 @@ static func _build_one_wall(parent: Node3D, c: Node, side: String, half: float) 
 	var perp_pos: float = half if side in ["+x", "+z"] else -half
 	var length: float = c.FLOOR_3D_SIZE
 	var thick: float = c.WALL_THICKNESS
+	# Collision can reach higher than the visible wall so a jump can't clear it.
+	# An explicit seal_height caps it (e.g. the basement tops out at the floor
+	# above, not into its doorways).
+	var coll_h: float = seal_height if seal_height > 0.0 else (float(c.WALL_SEAL_HEIGHT) if seal else float(c.WALL_HEIGHT))
 
 	var base := MeshInstance3D.new()
 	base.name = "Base"
@@ -526,13 +536,13 @@ static func _build_one_wall(parent: Node3D, c: Node, side: String, half: float) 
 	var col := CollisionShape3D.new()
 	var col_shape := BoxShape3D.new()
 	if wall_along_x:
-		col_shape.size = Vector3(length, c.WALL_HEIGHT, thick)
+		col_shape.size = Vector3(length, coll_h, thick)
 	else:
-		col_shape.size = Vector3(thick, c.WALL_HEIGHT, length)
+		col_shape.size = Vector3(thick, coll_h, length)
 	col.shape = col_shape
 	col.position = Vector3(
 		0.0 if wall_along_x else perp_pos,
-		c.WALL_HEIGHT * 0.5,
+		coll_h * 0.5,
 		perp_pos if wall_along_x else 0.0,
 	)
 	body.add_child(col)

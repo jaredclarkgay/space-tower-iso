@@ -76,8 +76,33 @@ var _pulse_level: int = 0       # last level the camera-arrival pulse saw
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
 var _bonk_pos: Vector3 = Vector3.ZERO
+# Same idea for walls: a feathered glow flashes on the wall surface where the
+# player bumps it (the invisible seal you hit jumping at the perimeter).
+var _wall_pulse: float = 0.0
+var _wall_bump_pos: Vector3 = Vector3.ZERO
+var _wall_bump_normal: Vector3 = Vector3.FORWARD
+var _wall_glow: MeshInstance3D
+var _wall_glow_mat: ShaderMaterial
+# Radial feather, like the ceiling ping — a soft halo on the wall, zero by the edge.
+const _WALL_BUMP_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_never;
+uniform vec3 glow_color : source_color = vec3(0.80, 0.86, 0.92);
+uniform float intensity = 0.0;
+void fragment() {
+	float d = length(UV - vec2(0.5)) * 2.0;
+	float a = exp(-d * d * 3.5);
+	a *= 1.0 - smoothstep(0.7, 1.0, d);
+	ALBEDO = glow_color;
+	EMISSION = glow_color * mix(0.4, 2.0, clamp(intensity, 0.0, 1.0));
+	ALPHA = clamp(a, 0.0, 1.0) * clamp(intensity, 0.0, 1.0);
+}
+"""
 # Half a story — how far below a floor's surface still reveals it (set in _ready).
 var _reveal_margin: float = 3.0
+# Cache key for the extension-grid fade so it only recomputes when the current
+# floor (or world mode) changes, not every frame.
+var _grid_key: int = -999
 
 
 func _ready() -> void:
@@ -106,7 +131,9 @@ func _ready() -> void:
 		# found here, so its collision is left permanently on — the one glass
 		# ceiling you can bonk (3 → 4).
 		var slab: StaticBody3D = _find_slab_body(node)
-		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab})
+		var ext_grid: Array = []
+		_collect_ext_grid(node, ext_grid)
+		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab, "ext_grid": ext_grid})
 	_top_level = int(_floors[_floors.size() - 1].level) if not _floors.is_empty() else 0
 	# The tower owns the player spawn (derived from the floor heights), not the
 	# .tscn — keeps it correct if the story height changes. Boot picks the start
@@ -114,13 +141,16 @@ func _ready() -> void:
 	# the exterior empty lot; the dev fallback boots straight to the Garden.
 	if _player and not _floors.is_empty():
 		var gd: Node = get_node_or_null("/root/GameDirector")
-		var to_exterior: bool = bool(_c.BOOT_TO_EXTERIOR) and gd != null and int(gd.current_phase) == 0 and _empty_lot != null
+		# EmptyLot is retired: the survey, the build, and the walk all happen on the
+		# one persistent SiteGround at x=0, so nothing teleports or swaps the ground.
+		# Keep the legacy node hidden if it's still wired into the scene.
+		if _empty_lot:
+			_empty_lot.visible = false
+		var to_exterior: bool = bool(_c.BOOT_TO_EXTERIOR) and gd != null and int(gd.current_phase) == 0 and _site_ground != null
 		if to_exterior:
 			enter_exterior()
 		else:
 			_spawn_in_garden()
-			if _empty_lot:
-				_empty_lot.visible = false
 	_update(true)
 
 
@@ -131,6 +161,15 @@ func _spawn_in_garden() -> void:
 	_player.global_position = Vector3(0.0, spawn_y, -6.0)
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
+
+
+# The builder's spot on the site: stood back beyond the -Z doorway at grade,
+# facing the build area. Shared by the empty-lot survey, the hire, and the
+# construction stand-back so none of those beats teleport the player — it stays
+# the same patch of ground the whole time (the continuity anchor).
+func _site_stand_position() -> Vector3:
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+	return Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), -(half + float(_c.CONSTRUCT_VIEW_BACK)))
 
 
 # Hand off from the exterior empty lot into the tower (called by the Step 3
@@ -156,10 +195,20 @@ func enter_exterior() -> void:
 	_exterior = true
 	if _player is CharacterBody3D:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
-	if _empty_lot:
-		_player.global_position = _empty_lot.spawn_position()
+	# Survey the actual build site (x=0) — the ground you stand on now is the
+	# ground the tower rises on. Same spot the hire/construction uses, so advancing
+	# the arc never jumps you to a different place.
+	_player.global_position = _site_stand_position()
+	if _player.has_method("set_facing_yaw"):
+		_player.call("set_facing_yaw", 0.0)   # face +Z, across the lot
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
+	if _site_ground:
+		_site_ground.visible = true
+		if _site_ground.has_method("set_paths_visible"):
+			_site_ground.set_paths_visible(false)   # no doorway paths until the tower exists
+	if _empty_lot:
+		_empty_lot.visible = false
 	_ext_hud_phase = -99   # force the exterior header to re-push on (re-)entry
 	_update(true)
 
@@ -177,8 +226,10 @@ func _update_exterior(snap: bool) -> void:
 			node.visible = false
 	if _cityscape:
 		_cityscape.visible = false
+	if _site_ground:
+		_site_ground.visible = true       # the one persistent ground — survey the real site
 	if _empty_lot:
-		_empty_lot.visible = true
+		_empty_lot.visible = false
 	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):
 		var target_y: float = float(_c.LOT_GROUND_Y) + _PIVOT_CHEST
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
@@ -219,13 +270,14 @@ func enter_construction() -> void:
 		_empty_lot.visible = false
 	if _site_ground:
 		_site_ground.visible = true           # the builder stands on the site
-	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+		if _site_ground.has_method("set_paths_visible"):
+			_site_ground.set_paths_visible(true)
 	if _player:
 		_player.visible = true                # the builder is present, watching it go up
 		if _player is CharacterBody3D:
 			(_player as CharacterBody3D).velocity = Vector3.ZERO
-		# Stand back beyond the -Z doorway, facing the build site.
-		_player.global_position = Vector3(0.0, float(_c.FLOOR_3D_TOP_Y), -(half + float(_c.CONSTRUCT_VIEW_BACK)))
+		# The exact spot they surveyed from — no teleport into the build (continuity).
+		_player.global_position = _site_stand_position()
 		if _player.has_method("set_spawn_here"):
 			_player.set_spawn_here()
 		if _player.has_method("set_facing_yaw"):
@@ -377,12 +429,16 @@ func _update_exterior_walk(snap: bool) -> void:
 		_hud_level = -6
 		_hud.set_explore()
 	_drive_environment(snap)
-	# Once the ease-down is done, crossing into the footprint (only reachable through
-	# a doorway gap) enters the building.
+	# Once the ease-down is done, crossing the footprint edge (only reachable
+	# through a doorway gap) enters the building. Trigger right AT the edge so you
+	# spawn inside the instant you cross the threshold — the site ground has a hole
+	# over the footprint (so the basement isn't ceilinged), and any band between the
+	# edge and the trigger would be floorless: stop there and you'd drop through.
+	# Corners stay safe — outside a doorway at least one axis is still ≥ half.
 	if _cam_tween_t >= 1.0 and _player:
 		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 		var p: Vector3 = _player.global_position
-		if absf(p.x) < half * 0.9 and absf(p.z) < half * 0.9:
+		if absf(p.x) < half and absf(p.z) < half:
 			_enter_building()
 
 
@@ -393,8 +449,12 @@ func _enter_building() -> void:
 	_gs.set("exterior_walk", false)
 	_gs.set("constructing", false)
 	_gs.built_level = _top_level
+	# Keep the site ground: it's at grade with the Garden, so it reads straight out
+	# through the doorways from inside (no void) and is the ground you walk back onto.
 	if _site_ground:
-		_site_ground.visible = false
+		_site_ground.visible = true
+		if _site_ground.has_method("set_paths_visible"):
+			_site_ground.set_paths_visible(true)
 	if _player:
 		_player.visible = true
 	var gd: Node = get_node_or_null("/root/GameDirector")
@@ -402,6 +462,29 @@ func _enter_building() -> void:
 		gd.set_phase(gd.Phase.BUILD_INTERIORS)
 	_spawn_in_garden()
 	_hud_level = -1                           # force the floor header to push (iso_camera resumes)
+	_update(true)
+
+
+# Walk back out: step off the Garden (grade) onto the site. The mirror of
+# _enter_building — re-enter the exterior walk (whole tower visible, grounded
+# follow camera easing from wherever the iso camera was). The player keeps
+# control the whole time; only the camera eases. Makes the doorway two-way so the
+# building is a place you enter and leave, not a one-way trap.
+func _exit_building() -> void:
+	_exterior_walk = true
+	_gs.set("exterior_walk", true)            # iso_camera bows out; the controller follows
+	_gs.set("constructing", false)            # the player is never frozen on the way out
+	_gs.built_level = _top_level
+	if _site_ground:
+		_site_ground.visible = true
+		if _site_ground.has_method("set_paths_visible"):
+			_site_ground.set_paths_visible(true)
+	if _player and _player.has_method("set_spawn_here"):
+		_player.set_spawn_here()
+	_cam_from_pos = _pivot.global_position if _pivot else Vector3.ZERO
+	_cam_from_size = _camera.size if _camera else 14.0
+	_cam_tween_t = 0.0
+	_hud_level = -5                           # force the explore header
 	_update(true)
 
 
@@ -450,11 +533,30 @@ func _process(delta: float) -> void:
 		_bonk_pos = _player.global_position
 	else:
 		_ceiling_pulse = maxf(_ceiling_pulse - delta * float(_c.FLOOR_4_CEILING_PULSE_DECAY), 0.0)
+	# Wall bump: flash a glow ONLY when the player jumps ABOVE the visible wall and
+	# shoves into the invisible seal trying to leave — not for ordinary wall
+	# contact down at floor level. Gate on the player's height above their floor.
+	var above_wall: bool = false
+	if _player:
+		var floor_surface: float = _base_y_for_level(_current_level) + float(_c.FLOOR_3D_TOP_Y)
+		above_wall = (_player.global_position.y - floor_surface) >= float(_c.WALL_HEIGHT) - 1.8
+	if above_wall and _player is CharacterBody3D and (_player as CharacterBody3D).is_on_wall():
+		_wall_pulse = 1.0
+		_wall_bump_pos = _player.global_position
+		_wall_bump_normal = (_player as CharacterBody3D).get_wall_normal()
+	else:
+		_wall_pulse = maxf(_wall_pulse - delta * float(_c.FLOOR_4_CEILING_PULSE_DECAY), 0.0)
 	_update(false)
+	_update_extension_grids()
+	_update_wall_bump()
 
 
 func _update(snap: bool) -> void:
 	if _player == null or _floors.is_empty():
+		return
+	# Plunging off the roof: show the whole tower + ground and chase the player down.
+	if bool(_gs.get("roof_falling")):
+		_update_roof_fall(snap)
 		return
 	# Construction dollhouse owns the world: external framing, all built floors shown.
 	if _constructing:
@@ -489,6 +591,15 @@ func _update(snap: bool) -> void:
 	if not snap and _current_level != _pulse_level and _pulse_level != 0:
 		_gs.set("camera_arrival_pulse", true)
 	_pulse_level = _current_level
+	# Two-way threshold: on the Garden (grade), stepping back out through a doorway
+	# returns you to the site on foot. Hysteresis (1.05× the footprint, wider than
+	# _enter_building's 0.9× test) keeps the boundary from flickering.
+	if not _exterior_walk and int(_gs.built_level) >= _top_level and _current_level == _SPAWN_LEVEL:
+		var half_out: float = float(_c.FLOOR_3D_SIZE) * 0.5 * 1.05
+		var pp: Vector3 = _player.global_position
+		if absf(pp.x) > half_out or absf(pp.z) > half_out:
+			_exit_building()
+			return
 	for f in _floors:
 		var node: Node3D = f.node
 		# Construct-from-empty: a floor only exists once built. Unbuilt floors are
@@ -540,6 +651,11 @@ func _update(snap: bool) -> void:
 		var rise: float = maxf(0.0, _player.global_position.y - floor_surface)
 		var target_y: float = floor_anchor + rise * _JUMP_FOLLOW_FRACTION
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
+	# The site ground reads as the world's ground only at grade (the Garden); on
+	# floors above/below it would float in the tight iso framing, so hide it there.
+	# The exterior / construct / walk branches manage their own visibility.
+	if _site_ground:
+		_site_ground.visible = (_current_level == _SPAWN_LEVEL)
 	# The placeholder cityscape shows only from the upper floors (so it doesn't
 	# clutter the tight iso framing down on the Garden / Utility).
 	if _cityscape:
@@ -561,13 +677,25 @@ func _preset_for(level: int) -> Dictionary:
 	match level:
 		-1: return {"amb": Color(0.86, 0.88, 0.92), "energy": 1.40, "bg": Color(0.50, 0.62, 0.80), "sun": 1.60, "sky_exposure": 1.0}   # Exterior empty lot (open sky)
 		0: return {"amb": Color(0.55, 0.60, 0.72), "energy": 0.55, "bg": Color(0.05, 0.05, 0.07), "sun": 0.45, "sky_exposure": 0.0}    # Utility (basement — windowless)
-		1: return {"amb": Color(0.66, 0.64, 0.62), "energy": 0.80, "bg": Color(0.07, 0.07, 0.08), "sun": 0.95, "sky_exposure": 0.18}   # Garden (mostly interior)
+		1: return {"amb": Color(0.68, 0.68, 0.66), "energy": 0.92, "bg": Color(0.40, 0.50, 0.64), "sun": 1.00, "sky_exposure": 0.45}   # Garden interior identity at grade — blended toward open sky near the doorways (see _drive_environment)
 		2: return {"amb": Color(0.78, 0.84, 0.72), "energy": 1.50, "bg": Color(0.08, 0.13, 0.10), "sun": 1.25, "sky_exposure": 0.40}   # Arboretum (ground)
 		3: return {"amb": Color(0.82, 0.88, 0.78), "energy": 1.70, "bg": Color(0.10, 0.16, 0.13), "sun": 1.35, "sky_exposure": 0.60}   # Canopy (glassy upper)
 		4: return {"amb": Color(0.74, 0.72, 0.70), "energy": 1.05, "bg": Color(0.12, 0.12, 0.14), "sun": 1.05, "sky_exposure": 0.50}   # Residential (windows)
 		5: return {"amb": Color(0.84, 0.88, 0.96), "energy": 1.60, "bg": Color(0.46, 0.60, 0.78), "sun": 1.45, "sky_exposure": 1.0}    # Sky Lounge (floor-to-ceiling glass)
 		# Roof / Vista (top): open to the sky — full day/night swing.
 		_: return {"amb": Color(0.80, 0.86, 0.95), "energy": 1.95, "bg": Color(0.42, 0.55, 0.70), "sun": 1.55, "sky_exposure": 1.0}
+
+
+# Linear interpolation between two environment presets (t: 0 = a, 1 = b). Used to
+# fade a floor's interior identity toward the open-sky exterior by position.
+func _blend_preset(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
+	return {
+		"amb": (a.amb as Color).lerp(b.amb as Color, t),
+		"energy": lerpf(float(a.energy), float(b.energy), t),
+		"bg": (a.bg as Color).lerp(b.bg as Color, t),
+		"sun": lerpf(float(a.sun), float(b.sun), t),
+		"sky_exposure": lerpf(float(a.get("sky_exposure", 0.0)), float(b.get("sky_exposure", 0.0)), t),
+	}
 
 
 # Drives the visibility of every passive spine-pipe fill (floors 2-4) from the
@@ -610,6 +738,17 @@ func _drive_environment(snap: bool) -> void:
 	if _world_env == null or _world_env.environment == null:
 		return
 	var p := _preset_for(_current_level)
+	# Natural daylight near the at-grade openings: on the ground floor, blend the
+	# Garden's interior identity toward the open-sky exterior the closer the player
+	# is to a perimeter doorway, so light floods in as you near the doors and fades
+	# as you go deep inside — stepping in/out is a gradient, not a hard switch.
+	if _current_level == _SPAWN_LEVEL and _player:
+		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+		var pos: Vector3 = _player.global_position
+		var edge_dist: float = maxf(absf(pos.x), absf(pos.z))   # Chebyshev: distance to the nearest wall plane
+		var b: float = smoothstep(half * 0.5, half, edge_dist)  # 0 deep interior → 1 at the wall/threshold
+		if b > 0.0:
+			p = _blend_preset(p, _preset_for(-1), b)
 	var env := _world_env.environment
 	var k: float = 1.0 if snap else 0.06
 	# Targets start at the floor's IDENTITY; time-of-day modulates on top, scaled by
@@ -640,6 +779,79 @@ func _drive_environment(snap: bool) -> void:
 		if running:
 			var target_rot := Vector3(-float(s.sun_pitch), float(s.sun_yaw), 0.0)
 			_env_light.rotation_degrees = target_rot if snap else _env_light.rotation_degrees.lerp(target_rot, k)
+
+
+# The player is plummeting down the outside of the tower after stepping off the
+# roof: reveal the whole stack + the ground (so the fall reads against the
+# building), light it as daylight exterior, and lock the camera to the falling
+# body so it stays in frame all the way down.
+func _update_roof_fall(snap: bool) -> void:
+	for f in _floors:
+		var node: Node3D = f.node
+		var slab: StaticBody3D = f.get("slab")
+		if slab:
+			slab.collision_layer = 0
+		if node.has_method("set_structure_visible"):
+			node.set_structure_visible(true)
+			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA))
+			if node.has_method("set_apertures_visible"):
+				node.set_apertures_visible(true)
+		else:
+			node.visible = true
+	if _site_ground:
+		_site_ground.visible = true
+		if _site_ground.has_method("set_paths_visible"):
+			_site_ground.set_paths_visible(true)
+	if _cityscape:
+		_cityscape.visible = true
+	_current_level = -1
+	if _pivot:
+		var ty: float = _player.global_position.y + _PIVOT_CHEST
+		_pivot.position.y = ty if snap else lerpf(_pivot.position.y, ty, 0.5)
+	_drive_environment(snap)
+	_update_extension_grids()
+
+
+# Positions + fades the wall-bump glow on the wall surface the player hit. The
+# quad lies flat against the wall (oriented to its normal) and feathers out like
+# the ceiling ping, so a bump reads as a soft impact rather than a hard line.
+func _update_wall_bump() -> void:
+	if _wall_pulse <= 0.01:
+		if _wall_glow:
+			_wall_glow.visible = false
+		return
+	if _wall_glow == null:
+		_build_wall_glow()
+	# Slide the player's position onto the wall plane, just off the surface.
+	var n: Vector3 = _wall_bump_normal
+	if n.length_squared() < 0.01:
+		n = Vector3.FORWARD
+	n = n.normalized()
+	var surface: Vector3 = _wall_bump_pos - n * 0.06
+	_wall_glow.global_position = surface
+	# Orient the quad so it lies in the wall plane (its face along the normal).
+	_wall_glow.look_at(surface + n, Vector3.UP)
+	_wall_glow.visible = true
+	_wall_glow_mat.set_shader_parameter("intensity", clampf(_wall_pulse, 0.0, 1.0))
+
+
+func _build_wall_glow() -> void:
+	_wall_glow = MeshInstance3D.new()
+	_wall_glow.name = "WallBumpGlow"
+	var r: float = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(r * 2.0, r * 2.0)
+	_wall_glow.mesh = quad
+	var sh := Shader.new()
+	sh.code = _WALL_BUMP_SHADER
+	_wall_glow_mat = ShaderMaterial.new()
+	_wall_glow_mat.shader = sh
+	var g: Color = _c.FLOOR_4_GLASS_COLOR
+	_wall_glow_mat.set_shader_parameter("glow_color", Vector3(g.r, g.g, g.b))
+	_wall_glow_mat.set_shader_parameter("intensity", 0.0)
+	_wall_glow.material_override = _wall_glow_mat
+	_wall_glow.visible = false
+	add_child(_wall_glow)
 
 
 # Highest floor whose surface is at or just below the player. The reveal margin
@@ -689,6 +901,35 @@ func _find_slab_body(node: Node) -> StaticBody3D:
 		if found != null:
 			return found
 	return null
+
+
+# Gathers every extension-grid mesh (the blueprint lines + crossbars that radiate
+# from the walls) under a floor node, so their opacity can be driven per floor.
+func _collect_ext_grid(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D and String(child.name).begins_with("GridExt"):
+			out.append(child)
+		_collect_ext_grid(child, out)
+
+
+# Fades each floor's extension grid by its distance from the current floor: the
+# floor you're on is fully lit, fading sequentially to 10% by the 4th floor away
+# (symmetric up and down), invisible beyond. Outside the tower (exterior / build /
+# walk) every grid reads at full so the blueprint frames the whole site.
+func _update_extension_grids() -> void:
+	var interior: bool = not _exterior and not _exterior_walk and not _constructing
+	var key: int = _current_level if interior else 9999
+	if key == _grid_key:
+		return
+	_grid_key = key
+	for f in _floors:
+		var factor: float = 1.0
+		if interior:
+			var d: int = absi(int(f.level) - _current_level)
+			factor = 0.0 if d > 4 else lerpf(1.0, 0.10, float(d) / 4.0)
+		var transp: float = 1.0 - factor
+		for inst in f.get("ext_grid", []):
+			(inst as GeometryInstance3D).transparency = transp
 
 
 func _base_y_for_level(level: int) -> float:

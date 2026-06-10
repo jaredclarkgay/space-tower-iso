@@ -348,11 +348,19 @@ static func _get_reveal_shader() -> Shader:
 # is either a clean Floor-3 sapling (crown below the slab) or a clean Floor-4
 # canopy tree (crown above it) — never an awkward straddler that would clip the
 # canopy floor. Returns [height, reaches_canopy].
+#
+# Also caps the trunk so even a max-genome tree's crown stays UNDER the floor
+# above the Canopy (Residential): a canopy-reaching tree settles its crown on the
+# Canopy deck (a few metres above the slab), never poking up through Floor 4.
 static func _resolve_height(h: float, slab_y: float, band: float) -> Array:
 	var short_max: float = slab_y - band - 1.0
 	var tall_min: float = slab_y + 1.5
+	# Trunk top at most ~3 m above the slab; the crown + foliage then sit
+	# comfortably below the next floor's surface (~6 m above the slab).
+	var tall_max: float = slab_y + 3.0
 	if h > short_max and h < tall_min:
 		h = short_max if h < (short_max + tall_min) * 0.5 else tall_min
+	h = minf(h, tall_max)
 	return [h, h >= tall_min]
 
 

@@ -379,7 +379,10 @@ func _set_chooser_text() -> void:
 		return
 	var here: int = _car_floor_level()
 	var lines := PackedStringArray(["·  TRAVEL TO  ·", ""])
-	for lvl in SERVED:
+	# Listed highest-floor-first so the list mirrors the tower: the top floor at
+	# the top, the basement (0) at the bottom.
+	for i in range(SERVED.size() - 1, -1, -1):
+		var lvl: int = SERVED[i]
 		if lvl == here:
 			continue
 		lines.append("[ %d ]   %s" % [lvl, NAMES[lvl]])
