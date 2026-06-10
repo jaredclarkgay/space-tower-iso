@@ -186,6 +186,16 @@ var _spawn_position: Vector3 = Vector3.ZERO
 # off an open edge (see the catch logic at the end of _physics_process).
 var _last_ground_pos: Vector3 = Vector3.ZERO
 
+# Scripted walk (arrival cinematic, Beats 0-2): the conductor (tower_controller)
+# drives the player toward a target by setting velocity itself, so the real
+# locomotion cycle animates off velocity exactly as it does for WASD. While active
+# the normal Input-driven movement is skipped so WASD doesn't fight it.
+var _scripted_walk_active := false
+var _scripted_walk_target := Vector3.ZERO
+var _scripted_walk_speed := 0.0
+var _scripted_walk_arrived := false
+const SCRIPTED_WALK_ARRIVE_DIST := 0.25   # XZ metres from target that counts as "arrived"
+
 
 func _ready() -> void:
 	_visual = Node3D.new()
@@ -349,6 +359,24 @@ func _physics_process(delta: float) -> void:
 		-input.x * sin(yaw) + input.y * cos(yaw),
 	)
 
+	# Arrival cinematic: the conductor either drives a scripted walk (we steer the
+	# body toward the mark and the locomotion cycle animates off velocity) or holds
+	# the player still. Either way real WASD/jump/interact is suppressed below.
+	var arrival_cine: bool = bool(_gs.get("arrival_cinematic")) if _gs else false
+	if _scripted_walk_active:
+		var to_target: Vector3 = _scripted_walk_target - global_position
+		var flat := Vector2(to_target.x, to_target.z)
+		if flat.length() < SCRIPTED_WALK_ARRIVE_DIST:
+			_scripted_walk_active = false
+			_scripted_walk_arrived = true
+			world_dir = Vector3.ZERO
+		else:
+			var dir := flat.normalized()
+			world_dir = Vector3(dir.x, 0.0, dir.y)
+			_facing_yaw = atan2(world_dir.x, world_dir.z)
+		# Override any WASD this frame so the player can't fight the scripted walk.
+		input = Vector2.ZERO
+
 	# Compute dispenser proximity first so number-key handling can decide
 	# whether to dispense or just select. Interaction priority: dispenser >
 	# robot > plot harvest. Plant (P) is independent and routes to the
@@ -447,7 +475,8 @@ func _physics_process(delta: float) -> void:
 				_plant_target = null
 	elif Input.is_action_just_pressed(&"interact") \
 			and is_on_floor() \
-			and input.length_squared() < 0.001:
+			and input.length_squared() < 0.001 \
+			and not arrival_cine:
 		if dispenser_interactable:
 			_iso_dispenser.try_interact()
 		elif robot_interactable:
@@ -471,7 +500,8 @@ func _physics_process(delta: float) -> void:
 				_harvest_progress = 0.0
 	elif Input.is_action_just_pressed(&"plant") \
 			and is_on_floor() \
-			and input.length_squared() < 0.001:
+			and input.length_squared() < 0.001 \
+			and not arrival_cine:
 		# Only start the plant action if there's an empty plot in range AND
 		# the player has at least one of the selected seed in their pouch.
 		var seed_key: String = _gs.selected_seed_type
@@ -490,7 +520,12 @@ func _physics_process(delta: float) -> void:
 	# crouched anticipation pose. Brief grace period preserves run-and-tap
 	# jumps (release before the threshold = no lock).
 	var committed_charge: bool = _charge_time > CHARGE_MOVE_LOCK_THRESHOLD
-	if _is_harvesting or _is_planting or committed_charge:
+	if _scripted_walk_active:
+		# Conductor-driven walk: velocity carries the locomotion cycle (legs animate).
+		velocity.x = world_dir.x * _scripted_walk_speed
+		velocity.z = world_dir.z * _scripted_walk_speed
+	elif _is_harvesting or _is_planting or committed_charge or arrival_cine:
+		# arrival_cine (and not scripted-walking) = hold the player still at the mark.
 		velocity.x = 0.0
 		velocity.z = 0.0
 	else:
@@ -516,7 +551,7 @@ func _physics_process(delta: float) -> void:
 	if _land_squash_t > 0.0:
 		_land_squash_t = max(0.0, _land_squash_t - delta)
 
-	if on_floor and not _is_harvesting and not _is_planting and not in_tube_mouth:
+	if on_floor and not _is_harvesting and not _is_planting and not in_tube_mouth and not arrival_cine:
 		if Input.is_action_pressed(&"jump"):
 			_charge_time = min(_charge_time + delta, _c.PLAYER_JUMP_CHARGE_DURATION)
 		if Input.is_action_just_released(&"jump"):
@@ -717,6 +752,7 @@ func _physics_process(delta: float) -> void:
 			and not _is_harvesting
 			and not _is_planting
 			and charge_progress <= 0.001
+			and not arrival_cine
 		)
 		_prompt_root.visible = should_show
 		if should_show:
@@ -1043,6 +1079,26 @@ func set_facing_yaw(yaw: float) -> void:
 	_facing_yaw = yaw
 	if _visual:
 		_visual.rotation.y = yaw
+
+
+# --- Scripted walk (arrival cinematic) ---
+# Begin auto-walking toward `target` at `speed` m/s. The physics loop drives the
+# velocity toward it each frame (so the locomotion cycle animates), faces the walk,
+# and flips _scripted_walk_arrived when it gets within SCRIPTED_WALK_ARRIVE_DIST.
+func begin_scripted_walk(target: Vector3, speed: float) -> void:
+	_scripted_walk_active = true
+	_scripted_walk_target = target
+	_scripted_walk_speed = speed
+	_scripted_walk_arrived = false
+
+
+func is_scripted_walk_done() -> bool:
+	return _scripted_walk_arrived
+
+
+func clear_scripted_walk() -> void:
+	_scripted_walk_active = false
+	_scripted_walk_arrived = false
 
 
 # Look-out POV: ease the body to face the look yaw (so the back faces the camera)

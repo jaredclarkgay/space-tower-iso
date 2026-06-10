@@ -72,7 +72,16 @@ var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
 var _ext_hud_phase: int = -99   # last arc phase the exterior header showed (-99 = none)
 var _pulse_level: int = 0       # last level the camera-arrival pulse saw
-var _cody_greeted: bool = false # one-shot guard: Cody greets on first Garden entry
+# Arrival cinematic (FIRST Garden entry, Beats 0-2): spawn at the south doorway,
+# auto-walk inward behind a lowering follow camera, stop at a mark, then hand off
+# to Cody's in-place arrival. _arrival_played is the one-shot gate; _arrival_cine is
+# active; _arrival_beat is the beat index (1=walk, 2=stop-hold); _arrival_t times
+# the camera lower-in and the stop hold.
+var _arrival_played: bool = false
+var _arrival_cine: bool = false
+var _arrival_beat: int = 0
+var _arrival_t: float = 0.0
+var _arrival_walk_started: bool = false   # first-tick guard for begin_scripted_walk
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -164,6 +173,41 @@ func _spawn_in_garden() -> void:
 		_player.set_spawn_here()
 
 
+# Garden arrival gate. The FIRST time the player enters the Garden (and the
+# cinematic is enabled) it plays the scripted walk-in; every later entry is the
+# plain spawn. Called from both enter_tower() and _enter_building() in place of the
+# bare _spawn_in_garden().
+func _arrive_in_garden() -> void:
+	if bool(_c.ARRIVAL_CINE_ENABLED) and not _arrival_played:
+		_begin_arrival_cinematic()
+	else:
+		_spawn_in_garden()
+
+
+# Beat 0-1 entry: place the player just inside the south doorway, snap the camera to
+# the behind-the-back framing, flip on the cinematic and kick off Beat 1 (the walk).
+func _begin_arrival_cinematic() -> void:
+	_arrival_played = true
+	_arrival_cine = true
+	_arrival_beat = 1
+	_arrival_t = 0.0
+	_arrival_walk_started = false
+	_gs.set("arrival_cinematic", true)
+	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
+	_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	if _player.has_method("set_spawn_here"):
+		_player.set_spawn_here()
+	# Snap the camera to the behind framing immediately (no jump-in from wherever the
+	# iso pivot last was) — full lift/back, lowered toward the targets across Beat 1.
+	if _pivot:
+		_pivot.global_position = _player.global_position
+	_apply_arrival_camera(1.0)
+	_hud_level = -1   # refresh the floor header
+	_update(true)
+
+
 # The builder's spot on the site: stood back beyond the -Z doorway at grade,
 # facing the build area. Shared by the empty-lot survey, the hire, and the
 # construction stand-back so none of those beats teleport the player — it stays
@@ -184,7 +228,7 @@ func enter_tower() -> void:
 		_empty_lot.visible = false
 	if _player is CharacterBody3D:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
-	_spawn_in_garden()
+	_arrive_in_garden()
 	_hud_level = -1   # force the HUD to re-push the floor header
 	_update(true)
 
@@ -461,7 +505,7 @@ func _enter_building() -> void:
 	var gd: Node = get_node_or_null("/root/GameDirector")
 	if gd and gd.has_method("set_phase"):
 		gd.set_phase(gd.Phase.BUILD_INTERIORS)
-	_spawn_in_garden()
+	_arrive_in_garden()
 	_hud_level = -1                           # force the floor header to push (iso_camera resumes)
 	_update(true)
 
@@ -487,6 +531,70 @@ func _exit_building() -> void:
 	_cam_tween_t = 0.0
 	_hud_level = -5                           # force the explore header
 	_update(true)
+
+
+# Arrival cinematic driver (Beats 1-2). Beat 1: scripted walk in from the doorway to
+# the mark while the camera lowers in behind the player. Beat 2: a short stop-hold,
+# then hand off to Cody's in-place arrival and end the cinematic so iso_camera resumes.
+func _update_arrival_cinematic(delta: float) -> void:
+	_arrival_t += delta
+	if _arrival_beat == 1:
+		# Kick off the scripted walk once (target = the mark at the same floor height).
+		if not _arrival_walk_started:
+			_arrival_walk_started = true
+			if _player and _player.has_method("begin_scripted_walk"):
+				var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
+				var mark := Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_MARK_Z))
+				_player.call("begin_scripted_walk", mark, float(_c.ARRIVAL_CINE_WALK_SPEED))
+		# Lower the camera in behind the back over CAM_LOWER_DUR (lift/back start higher
+		# + farther, ease to the targets). lower_t = 1 at the start, 0 at the targets.
+		var lower_t: float = clampf(1.0 - _arrival_t / float(_c.ARRIVAL_CINE_CAM_LOWER_DUR), 0.0, 1.0)
+		_apply_arrival_camera(lower_t)
+		if _player and _player.has_method("is_scripted_walk_done") and _player.call("is_scripted_walk_done"):
+			_arrival_beat = 2
+			_arrival_t = 0.0
+	elif _arrival_beat == 2:
+		# Hold at the mark, camera settled behind.
+		_apply_arrival_camera(0.0)
+		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
+			# TODO Step 2/3: replace this hand-off with the camera ORBIT + Cody's
+			# elevator-car emergence. For now Cody does his existing in-place arrival
+			# and we end the cinematic here so iso_camera retakes the camera.
+			var cody: Node = get_node_or_null("Floors/Garden/IsoRobot")
+			if cody and cody.has_method("greet_on_entry"):
+				cody.greet_on_entry()
+			_arrival_cine = false
+			_arrival_beat = 0
+			_gs.set("arrival_cinematic", false)
+			if _player and _player.has_method("clear_scripted_walk"):
+				_player.call("clear_scripted_walk")
+			_hud_level = -1
+			_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes
+
+
+# Place the behind-the-back follow camera. `lower_t` 0..1 interpolates the lift/back
+# from a higher/farther start (lower_t=1) down to the targets (lower_t=0) so the
+# camera drops in behind the player. iso_camera bows out while arrival_cinematic is
+# set, so this owns BOTH the pivot and the Camera3D's local transform each frame.
+func _apply_arrival_camera(lower_t: float) -> void:
+	if _pivot == null or _player == null:
+		return
+	var back: float = lerpf(float(_c.ARRIVAL_CINE_CAM_BACK), float(_c.ARRIVAL_CINE_CAM_BACK) * 1.6, lower_t)
+	var lift: float = lerpf(float(_c.ARRIVAL_CINE_CAM_LIFT), float(_c.ARRIVAL_CINE_CAM_LIFT) * 1.8, lower_t)
+	# Pivot at the player (eased), no rotation — the camera's own local transform
+	# carries the behind/above framing.
+	var pp: Vector3 = _player.global_position
+	_pivot.global_position = _pivot.global_position.lerp(pp, 0.2)
+	_pivot.rotation = Vector3.ZERO
+	if _camera:
+		# Camera south (-Z) of and above the player; look back at the player from
+		# behind/above. He walks +Z (north), so south = behind his back.
+		_camera.position = Vector3(0.0, lift, -back)
+		_camera.look_at(_pivot.global_position + Vector3(0.0, 0.8, 0.0), Vector3.UP)
+		# Tight-ish ortho framing so the player reads big in frame (the iso default
+		# is much wider — that left the figure tiny in a survey-like shot).
+		_camera.size = lerpf(9.0, 13.0, lower_t)
+		_gs.camera.ortho_size = _camera.size
 
 
 func _process(delta: float) -> void:
@@ -528,6 +636,10 @@ func _process(delta: float) -> void:
 				_pivot.global_position = _pivot.global_position.lerp(target_pos, 0.12)
 			if _camera:
 				_camera.size = lerpf(_camera.size, target_size, 0.12)
+	# Arrival cinematic: the controller drives the behind-the-back follow camera and
+	# the scripted walk while iso_camera bows out (gated on arrival_cinematic).
+	if _arrival_cine:
+		_update_arrival_cinematic(delta)
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -592,15 +704,8 @@ func _update(snap: bool) -> void:
 	if not snap and _current_level != _pulse_level and _pulse_level != 0:
 		_gs.set("camera_arrival_pulse", true)
 	_pulse_level = _current_level
-	# Opening-sequence Step 1: Cody greets on FIRST Garden entry. One-shot guard,
-	# independent of the HUD-level check below so it fires on the dev-boot spawn
-	# snap (_current_level computes to _SPAWN_LEVEL on the first _update) and on
-	# the real enter_tower() path alike.
-	if not _cody_greeted and _current_level == _SPAWN_LEVEL:
-		_cody_greeted = true
-		var cody := get_node_or_null("Floors/Garden/IsoRobot")
-		if cody and cody.has_method("greet_on_entry"):
-			cody.greet_on_entry()
+	# (Cody's first-Garden greeting now belongs to the arrival cinematic, which calls
+	# greet_on_entry() at its hand-off — see _update_arrival_cinematic Beat 2.)
 	# Two-way threshold: on the Garden (grade), stepping back out through a doorway
 	# returns you to the site on foot. Hysteresis (1.05× the footprint, wider than
 	# _enter_building's 0.9× test) keeps the boundary from flickering.
@@ -649,8 +754,9 @@ func _update(snap: bool) -> void:
 		if _tel:
 			_tel.record("floor_reached", {"level": _current_level, "name": _name_for_level(_current_level)})
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
-	# outside dialogue, where the camera owns the pivot pose itself.
-	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")):
+	# outside dialogue, where the camera owns the pivot pose itself. The arrival
+	# cinematic owns the pivot directly (behind-the-back follow), so skip it then.
+	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")) and not _arrival_cine:
 		var floor_anchor: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
 		# Jump-follow: now that a charged jump clears ~9 m, anchoring the pivot to
 		# the floor lets the player launch clean out of the top of frame. Let the

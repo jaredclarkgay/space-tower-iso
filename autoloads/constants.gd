@@ -497,6 +497,20 @@ const LOT_DIRT_COLOR := Color(0.33, 0.26, 0.19)
 # the hire has no mechanical consequence; rename freely (worldbuilding is Q-005).
 const PARTNER_NAMES := ["MARA", "TOBIN", "REESE", "IRIS", "VANCE"]
 
+# --- Arrival cinematic ---
+# Scripted FIRST-entry into the Garden (Floor 1). Beats 0-2: spawn just inside the
+# south doorway (no warp), auto-walk inward with a behind-the-back follow camera that
+# lowers in, stop at a mark, then hand off to Cody's in-place arrival. Starting values;
+# tuned by screenshot later.
+const ARRIVAL_CINE_ENABLED := true
+const ARRIVAL_CINE_DOOR_Z := -13.0    # spawn just inside the south doorway (wall at z=-15)
+const ARRIVAL_CINE_MARK_Z := -5.0     # stop mark (elevator at z=0; Cody parks at ±3)
+const ARRIVAL_CINE_WALK_SPEED := 2.2  # calm cinematic walk (slower than PLAYER_MOVE_SPEED)
+const ARRIVAL_CINE_CAM_BACK := 7.0    # camera distance BEHIND the player (south, -Z)
+const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
+const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
+const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
+
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
 # Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension

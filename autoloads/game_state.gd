@@ -61,6 +61,13 @@ var constructing := false
 # bows out) so the whole tower reads; the player is FREE to move. Cleared on entry.
 var exterior_walk := false
 
+# True during the FIRST-entry Garden arrival cinematic (Beats 0-2): the player
+# spawns at the south doorway and auto-walks inward while the tower_controller
+# owns the camera as a behind-the-back follow (iso_camera bows out). The player's
+# own input is suppressed (frozen except during the scripted walk). Cleared when
+# the cinematic hands off (Cody's in-place arrival fires) and iso_camera resumes.
+var arrival_cinematic := false
+
 # True while the player is plunging off the open roof to the ground. The
 # tower_controller reveals the whole tower + site ground and chases the camera
 # down; the fall-catch is bypassed so it lands instead of respawning. Cleared on
