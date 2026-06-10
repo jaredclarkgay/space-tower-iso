@@ -89,10 +89,9 @@ func _physics_process(delta: float) -> void:
 	_time += delta
 
 	if _state == State.OFFLINE:
-		# Unlock keyed off plants_harvested (count) so the pace doesn't
-		# accelerate when the player picks up high-value violets.
-		if _gs.plants_harvested >= _c.ROBOT_UNLOCK_THRESHOLD:
-			_begin_arrival()
+		# Opening-sequence Step 1: Cody is a greeter, not a harvest reward. His
+		# arrival is now triggered once on first Garden entry via greet_on_entry()
+		# (called by the tower controller), not by a plants_harvested threshold.
 		return
 
 	_update_led()
@@ -252,6 +251,14 @@ func apply_customization() -> void:
 
 
 # --- State updates ---------------------------------------------------------
+
+# One-shot greeter trigger — called by the tower controller on first Garden
+# entry (opening-sequence Step 1). Idempotent: only kicks off the arrival
+# ceremony while still OFFLINE, so repeated calls are safe no-ops.
+func greet_on_entry() -> void:
+	if _state == State.OFFLINE:
+		_begin_arrival()
+
 
 # Ceremonial arrival — the robot is the first NPC to join the player. The
 # entrance has to feel like a moment, not a node turning visible. Sequence:

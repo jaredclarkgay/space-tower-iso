@@ -72,6 +72,7 @@ var _current_level: int = 0
 var _hud_level: int = -1        # last level pushed to the HUD (force first push)
 var _ext_hud_phase: int = -99   # last arc phase the exterior header showed (-99 = none)
 var _pulse_level: int = 0       # last level the camera-arrival pulse saw
+var _cody_greeted: bool = false # one-shot guard: Cody greets on first Garden entry
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -591,6 +592,15 @@ func _update(snap: bool) -> void:
 	if not snap and _current_level != _pulse_level and _pulse_level != 0:
 		_gs.set("camera_arrival_pulse", true)
 	_pulse_level = _current_level
+	# Opening-sequence Step 1: Cody greets on FIRST Garden entry. One-shot guard,
+	# independent of the HUD-level check below so it fires on the dev-boot spawn
+	# snap (_current_level computes to _SPAWN_LEVEL on the first _update) and on
+	# the real enter_tower() path alike.
+	if not _cody_greeted and _current_level == _SPAWN_LEVEL:
+		_cody_greeted = true
+		var cody := get_node_or_null("Floors/Garden/IsoRobot")
+		if cody and cody.has_method("greet_on_entry"):
+			cody.greet_on_entry()
 	# Two-way threshold: on the Garden (grade), stepping back out through a doorway
 	# returns you to the site on foot. Hysteresis (1.05× the footprint, wider than
 	# _enter_building's 0.9× test) keeps the boundary from flickering.

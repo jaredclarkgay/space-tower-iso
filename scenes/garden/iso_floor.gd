@@ -363,7 +363,8 @@ func _build_elevator_shaft() -> void:
 # --- 20×20 plot grid --------------------------------------------------------
 
 func _build_garden_grid() -> void:
-	_seed_starter_garden()
+	# Opening-sequence Step 1: the Garden starts BARREN. Skip _seed_starter_garden()
+	# (left defined) so _plant_assignments stays empty → every plot builds empty/tilled.
 	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
 	for i in range(_c.GARDEN_GRID_SIZE):
 		for j in range(_c.GARDEN_GRID_SIZE):
