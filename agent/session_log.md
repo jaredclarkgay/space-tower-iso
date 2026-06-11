@@ -1484,3 +1484,58 @@ doorway gap.
 exception added to `rules/stacked_tower_invariants.md`. Open: true shell/interior
 split + build economy still stand (C-001); cosmetic — basement elevator-shaft
 head still pokes through the lot at the foundation beat.
+
+## Session 16 — 2026-06-11 — The Garden first-entry cinematic (meet Cody) + dev chapter-jump
+
+**Direction (operator):** make arriving in the Garden a real opening — walk in,
+the camera glides behind you, Cody emerges from the elevator, and you slide
+straight into the first conversation — all as ONE calm, continuous motion with
+no snaps, and make it replayable so it can be iterated. Shipped across many small
+commits `10759a8 → 606a092` (not pushed); verified with the windowed harness.
+
+### The cinematic camera (the load-bearing rewrite — `85be4ad`)
+Replaced per-beat "compute a fresh transform and assign it" (which snapped at
+every beat hand-off) with a **target+ease** model: persistent live `_cam_*`
+members (focus/yaw/back/lift/shoulder/size/lookahead/looklift) + parallel
+`_cam_*_tgt` targets, eased live→target every frame in one `_drive_arrival_camera`
+that applies the pose ONCE. Beats only *set targets*; continuity is automatic.
+New rule: **`rules/cinematic_camera_target_ease.md`**. Key wins captured there:
+seed the members at the *settled* follow pose (not a wide establishing pose) so
+entry→walk is one motion; a multi-beat ease must advance the SAME progress member
+across the boundary (the yaw→profile `_rotate_t` starts in Beat 3, keeps
+advancing in Beat 5 until it clamps — never restart it); keep every sweep
+monotonic/one-directional (a `(1−cos)` orbit was a visible reversal — killed it
+for a still hold).
+
+### The beats (final shape)
+Beat 1 scripted walk-in behind an over-the-shoulder cam → Beat 2 hold at the mark
+→ Beat 3 Cody emerges from the elevator while the cam HOLDS OTS (yaw 0, gentle
+widen only — operator wanted to watch Cody arrive over the shoulder, no orbit),
+then a single calm rotate yaw→profile begins a lead-time before Cody settles →
+auto-opens the dialogue and hands to Beat 5 (a still profile two-shot held for as
+long as the chat is open) → Beat 4 resume-ease back to live iso. Replayable.
+
+### Dev chapter-jump overlay (`938d6d5`, `scenes/shared/chapter_jump.gd`)
+Always-clickable top-center dropdown (own high CanvasLayer, gated on
+`Constants.DEV_CHAPTER_JUMP`) to jump to ANY narrative beat/floor from ANY state —
+mid-cinematic, in dialogue, on any floor — so the operator never sits through the
+opener while iterating. UI input is independent of the frozen player. Controller
+gained `CHAPTERS` (single source of truth), `chapter_list()`, `jump_to_chapter()`
+and a defensive `_teardown_transient_state()` that clears every mode flag (local +
+GameState mirror) so a jump never lands half-in-two-modes.
+
+### Floor/world fixes folded in
+- **No see-through floor (F-027):** clamp the cinematic camera's world xz over the
+  footprint so the behind-the-back pose at the doorway never looks under the slab;
+  removed the disliked per-edge pitch "cutaway" hack now that real ground sits at
+  grade. `641e5bb` — tower sits on the ground, basement hidden from above.
+- **Replay reset (F-028):** `cinematic_reset()` on Cody + the elevator, called at
+  the top of `_begin_arrival_cinematic`, so the emergence replays in full.
+- **Child-before-parent _ready (F-029):** the overlay builds its menu lazily on
+  first open, not in _ready, because children ready bottom-up (controller not yet
+  in its group).
+
+### DONE — commits 10759a8→606a092 (not pushed). F-027/F-028/F-029 logged; new
+rule `cinematic_camera_target_ease.md`; competency `cinematic_camera_choreography`
+added. Open threads unchanged (C-001 true shell/interior split + build economy;
+Q-005 worldbuilding fill).

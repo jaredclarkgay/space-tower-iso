@@ -8,7 +8,7 @@
 > the present tense.** Use it to brief a fresh agent (or yourself) and to
 > generate prompts that are synced to a real baseline.
 >
-> **Last refreshed:** 2026-06-10 — end of Session 15 (`b148b5b`). **Nothing
+> **Last refreshed:** 2026-06-11 — end of Session 16 (`606a092`). **Nothing
 > pushed yet.**
 
 ## One-liner
@@ -75,9 +75,27 @@ Three traversal methods: multi-destination **elevator** (serves 0, 1, 2, 4, 5),
   are placeholder transitions, not real mechanics. The hire is a name only (no
   mechanical consequence). Save/load + audio are no-ops.
 
-## What just shipped (Session 15 — local only, not pushed)
+## What just shipped (Session 16 — local only, not pushed)
 
-**One persistent place you can enter, leave, and fall off of.** Retired the
+**The Garden first-entry cinematic — meet Cody.** Arriving in the Garden is now a
+real opening: you walk in, the camera glides behind you, Cody emerges from the
+elevator, and you slide straight into the first conversation — one calm,
+continuous motion with no snaps, and replayable. The load-bearing change is the
+camera model: persistent live `_cam_*` members eased toward per-beat targets in a
+single `_drive_arrival_camera` (beats only *set targets*, so hand-offs never
+snap); a single yaw→profile rotate is carried across the beat boundary instead of
+restarting; sweeps are monotonic (the old `(1−cos)` orbit was a visible reversal,
+removed). New **dev chapter-jump overlay** (`scenes/shared/chapter_jump.gd`, gated
+on `Constants.DEV_CHAPTER_JUMP`): an always-clickable dropdown to jump to any
+beat/floor from any state, backed by the controller's `CHAPTERS` +
+`jump_to_chapter()` + a defensive `_teardown_transient_state()`. Plus fixes:
+no see-through floor (clamp the cinematic camera over the footprint so it never
+looks under the slab at the doorway; tower now sits on the ground with the
+basement hidden from above), and `cinematic_reset()` on Cody + the elevator so
+the opener replays in full.
+
+**Earlier (Session 15 — local only).** **One persistent place you can enter,
+leave, and fall off of.** Retired the
 separate empty-lot datum — survey, hire, build, walk-in and walk-back-out now all
 happen on one `site_ground` plane at x=0 (no teleport, no ground swap). The
 ground reads through the Garden doorways from inside (no void), daylight blends

@@ -327,8 +327,8 @@
       "phase": "iteration",
       "date": "2026-06-10",
       "category": "godot_collision",
-      "summary": "The edge-fall safety net (F invariant #8: plunge then snap back to _last_ground_pos) swallowed the new INTENTIONAL roof plunge — stepping off the open roof either snapped you back to the roof or got caught after FALL_CATCH_MAX_FLOORS, so you could never fall to the dirt on purpose.",
-      "trigger": "Adding a 'step off the roof → tumble to the ground → knocked flat' beat to a world where every ungrounded off-edge drop was caught and rewound. A blanket safety net and a deliberate-fall feature are mutually exclusive unless the net learns the exception.",
+      "summary": "The edge-fall safety net (F invariant #8: plunge then snap back to _last_ground_pos) swallowed the new INTENTIONAL roof plunge \u2014 stepping off the open roof either snapped you back to the roof or got caught after FALL_CATCH_MAX_FLOORS, so you could never fall to the dirt on purpose.",
+      "trigger": "Adding a 'step off the roof \u2192 tumble to the ground \u2192 knocked flat' beat to a world where every ungrounded off-edge drop was caught and rewound. A blanket safety net and a deliberate-fall feature are mutually exclusive unless the net learns the exception.",
       "fix": "Gate the catch by an explicit roof-plunge predicate computed BEFORE the catch runs: not already falling AND outside the footprint (|x|>half or |z|>half) AND velocity.y<0 AND y above FLOOR_3D_TOP_Y+ROOF_FALL_MIN_HEIGHT (only the open roof is that high outside sealed walls). When it fires, set _roof_falling and skip the fall-catch block entirely for the rest of the descent; is_on_floor() then routes to _land_from_roof_fall() (stun + swear bubble) instead of refreshing _last_ground_pos. Sealed upper-floor walls (F-025) are what GUARANTEE 'high + outside' can only mean the roof.",
       "rule_added": "rules/stacked_tower_invariants.md #8 (UPDATE: roof plunge is the sanctioned exception to edge-fall-returns; predicate gates it)",
       "files_touched": [
@@ -341,10 +341,10 @@
       "phase": "iteration",
       "date": "2026-06-10",
       "category": "godot_geometry_stacked",
-      "summary": "Two invisible-collision phantoms surfaced once floors stacked at real offsets. (a) A charged jump apexes ~9 m but the visible+collidable wall was only WALL_HEIGHT 5.2 m, so a jump cleared the perimeter and drifted out of an upper floor. (b) The site-ground collision was a SOLID slab spanning the whole lot at y=0 — but the basement sits a story BELOW at y=-6, so that slab was an invisible ground-CEILING capping the basement room from above.",
+      "summary": "Two invisible-collision phantoms surfaced once floors stacked at real offsets. (a) A charged jump apexes ~9 m but the visible+collidable wall was only WALL_HEIGHT 5.2 m, so a jump cleared the perimeter and drifted out of an upper floor. (b) The site-ground collision was a SOLID slab spanning the whole lot at y=0 \u2014 but the basement sits a story BELOW at y=-6, so that slab was an invisible ground-CEILING capping the basement room from above.",
       "trigger": "Containment playtest (jump out of an upper floor) + dropping into the below-grade basement after the GROUND_LEVEL re-anchor (Session 14) put Floor 0 under the site ground plane.",
-      "fix": "(a) build_walls gained seal/seal_height params: invisible collision rises to WALL_SEAL_HEIGHT (11 m) on sealed floors while the MESH stays WALL_HEIGHT. Opt OUT for the basement (underground) and doored grade floors (the Garden) where the tall box would bleed across the doorway opening; doored walls never seal. (b) site_ground collision is now a FRAME with the footprint cut out — four perimeter strips, hole over the footprint — so the exterior ground only exists OUTSIDE the building and the basement below isn't ceilinged. The footprint is floored by the Garden slab at grade instead.",
-      "rule_added": "rules/stacked_tower_invariants.md #9 (invisible collision that helps one floor becomes a phantom for its neighbour — height-cap walls, cut holes in ground planes)",
+      "fix": "(a) build_walls gained seal/seal_height params: invisible collision rises to WALL_SEAL_HEIGHT (11 m) on sealed floors while the MESH stays WALL_HEIGHT. Opt OUT for the basement (underground) and doored grade floors (the Garden) where the tall box would bleed across the doorway opening; doored walls never seal. (b) site_ground collision is now a FRAME with the footprint cut out \u2014 four perimeter strips, hole over the footprint \u2014 so the exterior ground only exists OUTSIDE the building and the basement below isn't ceilinged. The footprint is floored by the Garden slab at grade instead.",
+      "rule_added": "rules/stacked_tower_invariants.md #9 (invisible collision that helps one floor becomes a phantom for its neighbour \u2014 height-cap walls, cut holes in ground planes)",
       "files_touched": [
         "scenes/shared/floor_chrome.gd",
         "scenes/shared/site_ground.gd",
@@ -356,13 +356,54 @@
       "phase": "iteration",
       "date": "2026-06-10",
       "category": "godot_geometry_stacked",
-      "summary": "After the GROUND_LEVEL re-anchor (Session 14) dropped the basement to y=-6, the Utility master-breaker interaction prompt and the attention arrows sat at the wrong height — they were positioned from the breaker's LOCAL coordinates (assuming the floor at y=0), so the prompt floated where the floor used to be and E didn't register on the breaker.",
+      "summary": "After the GROUND_LEVEL re-anchor (Session 14) dropped the basement to y=-6, the Utility master-breaker interaction prompt and the attention arrows sat at the wrong height \u2014 they were positioned from the breaker's LOCAL coordinates (assuming the floor at y=0), so the prompt floated where the floor used to be and E didn't register on the breaker.",
       "trigger": "Re-anchoring a floor to a non-zero world offset while a HUD/3D overlay still derives positions from that floor's local space.",
       "fix": "Position the prompt + arrows from the breaker's WORLD position (global_transform.origin / to_global), not its local offset, so they track the floor wherever it rides in the stack. Any local-space placement is a latent bug the moment its floor stops sitting at y=0.",
       "rule_added": "none (consequence of GROUND_LEVEL re-anchor; lesson folded into invariant #1's world-vs-local note + session log)",
       "files_touched": [
         "scenes/utility/utility.gd",
         "scenes/utility/utility_arrows_hud.gd"
+      ]
+    },
+    {
+      "id": "F-027",
+      "phase": "iteration",
+      "date": "2026-06-11",
+      "category": "godot_camera_cinematic",
+      "summary": "During the Garden first-entry cinematic the behind-the-back camera pushed past the slab's south edge at the doorway and looked UNDER the floor, revealing void / the floor below \u2014 the 'see-through floor' the operator kept flagging.",
+      "trigger": "A scripted follow/over-the-shoulder camera whose pose pushes it past a floor edge (doorway, perimeter) while looking back at the player.",
+      "fix": "Clamp the camera's WORLD xz to stay over the floor footprint (_clamp_cam_over_footprint), then convert the clamped point back to a pivot-local offset; the look_at still aims at the focus so only the framing slides, never seeing under the edge. Paired with a higher angled-down OTS lift and a real ground plane at grade (no void past the edge) so no per-edge pitch 'cutaway' hack is needed.",
+      "rule_added": "rules/cinematic_camera_target_ease.md (footprint-clamp section)",
+      "files_touched": [
+        "scenes/tower/tower_controller.gd"
+      ]
+    },
+    {
+      "id": "F-028",
+      "phase": "iteration",
+      "date": "2026-06-11",
+      "category": "replay_state_reset",
+      "summary": "Replaying the arrival cinematic (via the dev chapter-jump) short-circuited: Cody + the elevator were left in their END state (parked, doors open, at rest), so is_emergence_done() returned true immediately and the emergence beat never played.",
+      "trigger": "Re-running a scripted sequence that animates actors which expose a *_done() gate, without restoring those actors to their pre-sequence state.",
+      "fix": "Give every animated actor a cinematic_reset() that restores its PRE-cinematic state, and call them at the top of _begin_arrival_cinematic(). A no-op on first boot (already at rest), essential on replay. General lesson: a replayable sequence owns resetting every actor it drives.",
+      "rule_added": "rules/cinematic_camera_target_ease.md (replayability section)",
+      "files_touched": [
+        "scenes/tower/tower_controller.gd",
+        "scenes/garden/iso_robot.gd",
+        "scenes/shared/elevator_platform.gd"
+      ]
+    },
+    {
+      "id": "F-029",
+      "phase": "iteration",
+      "date": "2026-06-11",
+      "category": "godot_node_lifecycle",
+      "summary": "The dev chapter-jump overlay (a CanvasLayer child of the tower controller) tried to read the controller's chapter_list() in its own _ready and got nothing \u2014 children's _ready runs BEFORE the parent's (bottom-up), so the controller wasn't in its group / hadn't finished _ready yet.",
+      "trigger": "A child node depending on a parent's _ready-time setup (group registration, populated state) from inside the child's own _ready.",
+      "fix": "Defer the dependent lookup off _ready \u2014 build the menu lazily on first open (_ensure_menu_built), by which point the controller's _ready has long since run and it's resolvable via its group. Don't assume parent setup is done at child _ready.",
+      "rule_added": "none (Godot node-lifecycle ordering; folded into session log + this entry)",
+      "files_touched": [
+        "scenes/shared/chapter_jump.gd"
       ]
     }
   ]
