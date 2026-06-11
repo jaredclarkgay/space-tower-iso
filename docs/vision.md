@@ -56,6 +56,17 @@ whose entire payoff is a more *playable* game. The opening sequence
 channel (agentic) is exactly what makes the meeting-Cody moment land (playable).
 When a piece of work serves both, it is almost always the right thing to build.
 
+## 5. The grid foundation
+
+The whole game is **grid-founded** — floors, placement, building, and movement
+all resolve to a shared grid. When a mechanic *could* be free-form or
+grid-snapped, **choose the grid.** It is the substrate that makes "build a floor
+by placing components" legible, keeps systems composable across floors, and gives
+the agentic layer clean coordinates to reason about. Organic / free-form
+placement isn't forbidden forever, but the grid is the default and the
+foundation — deviations need a reason. (Committed 2026-06-11, with the
+floor-population placement mechanic as its first deliberate instance.)
+
 ---
 
 *Relationship to other docs:* the broader franchise canon (lore, factions, the

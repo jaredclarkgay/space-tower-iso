@@ -47,6 +47,18 @@ Residential / Sky Lounge) adopt the same lifecycle with their own component sets
 - **Population is a placement mechanic** — the player selects floor-appropriate
   components from a small palette and places them; the floor populates as they
   do. (Not an auto-bloom or a single button.)
+- **Slot-based, grid-snapped placement** (locked 2026-06-11) — components snap to
+  the floor's grid, not free-form drops. Reflects a game-wide commitment: the
+  whole game is **grid-founded** (`docs/vision.md` §5). Free-form placement is
+  explicitly deferred.
+- **Barren = bare ground / dormant plots** that visibly come alive as components
+  land, so placement reads as a clear before/after.
+- **One component first: the planter bed.** Placing one activates a zone of the
+  existing plot grid. Grow-light + water are the *second* slice.
+- **Cody introduces placement.** The gate-lift payoff becomes a director
+  directive ("let's build it out — drop your first planter bed") through the mouth
+  channel, so the new step is *invited*, not discovered cold. (The first real
+  playthrough showed a ~15s "now what?" gap after the gate lifted; this closes it.)
 
 ## The architectural insight (why this is additive, not a rebuild)
 
