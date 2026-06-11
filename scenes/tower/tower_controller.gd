@@ -88,11 +88,10 @@ var _emerge_started: bool = false         # one-shot Beat-3 entry guard
 var _emerge_rollout_started: bool = false # one-shot: roll-out fired
 var _emerge_basement_y: float = 0.0       # car_y at the basement (level 0)
 var _emerge_garden_y: float = 0.0         # car_y at the Garden (level 1)
-# Beat-3 focus point (JOB 1): the camera look-at target eases from the player
-# toward lerp(player, elevator-center, FOCUS_BIAS) during the emergence so the
-# car/Cody roll-out is hero-framed instead of shoved to the frame edge.
-var _arrival_focus: Vector3 = Vector3.ZERO   # current eased look-at target
-var _arrival_focus_init: bool = false        # seeded on first Beat-3 frame
+# Beat-3 focus point (JOB 1): the camera look-at target eases from the player toward
+# lerp(player, elevator-center, FOCUS_BIAS) during the emergence so the car/Cody
+# roll-out is hero-framed. The eased look-at is now the persistent _cam_focus member
+# (see _drive_arrival_camera); each beat sets _cam_focus_tgt and the member glides.
 # Beat-4 resume ease (JOB 2): before releasing, ease the conductor-owned camera
 # to iso's RESTING pose so iso_camera continues without a jump-cut. Captured at
 # Beat-4 entry; the ease runs over ARRIVAL_CINE_RESUME_DUR then clears the flag.
@@ -102,6 +101,32 @@ var _arrival_focus_init: bool = false        # seeded on first Beat-3 frame
 # the one-shot auto-open guard; _convo_yaw is the continuously-advancing orbit yaw.
 var _convo_opened: bool = false
 var _convo_yaw: float = 0.0
+# Smoothed camera-state members that PERSIST across beats. Each beat sets only the
+# TARGET (the `*_tgt` locals fed to _drive_arrival_camera); these members ease toward
+# those targets every frame with frame-rate-aware exponential smoothing, then the pose
+# is applied ONCE. Because every parameter eases continuously, every beat boundary
+# glides — the shoulder eases to 0 entering the orbit (no lateral pop), the OTS look-at
+# bias eases out (no look-direction snap), and the conversation-orbit seed becomes a
+# smooth glide rather than a 30° jump. Seeded at cinematic start to the OTS pose.
+var _cam_init: bool = false       # false until _begin_arrival_cinematic seeds the members
+var _cam_focus: Vector3 = Vector3.ZERO  # world look-at anchor (pivot position)
+var _cam_size: float = 0.0        # ortho size
+var _cam_yaw: float = 0.0         # pivot Y rotation, radians
+var _cam_back: float = 0.0        # camera distance behind the pivot (-Z local)
+var _cam_lift: float = 0.0        # camera height above the pivot
+var _cam_shoulder: float = 0.0    # lateral OTS offset (eases to 0 for the orbit)
+var _cam_lookahead: float = 0.0   # how far ahead (+Z local) the look-at sits
+var _cam_looklift: float = 0.0    # height of the look-at target
+# Per-beat TARGETS each beat writes; _drive_arrival_camera eases the _cam_* members
+# toward these every frame, then applies the pose once.
+var _cam_focus_tgt: Vector3 = Vector3.ZERO
+var _cam_size_tgt: float = 0.0
+var _cam_yaw_tgt: float = 0.0
+var _cam_back_tgt: float = 0.0
+var _cam_lift_tgt: float = 0.0
+var _cam_shoulder_tgt: float = 0.0
+var _cam_lookahead_tgt: float = 0.0
+var _cam_looklift_tgt: float = 0.0
 var _resume_t: float = 0.0
 var _resume_started: bool = false
 var _resume_from_pivot: Vector3 = Vector3.ZERO
@@ -221,7 +246,6 @@ func _begin_arrival_cinematic() -> void:
 	_arrival_walk_started = false
 	_emerge_started = false
 	_emerge_rollout_started = false
-	_arrival_focus_init = false
 	_convo_opened = false
 	_convo_yaw = 0.0
 	_resume_started = false
@@ -233,11 +257,33 @@ func _begin_arrival_cinematic() -> void:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
-	# Snap the camera to the behind framing immediately (no jump-in from wherever the
-	# iso pivot last was) — full lift/back, lowered toward the targets across Beat 1.
+	# Seed the persistent _cam_* members to the OTS STARTING pose (what the old
+	# _apply_arrival_camera(1.0) produced: lower_t=1 → higher/farther back+lift, half
+	# shoulder, OTS size, look-at ahead). Beat 1 then eases these toward the settled OTS
+	# targets, so the cinematic opens from a stable pose with no pop from a stale value.
+	_cam_init = true
+	_cam_focus = _player.global_position
+	_cam_yaw = 0.0
+	_cam_back = float(_c.ARRIVAL_CINE_OTS_BACK) * 1.6
+	_cam_lift = float(_c.ARRIVAL_CINE_OTS_LIFT) * 1.8
+	_cam_shoulder = float(_c.ARRIVAL_CINE_OTS_SHOULDER) * 0.5
+	_cam_size = float(_c.ARRIVAL_CINE_OTS_SIZE)
+	_cam_lookahead = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
+	_cam_looklift = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
+	# Targets start equal to the seed so the first frames hold the opening pose.
+	_cam_focus_tgt = _cam_focus
+	_cam_yaw_tgt = _cam_yaw
+	_cam_back_tgt = _cam_back
+	_cam_lift_tgt = _cam_lift
+	_cam_shoulder_tgt = _cam_shoulder
+	_cam_size_tgt = _cam_size
+	_cam_lookahead_tgt = _cam_lookahead
+	_cam_looklift_tgt = _cam_looklift
+	# Snap the pivot + apply the seeded pose immediately (no jump-in from wherever the
+	# iso pivot last was). _drive_arrival_camera with delta=0 just applies the seed.
 	if _pivot:
-		_pivot.global_position = _player.global_position
-	_apply_arrival_camera(1.0)
+		_pivot.global_position = _cam_focus
+	_drive_arrival_camera(0.0)
 	_hud_level = -1   # refresh the floor header
 	_update(true)
 
@@ -581,16 +627,19 @@ func _update_arrival_cinematic(delta: float) -> void:
 				var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
 				var mark := Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_MARK_Z))
 				_player.call("begin_scripted_walk", mark, float(_c.ARRIVAL_CINE_WALK_SPEED))
-		# Lower the camera in behind the back over CAM_LOWER_DUR (lift/back start higher
-		# + farther, ease to the targets). lower_t = 1 at the start, 0 at the targets.
-		var lower_t: float = clampf(1.0 - _arrival_t / float(_c.ARRIVAL_CINE_CAM_LOWER_DUR), 0.0, 1.0)
-		_apply_arrival_camera(lower_t, 0.0)
+		# OTS walk-in TARGET: settled over-the-shoulder framing (back/lift/shoulder/size
+		# at their tight values, look-at ahead + up). The _cam_* members were seeded to
+		# the higher/farther opening pose, so they EASE down into this over Beat 1 — the
+		# old per-frame lower_t lerp becomes the continuous member ease, no extra logic.
+		_set_ots_walk_targets()
+		_drive_arrival_camera(delta)
 		if _player and _player.has_method("is_scripted_walk_done") and _player.call("is_scripted_walk_done"):
 			_arrival_beat = 2
 			_arrival_t = 0.0
 	elif _arrival_beat == 2:
-		# Hold at the mark, camera settled behind.
-		_apply_arrival_camera(0.0, 0.0)
+		# Hold at the mark — same settled OTS targets; the members continue easing in.
+		_set_ots_walk_targets()
+		_drive_arrival_camera(delta)
 		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
 			_arrival_beat = 3
 			_arrival_t = 0.0
@@ -601,7 +650,10 @@ func _update_arrival_cinematic(delta: float) -> void:
 		# settles first. JOB 1: the camera focus eases off the player toward the
 		# player↔elevator-center midpoint during the emergence so the car/Cody roll-out
 		# is HERO-framed instead of shoved to the frame edge — and the ortho size widens
-		# so both the player and the emerging car fit.
+		# so both the player and the emerging car fit. Only TARGETS are set here; the
+		# shoulder target goes to 0 and the look-at bias targets go to the orbit values,
+		# so the _cam_* ease carries the lateral offset + look-direction out smoothly
+		# (no lateral pop / look-direction snap at the Beat 2→3 boundary).
 		_update_emergence(delta)
 		var orbit_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_ORBIT_DUR), 0.0, 1.0)
 		var orbit_deg: float = smoothstep(0.0, 1.0, orbit_p) * float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
@@ -611,15 +663,21 @@ func _update_arrival_cinematic(delta: float) -> void:
 		var bias_full: Vector3 = pp.lerp(elev_center, float(_c.ARRIVAL_CINE_EMERGE_FOCUS_BIAS))
 		# Ease the bias in over EMERGE_FOCUS_DUR so the focus glides (no jump on entry).
 		var fe: float = smoothstep(0.0, 1.0, clampf(_arrival_t / float(_c.ARRIVAL_CINE_EMERGE_FOCUS_DUR), 0.0, 1.0))
-		var focus_target: Vector3 = pp.lerp(bias_full, fe)
-		if not _arrival_focus_init:
-			_arrival_focus_init = true
-			_arrival_focus = pp
-		_arrival_focus = _arrival_focus.lerp(focus_target, 0.18)
 		# ASK 2: pull the orbit in CLOSE — ease toward the tight pair size so the car/
 		# Cody (and the nearby player) read big as they emerge, not survey-distant.
 		var size_target: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), fe)
-		_apply_arrival_camera(0.0, orbit_deg, _arrival_focus, size_target)
+		# Orbit TARGETS: yaw sweeps with the orbit, focus biases toward the elevator,
+		# shoulder→0, look-at dead-centre (lookahead 0, looklift the orbit value). The
+		# camera ortho size widens to fit the pair.
+		_cam_focus_tgt = pp.lerp(bias_full, fe)
+		_cam_yaw_tgt = deg_to_rad(orbit_deg)
+		_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
+		_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
+		_cam_shoulder_tgt = 0.0
+		_cam_size_tgt = size_target
+		_cam_lookahead_tgt = 0.0
+		_cam_looklift_tgt = 0.8
+		_drive_arrival_camera(delta)
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
 		if orbit_p >= 1.0 and emerge_done:
@@ -662,11 +720,19 @@ func _update_conversation_orbit(delta: float) -> void:
 	var phase: float = _convo_yaw * deg_to_rad(float(_c.ARRIVAL_CINE_CONVO_ORBIT_RATE))
 	var yaw: float = settle + seed + amp * (1.0 - cos(phase)) * 0.5
 	var mid: Vector3 = _pair_midpoint()
-	if not _arrival_focus_init:
-		_arrival_focus_init = true
-		_arrival_focus = mid
-	_arrival_focus = _arrival_focus.lerp(mid, 0.18)
-	_apply_arrival_camera(0.0, yaw, _arrival_focus, float(_c.ARRIVAL_CINE_PAIR_SIZE))
+	# Conversation TARGETS. The seed (+30°) is now applied to the yaw TARGET, not the
+	# live yaw — Beat 3 ended on _cam_yaw≈settle, and the eased member GLIDES into
+	# (settle + seed) over a few frames instead of snapping by 30°. Focus eases to the
+	# pair midpoint; the close pair size + dead-centre look-at give the two-shot.
+	_cam_focus_tgt = mid
+	_cam_yaw_tgt = deg_to_rad(yaw)
+	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
+	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
+	_cam_shoulder_tgt = 0.0
+	_cam_size_tgt = float(_c.ARRIVAL_CINE_PAIR_SIZE)
+	_cam_lookahead_tgt = 0.0
+	_cam_looklift_tgt = 0.8
+	_drive_arrival_camera(delta)
 	# Exit once the conversation that auto-opened has been closed by the player.
 	if _convo_opened and not bool(_gs.get("dialogue_open")):
 		_arrival_beat = 4
@@ -806,53 +872,64 @@ func _update_resume_ease(delta: float) -> void:
 		_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes seamlessly
 
 
-# Place the behind-the-back follow camera. `lower_t` 0..1 interpolates the lift/back
-# from a higher/farther start (lower_t=1) down to the targets (lower_t=0) so the
-# camera drops in behind the player. `focus` is the world point the pivot eases to
-# (the camera looks at it); during Beat 3 this biases off the player toward the
-# elevator center so the emergence is hero-framed (JOB 1). `size` overrides the
-# default behind/orbit ortho width (-1 = use the lower_t-driven default).
-# iso_camera bows out while arrival_cinematic is set, so this owns BOTH the pivot
-# and the Camera3D's local transform each frame.
-func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0, focus: Vector3 = Vector3.INF, size: float = -1.0) -> void:
+# Per-beat TARGET helper — the settled over-the-shoulder WALK-IN framing (Beats 1/2).
+# Sets ONLY the _cam_*_tgt members; the persistent _cam_* members ease toward these
+# in _drive_arrival_camera. The members were seeded to the higher/farther OPENING pose
+# at cinematic start, so easing toward these tight values IS the old camera-lower-in
+# (the per-frame lower_t lerp is now the continuous member ease — same motion, no pop).
+func _set_ots_walk_targets() -> void:
+	_cam_focus_tgt = _player.global_position
+	_cam_yaw_tgt = 0.0
+	_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
+	_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
+	_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
+	_cam_size_tgt = float(_c.ARRIVAL_CINE_OTS_SIZE)
+	_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
+	_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
+
+
+# Single TARGET+CONTINUOUS-EASE camera driver. Eases each persistent _cam_* member
+# toward its per-beat TARGET (set by the active beat) with frame-rate-aware exponential
+# smoothing (f = 1 − exp(−rate·delta)), THEN applies the pose ONCE: pivot at _cam_focus,
+# pivot yaw = _cam_yaw, the Camera3D at pivot-local (_cam_shoulder, _cam_lift, −_cam_back)
+# looking at a point derived from _cam_lookahead/_cam_looklift, ortho size = _cam_size.
+# Because every parameter eases continuously, every beat boundary GLIDES: the shoulder
+# eases to 0 entering the orbit (no lateral pop), the OTS look-at bias eases out (no
+# look-direction snap), and the convo seed becomes a smooth yaw glide (no 30° jump).
+# delta=0 just applies the current members (used to render the seeded opening pose).
+# iso_camera bows out while arrival_cinematic is set, so this owns BOTH the pivot and
+# the Camera3D's local transform each frame.
+func _drive_arrival_camera(delta: float) -> void:
 	if _pivot == null or _player == null:
 		return
-	# Beat 1/2 (size < 0) is the close over-the-shoulder WALK-IN; Beat 3+ passes an
-	# explicit size for the orbit/pair framing and must stay a clean centred circle.
-	var ots: bool = size < 0.0
-	# OTS targets: much closer + lower than the old CAM_BACK/CAM_LIFT, lerped from a
-	# slightly higher/farther start (lower_t=1) down to the tight targets (lower_t=0).
-	var back_t: float = float(_c.ARRIVAL_CINE_OTS_BACK) if ots else float(_c.ARRIVAL_CINE_CAM_BACK)
-	var lift_t: float = float(_c.ARRIVAL_CINE_OTS_LIFT) if ots else float(_c.ARRIVAL_CINE_CAM_LIFT)
-	var back: float = lerpf(back_t, back_t * 1.6, lower_t)
-	var lift: float = lerpf(lift_t, lift_t * 1.8, lower_t)
-	# Lateral SHOULDER offset — present throughout the OTS walk-in (from half at the
-	# higher/farther start to full once settled) so we always look PAST one shoulder
-	# rather than dead-centre behind.
-	var shoulder: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), float(_c.ARRIVAL_CINE_OTS_SHOULDER) * 0.5, lower_t) if ots else 0.0
-	# Pivot at the focus (eased). Yaw the pivot to orbit the camera AROUND the focus —
-	# the camera sits at pivot-local (shoulder, lift, -back) and looks at the focus, so
-	# rotating the pivot's Y sweeps that behind-the-back position in a clean circle.
-	var target: Vector3 = _player.global_position if focus == Vector3.INF else focus
-	_pivot.global_position = _pivot.global_position.lerp(target, 0.2)
-	_pivot.rotation = Vector3(0.0, deg_to_rad(orbit_deg), 0.0)
+	if not _cam_init:
+		return
+	var f: float = 1.0 - exp(-float(_c.ARRIVAL_CINE_CAM_EASE_RATE) * delta) if delta > 0.0 else 0.0
+	# Ease each member toward its target. Yaw is eased the SHORT way (wrap-aware) so a
+	# target across the ±PI seam never sends the camera the long way around.
+	_cam_focus = _cam_focus.lerp(_cam_focus_tgt, f)
+	_cam_size = lerpf(_cam_size, _cam_size_tgt, f)
+	_cam_back = lerpf(_cam_back, _cam_back_tgt, f)
+	_cam_lift = lerpf(_cam_lift, _cam_lift_tgt, f)
+	_cam_shoulder = lerpf(_cam_shoulder, _cam_shoulder_tgt, f)
+	_cam_lookahead = lerpf(_cam_lookahead, _cam_lookahead_tgt, f)
+	_cam_looklift = lerpf(_cam_looklift, _cam_looklift_tgt, f)
+	var yaw_diff: float = wrapf(_cam_yaw_tgt - _cam_yaw + PI, 0.0, TAU) - PI
+	_cam_yaw += yaw_diff * f
+	# Apply the pose ONCE from the eased members.
+	_pivot.global_position = _cam_focus
+	_pivot.rotation = Vector3(0.0, _cam_yaw, 0.0)
 	if _camera:
-		# Camera south (-Z) of and above the pivot, offset to one side for the OTS look;
-		# look back at the focus from behind/above. He walks +Z (north), so south = behind.
-		_camera.position = Vector3(shoulder, lift, -back)
-		# Look target. For the orbit/pair case, aim straight at the focus (clean circle).
-		# For the OTS walk-in, aim slightly AHEAD (where he walks) and toward the shoulder
-		# side so the character sits to one frame edge and the barren Garden + elevator
-		# ahead open up — a real over-the-shoulder framing, not dead-centre behind.
-		var look_local := Vector3(0.0, 0.8, 0.0)
-		if ots:
-			# Aim at head/shoulder height a touch ahead so, at the flatter (low, near-
-			# horizontal) OTS angle, the look-at doesn't sink into the floor — keeps
-			# headroom and opens the Garden/elevator ahead.
-			look_local = Vector3(shoulder * 0.45, float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT), float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD))
+		# Camera south (-Z) of and above the pivot, offset _cam_shoulder to one side; look
+		# back at the focus from behind/above. He walks +Z (north), so south = behind.
+		_camera.position = Vector3(_cam_shoulder, _cam_lift, -_cam_back)
+		# Look-at: a touch toward the shoulder side + ahead (+Z) + up. With shoulder→0 and
+		# lookahead→0 (the orbit/convo targets) this is the dead-centre clean-circle aim;
+		# with the OTS values it's the over-the-shoulder, look-ahead framing — and because
+		# both ease continuously the transition between them never snaps.
+		var look_local := Vector3(_cam_shoulder * 0.45, _cam_looklift, _cam_lookahead)
 		_camera.look_at(_pivot.global_transform * look_local, Vector3.UP)
-		# Tight ortho framing so the figure reads LARGE (the iso default is far wider).
-		_camera.size = float(_c.ARRIVAL_CINE_OTS_SIZE) if ots else size
+		_camera.size = _cam_size
 		_gs.camera.ortho_size = _camera.size
 
 
@@ -974,6 +1051,15 @@ func _update(snap: bool) -> void:
 		if absf(pp.x) > half_out or absf(pp.z) > half_out:
 			_exit_building()
 			return
+	# FIX 2 — during the arrival cinematic the camera drops to a LOW over-the-shoulder
+	# angle that can see past the Garden floor edge / down the shaft. The normal
+	# at-or-below rule renders the basement (level 0) UNDER the Garden, so you'd see
+	# THROUGH the ground into the basement. While the cinematic plays, gate interior
+	# floor visibility to ONLY the current floor (hide everything strictly below) so the
+	# shaft shows empty void below the Garden, never the basement. The elevator car is a
+	# separate ElevatorPlatform node (not in this loop), so it still rises into view from
+	# below — the intended effect. Normal play keeps the at-or-below rule unchanged.
+	var cine_gate: bool = bool(_gs.get("arrival_cinematic"))
 	for f in _floors:
 		var node: Node3D = f.node
 		# Construct-from-empty: a floor only exists once built. Unbuilt floors are
@@ -981,6 +1067,9 @@ func _update(snap: bool) -> void:
 		# every floor is built, so this reduces to the original at_or_below rule.
 		var built: bool = int(f.level) <= int(_gs.built_level)
 		var at_or_below: bool = built and (int(f.level) <= _current_level)
+		# During the cinematic: show ONLY the current floor (no basement showing through).
+		if cine_gate:
+			at_or_below = built and (int(f.level) == _current_level)
 		# Slab collision: solid for your floor + everything below, OFF for floors
 		# above so a jump passes straight up through the ceiling and falls back
 		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass

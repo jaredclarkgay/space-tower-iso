@@ -551,6 +551,12 @@ const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height
 const ARRIVAL_CINE_CONVO_ORBIT_RATE := 16.0  # deg/sec phase rate (leisurely turn; ~22s per full ping-pong)
 const ARRIVAL_CINE_CONVO_ORBIT_AMP := 55.0  # arc swept off the settle yaw toward the front (keeps the pair framed in front of the core)
 const ARRIVAL_CINE_CONVO_SEED_DEG := 30.0   # one-time starting offset off the settle yaw so the FIRST conversation frame is already a clean two-shot (Cody sits behind the player at the bare settle yaw); the smooth (1−cos) orbit proceeds from this seeded angle
+# Frame-rate-aware exponential smoothing rate for the persistent _cam_* members that
+# glide across beat boundaries (f = 1 − exp(−rate·delta)). Higher = snappier/tighter
+# follow; lower = floatier. ~7/s is responsive but smooths every per-beat target change
+# (shoulder→0 entering the orbit, the convo seed, size/focus shifts) into a continuous
+# glide so no beat boundary snaps.
+const ARRIVAL_CINE_CAM_EASE_RATE := 7.0
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
