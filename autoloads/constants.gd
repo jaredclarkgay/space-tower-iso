@@ -540,12 +540,12 @@ const ARRIVAL_CINE_RESUME_DUR := 1.1
 # --- Close-camera enhancements (3 asks) ---
 # ASK 1 — over-the-shoulder WALK-IN (Beat 1/2): much closer, lower, offset to one
 # side so we look PAST the character's shoulder as he walks toward the elevator.
-const ARRIVAL_CINE_OTS_BACK := 3.6       # camera distance behind the player (much closer than CAM_BACK)
-const ARRIVAL_CINE_OTS_LIFT := 1.5       # camera height above the player — LOW + near shoulder/head height so the look-down stays shallow (~12–18°), a true horizontal over-the-shoulder rather than a top-down-ish behind view
+const ARRIVAL_CINE_OTS_BACK := 4.2       # camera distance behind the player (a touch more back so the higher angle still keeps the figure framed, not foreshortened)
+const ARRIVAL_CINE_OTS_LIFT := 3.1       # camera height above the player — RAISED so the camera looks DOWN onto the floor (~30°, toward the iso 30°), filling the lower frame with the slab. The operator wanted "higher, angled down" to kill the floor cutting away (was 1.5 = a near-flat ~14° that let the lower frustum skim past the floor edge)
 const ARRIVAL_CINE_OTS_SHOULDER := 2.2   # lateral offset (behind-and-to-one-side, not dead-centre)
-const ARRIVAL_CINE_OTS_SIZE := 6.5       # tight ortho size so the figure reads LARGE
+const ARRIVAL_CINE_OTS_SIZE := 7.0       # tight ortho size so the figure reads LARGE (a touch wider at the higher angle so the floor reads around him)
 const ARRIVAL_CINE_OTS_LOOK_AHEAD := 2.2 # aim the OTS look-at this far ahead of the player (opens the view ahead, pushes him to a frame edge)
-const ARRIVAL_CINE_OTS_LOOK_LIFT := 0.6  # height of the OTS look-at target (head/shoulder height) — keeps headroom so we see the space ahead, not the floor, at the flatter angle
+const ARRIVAL_CINE_OTS_LOOK_LIFT := 0.7  # height of the OTS look-at target (chest/shoulder height) — with the raised LIFT this sets the ~30° downward look so the Garden floor fills the lower frame (no see-through past the edge)
 # ASK 2 — close orbit on the PAIR once Cody settles. Tighter than EMERGE_SIZE.
 const ARRIVAL_CINE_PAIR_SIZE := 9.5      # close framing for the player↔Cody pair (both read + breathing room)
 const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height so both bodies sit in the upper frame
@@ -570,9 +570,10 @@ const ARRIVAL_CINE_CAM_EASE_RATE := 7.0
 # the focus, so the framing only shifts (the camera slides inward over the slab); it never
 # peers under the edge. Margin keeps it a touch inside the wall, not exactly on the seam.
 const ARRIVAL_CINE_CAM_FOOTPRINT_MARGIN := 2.0
-# When the cinematic camera is within this many metres of a footprint edge, pitch its
-# look-at DOWN by up to ARRIVAL_CINE_EDGE_PITCH_DROP so the low OTS frame lands on the slab
-# instead of skimming past the edge to the sky below grade (kills the residual doorway band).
+# DEPRECATED — the edge-proximity look-at pull-down ("cutaway") these tuned was removed
+# (the operator disliked the floor pitching away near edges). The higher angled-down OTS
+# (raised ARRIVAL_CINE_OTS_LIFT) plus the at-grade site ground now keep the floor solid to
+# the edge. Kept only so any stale reference still resolves; safe to delete later.
 const ARRIVAL_CINE_EDGE_PITCH_BAND := 6.0
 const ARRIVAL_CINE_EDGE_PITCH_DROP := 5.0
 

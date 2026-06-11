@@ -1064,14 +1064,11 @@ func _drive_arrival_camera(delta: float) -> void:
 		# both ease continuously the transition between them never snaps.
 		var look_local := Vector3(_cam_shoulder * 0.45, _cam_looklift, _cam_lookahead)
 		var look_world: Vector3 = _pivot.global_transform * look_local
-		# FIX 1 — edge-proximity downward pitch. Clamping keeps the camera OVER the slab, but
-		# a low OTS angle near an EDGE still lets the lower frustum corners skim PAST the edge
-		# to the sky below grade (the residual blue band at the south doorway). When the
-		# camera's world XZ is within EDGE_PITCH_BAND of any footprint edge, pull the look-at
-		# DOWN toward the floor — pitching the camera down so the lower frame lands on the slab
-		# instead of past the edge. Zero in the interior (no effect on the orbit/normal pose),
-		# ramps up only at the perimeter where the see-through would occur.
-		look_world.y -= _edge_pitch_drop()
+		# The edge-pitch-drop "cutaway" hack was removed (operator disliked the way it
+		# pitched the floor away near edges). With the site ground now visible at grade
+		# (FIX 1) the area past the floor edge is solid ground, not void/basement, and the
+		# higher angled-down OTS (raised ARRIVAL_CINE_OTS_LIFT) keeps the slab filling the
+		# lower frame — together these kill the see-through without any per-edge pitching.
 		_camera.look_at(look_world, Vector3.UP)
 		_camera.size = _cam_size
 		_gs.camera.ortho_size = _camera.size
@@ -1117,25 +1114,9 @@ func _blend_intro_pose() -> void:
 # margin) so the slab always reads solid and the camera never peers under the south/edge.
 # The camera local pos is already set; we read its world XZ, clamp, and write back the
 # pivot-local offset for the clamped world point (Y/local-Z framing preserved otherwise).
-# FIX 1 helper — how far to drop the look-at target (pitch the camera down) based on how
-# close the camera's WORLD XZ is to a footprint edge. 0 in the interior; ramps to
-# ARRIVAL_CINE_EDGE_PITCH_DROP at/over the edge, so the lower frame lands on the slab and
-# never skims past the perimeter to the sky below grade. Keeps the orbit/center pose unchanged.
-func _edge_pitch_drop() -> float:
-	if _camera == null or _pivot == null:
-		return 0.0
-	var w: Vector3 = _pivot.global_transform * _camera.position
-	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
-	# Distance from the camera to the NEAREST footprint edge (negative = outside).
-	var edge_dist: float = minf(half - absf(w.x), half - absf(w.z))
-	var band: float = float(_c.ARRIVAL_CINE_EDGE_PITCH_BAND)
-	if band <= 0.0:
-		return 0.0
-	# 0 when comfortably interior (edge_dist >= band), 1 at/over the edge.
-	var t: float = clampf(1.0 - edge_dist / band, 0.0, 1.0)
-	return smoothstep(0.0, 1.0, t) * float(_c.ARRIVAL_CINE_EDGE_PITCH_DROP)
-
-
+# (The former _edge_pitch_drop helper — a per-edge look-at pull-down "cutaway" — was
+# removed; the operator disliked the floor-pitch look. The higher angled-down OTS plus the
+# at-grade site ground now keep the floor solid to the edge without it.)
 func _clamp_cam_over_footprint() -> void:
 	if _camera == null or _pivot == null:
 		return
@@ -1273,25 +1254,27 @@ func _update(snap: bool) -> void:
 		if absf(pp.x) > half_out or absf(pp.z) > half_out:
 			_exit_building()
 			return
-	# FIX 2 — during the arrival cinematic the camera drops to a LOW over-the-shoulder
-	# angle that can see past the Garden floor edge / down the shaft. The normal
-	# at-or-below rule renders the basement (level 0) UNDER the Garden, so you'd see
-	# THROUGH the ground into the basement. While the cinematic plays, gate interior
-	# floor visibility to ONLY the current floor (hide everything strictly below) so the
-	# shaft shows empty void below the Garden, never the basement. The elevator car is a
-	# separate ElevatorPlatform node (not in this loop), so it still rises into view from
-	# below — the intended effect. Normal play keeps the at-or-below rule unchanged.
-	var cine_gate: bool = bool(_gs.get("arrival_cinematic"))
+	# Basement occlusion is now handled by the unified below-grade rule in the loop
+	# below (a below-grade floor shows only when _current_level is itself below grade).
+	# That covers the arrival cinematic too — from the Garden the basement stays hidden —
+	# so the old cinematic-only "current floor only" gate is gone.
 	for f in _floors:
 		var node: Node3D = f.node
 		# Construct-from-empty: a floor only exists once built. Unbuilt floors are
 		# fully absent (invisible + no collision). With built_level=99 (default)
 		# every floor is built, so this reduces to the original at_or_below rule.
 		var built: bool = int(f.level) <= int(_gs.built_level)
-		var at_or_below: bool = built and (int(f.level) <= _current_level)
-		# During the cinematic: show ONLY the current floor (no basement showing through).
-		if cine_gate:
-			at_or_below = built and (int(f.level) == _current_level)
+		# Unified visibility rule (operator's basement-occlusion fix). A floor shows
+		# when it's built AND at-or-below the current floor — EXCEPT a below-grade
+		# (basement) floor is shown ONLY when you are yourself at/below grade (on or
+		# descending to it). So from the Garden+ the basement stays hidden under the
+		# at-grade site ground; riding the elevator DOWN crosses _current_level to 0
+		# and the basement reveals. Above-grade floors keep the plain at-or-below rule.
+		# This subsumes the old cinematic-only gate: from the Garden (current=1) only the
+		# Garden shows (basement is below-grade → hidden; floors above → > current), so
+		# the separate cine_gate special-case is no longer needed.
+		var at_or_below: bool = built and (int(f.level) <= _current_level) \
+			and (int(f.level) >= int(_c.GROUND_LEVEL) or _current_level < int(_c.GROUND_LEVEL))
 		# Slab collision: solid for your floor + everything below, OFF for floors
 		# above so a jump passes straight up through the ceiling and falls back
 		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass
@@ -1337,16 +1320,14 @@ func _update(snap: bool) -> void:
 		var rise: float = maxf(0.0, _player.global_position.y - floor_surface)
 		var target_y: float = floor_anchor + rise * _JUMP_FOLLOW_FRACTION
 		_pivot.position.y = target_y if snap else lerpf(_pivot.position.y, target_y, 0.12)
-	# The site ground reads as the world's ground only at grade (the Garden); on
-	# floors above/below it would float in the tight iso framing, so hide it there.
-	# The exterior / construct / walk branches manage their own visibility.
-	# FIX 1 — KEEP the site ground visible during the arrival cinematic. The low OTS angle
-	# at the south doorway can catch the area just past the slab's south edge; with the
-	# ground shown (it sits at grade with the Garden, reading straight out the doorways) that
-	# area is solid GROUND, not blue void — so even at the worst frame there's no see-through
-	# hole. The sub-floor gate (basement hidden) + the footprint clamp keep the rest solid.
+	# The exterior GROUND is the world the tower stands ON: keep it visible from grade
+	# (the Garden) and EVERY floor above (Arboretum, Canopy, Residential, Sky Lounge,
+	# Roof) so the tower never floats in void and — being a full 72 m plane at y=0 — it
+	# OCCLUDES the below-grade basement from any above-grade view. It's hidden ONLY when
+	# the player is themselves BELOW grade (in the basement), where you're under it. The
+	# exterior / construct / walk branches manage their own visibility.
 	if _site_ground:
-		_site_ground.visible = (_current_level == _SPAWN_LEVEL)
+		_site_ground.visible = (_current_level >= int(_c.GROUND_LEVEL))
 	# The placeholder cityscape shows only from the upper floors (so it doesn't
 	# clutter the tight iso framing down on the Garden / Utility).
 	if _cityscape:
