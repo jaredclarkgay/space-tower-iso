@@ -1,7 +1,7 @@
 extends Node3D
 
-# Floor 3 — Arboretum (ground level). Edge-only tree plots, central elevator,
-# spiral ramp wrapping the elevator that ascends to Floor 4. Cody was
+# Floor 2 — Arboretum (ground level). Edge-only tree plots, central elevator,
+# a straight staircase beside the elevator that ascends to Floor 3 (Canopy). Cody was
 # "built for floor-three operations" per his dialogue tree — this is his
 # native floor.
 #
@@ -12,8 +12,8 @@ extends Node3D
 #   - 60s continuous growth (no water/sunlight gating yet — Phase 2B)
 #   - Tree state persisted in GameState.arboretum.trees so visits to other
 #     floors don't reset growth
-#   - Cross-floor rendering pattern: both Floor 3 and Floor 4 read the
-#     same trees dict; F3 renders trunk-up-from-ground, F4 renders the
+#   - Cross-floor rendering pattern: both Floor 2 and Floor 3 read the
+#     same trees dict; F2 renders trunk-up-from-ground, F3 renders the
 #     crown (the part above the slab hole).
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
@@ -62,9 +62,9 @@ func _ready() -> void:
 	# Corner vacuum tubes — tile down into the Garden's and up into the Canopy's.
 	VacuumTube.build_corner_tubes(self, _c, false)
 
-	# The single physical staircase that spans Floor 3 → Floor 4. Built in
-	# Floor 3's frame at y=0 so its base sits FLUSH with the floor slab (no
-	# lip to catch on); its top reaches one story up, at Floor 4's surface.
+	# The single physical staircase that spans Floor 2 → Floor 3. Built in
+	# Floor 2's frame at y=0 so its base sits FLUSH with the floor slab (no
+	# lip to catch on); its top reaches one story up, at Floor 3's surface.
 	# In the stacked tower the player just walks up/down it — no scene swap.
 	Stairs.build(self, _c, 0.0)
 
@@ -243,7 +243,7 @@ func _handle_plant_input() -> void:
 
 
 # Rebuilds tree geometry for every tree already in GameState (player came
-# back to Floor 3 after planting elsewhere). Each tree appears at its
+# back to Floor 2 after planting elsewhere). Each tree appears at its
 # current growth state — no replaying of growth.
 func _restore_existing_trees() -> void:
 	for key in _gs.arboretum.trees:

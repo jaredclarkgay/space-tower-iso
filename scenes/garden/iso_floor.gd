@@ -354,7 +354,7 @@ func _build_window_spotlight(side: String, half: float) -> void:
 func _build_elevator_shaft() -> void:
 	# Canonical elevator core built by FloorChrome (the static shaft; the car
 	# is elevator_platform.gd). Garden also gets passive spine pipes — they reflect
-	# Floor 1's connect/activate state so an online lane shows a glowing
+	# the Utility floor's (Floor 0) connect/activate state so an online lane shows a glowing
 	# pipe on every floor, not just where you flip the switch.
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)

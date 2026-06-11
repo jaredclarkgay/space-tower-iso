@@ -1,11 +1,10 @@
 extends Node3D
 
 # Cross-floor item conduits — one tube in each of the four floor corners.
-# Each tube has a DOWN port (always active — sends produce down to Floor 1
-# and out into the world for cash) and an UP port (active only when a floor
-# exists above). On the Garden floor (now Floor 2), the up port is sealed:
-# the operator is building Floor 1 elsewhere, so down is the only direction
-# that resolves to a destination.
+# Each tube has a DOWN port (always active — sends produce down the shaft and
+# out into the world for cash) and an UP port (active only when a floor exists
+# above). On the Garden (Floor 1) the up port is sealed: nothing is wired to
+# receive above yet, so down is the only direction that resolves to a destination.
 #
 # Standard for every floor — every floor gets four corner tubes. The Garden
 # only wires the player-sell path; future floors can add receive-from-tube

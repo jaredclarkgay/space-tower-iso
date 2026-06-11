@@ -613,7 +613,7 @@ func _physics_process(delta: float) -> void:
 	# arcs up through where the ceiling is and falls back to the SAME floor.
 	# Vertical travel between floors is stairs + elevator, not jumping. The
 	# Canopy slab (layer 1) stays solid as the one narrative glass ceiling, so
-	# bonking it on Floor 3 still blocks. The player therefore keeps its
+	# bonking it on Floor 2 still blocks. The player therefore keeps its
 	# slab-collision mask (layer 2) on at all times — see set in _ready().
 	move_and_slide()
 

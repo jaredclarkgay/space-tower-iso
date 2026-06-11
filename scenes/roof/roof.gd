@@ -1,6 +1,6 @@
 extends Node3D
 
-# Floor 5 — the CONSTRUCTION VISTA, the top of the tower (for now). The build
+# The Roof — the CONSTRUCTION VISTA, the top of the tower (for now). The build
 # hasn't finished up here: a poured concrete slab, exposed steel structure
 # (corner columns + a perimeter ring beam where the next floor's walls will go),
 # the elevator/spine shaft topping out, and the corner vacuum tubes capping off.
@@ -45,7 +45,7 @@ func _ready() -> void:
 	# Shaft + lit utility risers continue up to the top.
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
-	# Corner vacuum tubes — Floor 5 is the top, so they cap off (top-sealed).
+	# Corner vacuum tubes — the Roof is the top, so they cap off (top-sealed).
 	VacuumTube.build_corner_tubes(self, _c, true)
 	_build_steel_structure()
 

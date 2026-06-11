@@ -1383,7 +1383,7 @@ func _update(snap: bool) -> void:
 		# Slab collision: solid for your floor + everything below, OFF for floors
 		# above so a jump passes straight up through the ceiling and falls back
 		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass
-		# ceiling collision is never touched here, so Floor 3 jumps still bonk it.
+		# ceiling collision is never touched here, so Floor 2 jumps still bonk it.
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
 			slab.collision_layer = 2 if at_or_below else 0
@@ -1445,7 +1445,7 @@ func _update(snap: bool) -> void:
 	if _cityscape:
 		_cityscape.visible = _current_level >= int(_c.CITY_REVEAL_LEVEL)
 	# Light the passive spine-pipe risers on the floors above Utility to match
-	# whatever's online down on Floor 1 — so an activated utility glows
+	# whatever's online down on Floor 0 (Utility) — so an activated utility glows
 	# continuously all the way up the shaft, not just on its own floor.
 	_update_spine_pipe_fills()
 	# Ambience eases to the current floor's mood (Utility dark, Garden warm,
@@ -1482,10 +1482,10 @@ func _blend_preset(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
 	}
 
 
-# Drives the visibility of every passive spine-pipe fill (floors 2-4) from the
-# live Floor 1 utility state, so lit risers continue up the whole shaft instead
-# of stopping at the floor they were built on. Floor 1 builds its own animated
-# pipes separately; these are the cross-floor copies.
+# Drives the visibility of every passive spine-pipe fill (the floors above the
+# Utility basement) from the live Floor 0 utility state, so lit risers continue up
+# the whole shaft instead of stopping at the floor they were built on. The Utility
+# floor (Floor 0) builds its own animated pipes separately; these are the cross-floor copies.
 func _update_spine_pipe_fills() -> void:
 	var active: Dictionary = _gs.utility.get("pipe_active", {})
 	for fill in get_tree().get_nodes_in_group("passive_spine_fill"):

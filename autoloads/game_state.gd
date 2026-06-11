@@ -194,7 +194,7 @@ var dispenser_stock := {
 # stairs in one continuous world — so neither fade-coordination flag exists.)
 
 
-# Floor 1 (utility) state. master_on flips when the player pulls the master
+# Floor 0 (utility) state. master_on flips when the player pulls the master
 # breaker; per-system `connected` and `pipe_active` track each system's
 # state. Survives floor switches so a return trip restores the lit room
 # and primed/active sources without re-playing the intro.
@@ -219,11 +219,11 @@ var utility := {
 }
 
 
-# Floor 3 (Arboretum) state.
+# Floor 2 (Arboretum) state.
 #   water_connected:    has the player connected the floor's irrigation
 #                       (Phase 2B — currently always treated as on; trees
 #                       grow as soon as planted).
-#   sunlight_active:    has the player opened the Floor 4 skylight panel
+#   sunlight_active:    has the player opened the Floor 3 skylight panel
 #                       (Phase 2B — same).
 #   trees:              per-plot tree state, keyed by "ix,iz" grid coords.
 #                       Legacy keys (never repurposed): variety: 0|1,
@@ -233,8 +233,8 @@ var utility := {
 #                       last_seed_msec. planted_at/growth_start are SIM-clock
 #                       timestamps. ArboretumTree.ensure_genome() migrates any
 #                       entry missing the new keys.
-#                       Both Floor 3 and Floor 4 controllers read this dict
-#                       and render their slice (full tree on F3; canopy on F4
+#                       Both Floor 2 and Floor 3 controllers read this dict
+#                       and render their slice (full tree on F2; canopy on F3
 #                       once growth_t > TREE_FLOOR_4_VISIBLE_THRESHOLD).
 #   next_variety:       0 or 1 — alternated on each plant so the mix reads
 #                       as deliberately varied, not random.
@@ -261,7 +261,7 @@ var time_of_day: float = 0.0
 func _process(delta: float) -> void:
 	sim_time_msec += delta * 1000.0 * sim_speed
 
-# Floor 4 (Canopy deck) holds no independent state — it renders the same
-# trees Floor 3 owns. Phase 1 keeps a slot here in case Phase 2 wants per-
+# Floor 3 (Canopy deck) holds no independent state — it renders the same
+# trees Floor 2 owns. Phase 1 keeps a slot here in case Phase 2 wants per-
 # floor flags (e.g. skylight_open_t for the panel animation).
 var canopy := {}

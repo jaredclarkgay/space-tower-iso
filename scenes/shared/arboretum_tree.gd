@@ -14,10 +14,10 @@ extends RefCounted
 # swaps and save/load. The genome itself is generated once and stored in
 # GameState.arboretum.trees, so it never drifts.
 #
-# Floor 3 renders trees with their base at FLOOR_3D_TOP_Y (~0.2 m). Floor 4
+# Floor 2 renders trees with their base at FLOOR_3D_TOP_Y (~0.2 m). Floor 3
 # renders the SAME trees offset by -FLOOR_3D_STORY_HEIGHT (-3 m) so the visible
-# portion above Floor 4's slab is exactly the part poking above Floor 3's
-# ceiling. Floor 4's slab has a hole at each tree position; lean is clamped so
+# portion above Floor 3's slab is exactly the part poking above Floor 2's
+# ceiling. Floor 3's slab has a hole at each tree position; lean is clamped so
 # the trunk always clears that hole.
 #
 # Loaded via preload, NOT class_name (per F-010).
@@ -228,7 +228,7 @@ static func build(parent: Node3D, c: Node, tree: Dictionary, world_position: Vec
 	root.name = "Tree_v%d" % variety
 	root.position = world_position
 	# Lean: tilt the whole tree about a fixed per-tree horizontal axis. Angle
-	# clamped so the trunk stays inside the Floor 4 canopy hole at the slab.
+	# clamped so the trunk stays inside the Floor 3 canopy hole at the slab.
 	var lean_dir: float = rng.randf() * TAU
 	var lean_tilt: float = _safe_lean_tilt(float(g["lean"]), c)
 	if lean_tilt > 0.0001:
@@ -244,10 +244,10 @@ static func build(parent: Node3D, c: Node, tree: Dictionary, world_position: Vec
 	fol_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	fol_st.set_custom_format(0, SurfaceTool.CUSTOM_RGBA_FLOAT)
 
-	# Floor-4 canopy slab in this tree's LOCAL frame, plus the open radius around
+	# Floor-3 canopy slab in this tree's LOCAL frame, plus the open radius around
 	# the trunk. The generators keep all branch/foliage geometry clear of the
 	# slab "band" (only the trunk passes through, within the hole) so nothing
-	# clips the canopy floor — branches live below it (Floor 3) or above (Floor 4).
+	# clips the canopy floor — branches live below it (Floor 2) or above (Floor 3).
 	var slab_y: float = float(c.FLOOR_3D_STORY_HEIGHT) - world_position.y
 	var hole_r: float = float(c.FLOOR_4_TREE_HOLE_RADIUS)
 	var band: float = 0.55
@@ -372,7 +372,7 @@ static func _in_band(p: Vector3, slab_y: float, band: float, hole_r: float) -> b
 
 # Deciduous (apple): a leader trunk that passes up through the hole, a rounded
 # crown ABOVE the slab band, and (for canopy-reaching trees) a few low limbs on
-# Floor 3, all kept clear of the band.
+# Floor 2, all kept clear of the band.
 static func _gen_deciduous(bst: SurfaceTool, fst: SurfaceTool, c: Node, g: Dictionary,
 		rng: RandomNumberGenerator, asym_dir: float, slab_y: float, band: float, hole_r: float) -> void:
 	var vigor: float = float(g["vigor"])
@@ -549,7 +549,7 @@ static func _rand_cone(dir: Vector3, max_angle: float, rng: RandomNumberGenerato
 # --- Phenotype helpers ---------------------------------------------------
 
 # Lean tilt (radians): gene-scaled, then clamped by geometry so the trunk
-# still passes through the OPEN tile gap on Floor 4 (a full plot = ±0.5*plot)
+# still passes through the OPEN tile gap on Floor 3 (a full plot = ±0.5*plot)
 # where it crosses the slab (~STORY_HEIGHT up). Budgeting against the open tile
 # rather than the cosmetic rim radius leaves far more room for visible lean.
 static func _safe_lean_tilt(lean01: float, c: Node) -> float:

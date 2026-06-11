@@ -64,7 +64,7 @@ const WALL_THICKNESS := 0.3
 const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
 # Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
-const PLAYER_FALL_RESPAWN_Y := -3.0   # below Floor 1 (the bottom floor sits at y=0); only fires if you clip out of the building entirely
+const PLAYER_FALL_RESPAWN_Y := -3.0   # 3 m below the Garden grade (y=0); only fires if you clip out of the building entirely
 # Edge-fall: how far you can plunge off an open edge before the game returns you
 # to where you jumped from. Operator wants a real fall — the full height of the
 # tower, up to 5 floors. Falls that land on a floor below first (e.g. through the
@@ -170,7 +170,7 @@ const PLAYER_MOVE_SPEED := 7.0          # m/s — brisk walk, feels athletic
 const PLAYER_SPRINT_MULTIPLIER := 1.75  # held Shift → run at 1.75× walk speed
 const PLAYER_GRAVITY := 32.0            # m/s² downward — heavier feel, less floaty
 const PLAYER_JUMP_VELOCITY := 10.0      # m/s upward impulse on tap (~1.56 m peak)
-const PLAYER_JUMP_VELOCITY_MAX := 24.0  # m/s at full charge → ~9 m, comfortably clears the 6 m story to land through a ring on Floor 4
+const PLAYER_JUMP_VELOCITY_MAX := 24.0  # m/s at full charge → ~9 m, comfortably clears the 6 m story to land through a ring on Floor 3 (the Canopy)
 const PLAYER_JUMP_CHARGE_DURATION := 1.0  # seconds of held Space to reach max
 const PLAYER_LAND_SQUASH_DURATION := 0.32 # seconds of squash on landing — longer
                                            # so the bounce reads as a real beat
@@ -353,7 +353,7 @@ const SPROUT_EMERGE_DURATION := 1.0
 const PLANT_KNEEL_SCALE_Y := 0.55          # mirrors HARVEST_KNEEL_SCALE_Y for visual parity
 
 # --- Slice scope ---
-const GARDEN_FLOOR_INDEX := 2  # Floor 3, 0-indexed (the Garden of Eden)
+const GARDEN_FLOOR_INDEX := 2  # STALE + UNUSED: value (2) and "Floor 3" label both predate the locked numbering (the Garden is Floor 1). No readers — safe to delete.
 
 # --- Player backpack ---
 # Cap on how many veggies (plant count, not value) the player can carry. The
@@ -627,8 +627,8 @@ const ARRIVAL_CINE_INTRO_SIZE := 11.0   # (deprecated — was the synthesized de
 # player keeps control the whole time; only the camera eases. Mirrors the resume ease.
 const ARRIVAL_CINE_REENTRY_DUR := 0.9
 
-# --- Floor 1 (utility / infrastructure floor under the Garden) -----------
-# Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
+# --- Floor 0 (utility / infrastructure floor under the Garden) -----------
+# Locked numbering: Garden = Floor 1; the Utility basement is Floor 0 below it.
 # Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension
 # grid) so floors read as the same building viewed at different stories.
 # 6 lanes — water, power, atmosphere, data, waste, cargo — feed up the
@@ -665,7 +665,7 @@ const FLOOR_1_EMERGENCY_OMNI_RANGE := 18.0
 const FLOOR_1_PLAYER_SPOT_ENERGY := 1.4
 const FLOOR_1_BREAKER_SPOT_ENERGY := 2.4
 
-# Floor 1 utility systems. Six lanes feed the central elevator/spine —
+# Floor 0 utility systems. Six lanes feed the central elevator/spine —
 # water/power/atmosphere/data/waste are utility upflow, cargo is bidirectional
 # (sells produce out, delivers supplies up to Garden corner tubes).
 # Positions scaled from the brief's 0..16 grid to the 30×30 floor centred at
@@ -849,12 +849,12 @@ func plant_type_by_seed(seed_key: String) -> Dictionary:
 	return {}
 
 
-# --- Floor 3-4 (Arboretum) -------------------------------------------------
-# Floor 3 (Arboretum ground): edge-only plots, central elevator + spiral
-# staircase, water + sunlight sources. Floor 4 (Canopy deck): same footprint
+# --- Floors 2-3 (Arboretum) -------------------------------------------------
+# Floor 2 (Arboretum ground): edge-only plots, central elevator + straight
+# staircase, water + sunlight sources. Floor 3 (Canopy deck): same footprint
 # with holes cut in the slab above every tree plot AND a full annular hole
 # for the staircase to emerge through. Trees grow continuously, height up to
-# two stories so the crown fills Floor 4. Phase 2 wires planting + growth.
+# two stories so the crown fills Floor 3. Phase 2 wires planting + growth.
 
 const ARBORETUM_HEADER_AMBER := Color(0.95, 0.86, 0.55, 0.95)
 const ARBORETUM_AMBIENT_TINT := Color(0.62, 0.72, 0.66, 1.0)   # green-tinted ambient
@@ -868,11 +868,11 @@ const ARBORETUM_SKY_BG := Color(0.06, 0.10, 0.08, 1.0)
 const ARBORETUM_EDGE_INSET := 2                              # cells inside the wall (offset from the glass so crowns clear it)
 const ARBORETUM_PLOT_STRIDE := 3                             # every third cell — room for crowns to spread without overlapping
 const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brown
-const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 4 holes
+const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 3 (Canopy) holes
 const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — (legacy) small rim radius, superseded by FLOOR_4_TREE_HOLE_RADIUS
 const FLOOR_4_TREE_HOLE_RADIUS := 1.5                        # m — open radius per tree so the whole crown clears the slab
 
-# --- Straight stairs (Floor 3 ↔ Floor 4) -----------------------------------
+# --- Straight stairs (Floor 2 ↔ Floor 3) -----------------------------------
 # Simple straight inclined ramp going south from the elevator's south face,
 # climbing FLOOR_3D_STORY_HEIGHT (3 m) in STAIRCASE_RUN (5.5 m) — a ~28°
 # slope that the CharacterBody3D walks up smoothly. Replaces the v1/v2
@@ -880,9 +880,9 @@ const FLOOR_4_TREE_HOLE_RADIUS := 1.5                        # m — open radius
 # segments left collision gaps + the camera-relative input mapping
 # disagreed with the spiral's curving heading).
 #
-# At the top of the stairs on Floor 3 sits an Area3D that scene-swaps to
-# Floor 4. Floor 4 has the matching bottom-of-stairs trigger zone — the
-# player walks "down" past it to scene-swap back.
+# The stairs span Floor 2 → Floor 3 (the Canopy) in one continuous stacked
+# world: the player simply walks up onto Floor 3 and back "down" to Floor 2.
+# No scene swap (that's retired).
 const STAIRCASE_RUN := 10.0                           # m — horizontal length (longer to climb the 6 m story at a walkable ~31° slope)
 const STAIRCASE_WIDTH := 1.6                          # m — walkable width
 const STAIRCASE_THICKNESS := 0.12                     # m — ramp slab thickness
@@ -893,45 +893,45 @@ const STAIRCASE_TREAD_EMISSION := Color(0.10, 0.07, 0.04)
 const STAIRCASE_RISER_COLOR := Color(0.22, 0.16, 0.12)
 const STAIRCASE_RAIL_COLOR := Color(0.32, 0.28, 0.22)
 
-# Trigger zone radius around the top-of-stairs world point that fires the
-# scene swap. Player enters → scene_change_to_file.
+# Trigger zone radius around the top-of-stairs world point. (Legacy from the
+# retired scene-swap era; the stacked tower changes no scenes.)
 const STAIRCASE_TRIGGER_RADIUS := 1.2
 
-# Floor 4 slab rectangular hole where the straight staircase passes through.
+# Floor 3 slab rectangular hole where the straight staircase passes through.
 # Tiles whose centres fall inside (abs(x) <= W/2 + margin) AND
 # (FLOOR_4_STAIRWELL_Z_MIN <= z <= FLOOR_4_STAIRWELL_Z_MAX) are skipped so the
-# descending staircase is visible from Floor 4 as an open stairwell.
+# descending staircase is visible from Floor 3 as an open stairwell.
 const FLOOR_4_STAIRWELL_HALF_WIDTH := STAIRCASE_WIDTH * 0.5 + 0.1
 const FLOOR_4_STAIRWELL_Z_MIN := 3.2                          # just south of elevator
 const FLOOR_4_STAIRWELL_Z_MAX := STAIRCASE_BOTTOM_Z + STAIRCASE_RUN - 0.1  # cuts off before stair top so the player lands on solid slab
 
-# --- Floor 4 slab tiling ---------------------------------------------------
-# Floor 4's slab is built tile-by-tile (vs. Floor 3's single BoxMesh) so the
+# --- Canopy (Floor 3) slab tiling ------------------------------------------
+# Floor 3's slab is built tile-by-tile (vs. Floor 2's single BoxMesh) so the
 # tree holes + staircase annulus + central elevator footprint can all be
 # punched out. Tile is the GARDEN_PLOT_SIZE grid.
 const FLOOR_4_TILE_INSET_GAP := 0.006                        # m — thin gaps so the glass-floor grid is subtle, not distracting
 const FLOOR_4_SLAB_VISUAL_THICKNESS := 0.20                  # m — tile MESH depth (restored; the thin GAP, not thin tiles, keeps the grid subtle)
 
-# Canopy glass — the Floor 4 slab + aperture rings read as glass so the player
+# Canopy glass — the Floor 3 slab + aperture rings read as glass so the player
 # can (a) see the rings from below to aim jumps through them, and (b) get a
 # translucent "ceiling pulse" when they bonk their head on the slab from below.
 const FLOOR_4_GLASS_COLOR := Color(0.80, 0.86, 0.92)         # white-with-a-little-grey
 const FLOOR_4_RING_ALPHA := 0.28                             # rings always faintly visible from below (aim targets)
-const FLOOR_4_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 4
+const FLOOR_4_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 3 (Canopy)
 const FLOOR_4_CEILING_PULSE_ALPHA := 0.45                    # peak slab glass when you hit the ceiling from below
 const FLOOR_4_CEILING_PULSE_DECAY := 2.5                     # per-second fade of the bonk pulse
 const FLOOR_4_CEILING_PING_RADIUS := 1.95                    # m — radius of the localized glass glow where you bonk the ceiling (0.75× the old 2.6; feathered radial falloff)
 
 # --- Arboretum trees -------------------------------------------------------
-# Trees plant on Floor 3 edge plots and grow continuously over
+# Trees plant on Floor 2 edge plots and grow continuously over
 # TREE_GROWTH_DURATION_MS to maturity. Two varieties (visual only, no
 # mechanical difference) alternate on plant so the floor reads as a mixed
 # arboretum. Mature trees span two stories — the trunk passes through the
-# Floor 4 slab hole and the crown emerges above. Phase 2A: plant + grow.
+# Floor 3 slab hole and the crown emerges above. Phase 2A: plant + grow.
 # Phase 2B will add the water + sunlight gating that the user designed.
 const TREE_GROWTH_DURATION_MS := 120_000                     # 120 s, plant → mature (sim clock)
 const TREE_PLANT_INTERACT_RADIUS := 1.1                      # m — player → edge-plot distance
-const TREE_FLOOR_4_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F4
+const TREE_FLOOR_4_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F3 (Canopy)
 
 # Developmental growth (Phase B). The reveal shader eases each vertex from its
 # baked growth-origin over `span` once `growth` passes the vertex's birth time.
@@ -941,7 +941,7 @@ const TREE_SPROUT_STAGGER_MS := 1200                         # batch ripple offs
 
 # Trunk + crown waypoints. Tweened linearly between MIN and MAX from
 # growth_t = 0 → 1. Mature trunk height (4.5 m) is well above one
-# story (3 m), so the canopy sits cleanly above Floor 4's slab.
+# story (3 m), so the canopy sits cleanly above Floor 3's slab.
 const TREE_TRUNK_HEIGHT_MIN := 0.4
 const TREE_TRUNK_HEIGHT_MAX := 9.0    # tall enough that mature crowns clear the 6 m canopy floor
 const TREE_CROWN_DIAMETER_MIN := 0.25
@@ -959,7 +959,7 @@ const TREE_GOMPERTZ_B := 4.0
 const TREE_GOMPERTZ_C := 5.0
 
 # Max trunk/crown lean tilt (degrees) at lean gene = 1.0. Auto-clamped further
-# at runtime so a leaning trunk still clears the Floor 4 canopy hole.
+# at runtime so a leaning trunk still clears the Floor 3 canopy hole.
 const TREE_LEAN_MAX_DEG := 12.0
 
 # HUD-only stage names for the per-tree growth readout (Phase 2B HUD).

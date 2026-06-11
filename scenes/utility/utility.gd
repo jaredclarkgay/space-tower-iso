@@ -1,6 +1,6 @@
 extends Node3D
 
-# Floor 1 — utility / infrastructure floor under the Garden. The first
+# Floor 0 — utility / infrastructure floor under the Garden. The first
 # thing the player does on entering the basement is bring this floor
 # online: pull the master breaker, then walk to each of 6 utility
 # sources (water, power, atmosphere, data, waste, cargo) and connect +
@@ -100,7 +100,7 @@ var _emergency_omni: OmniLight3D
 
 func _ready() -> void:
 	# Slab + walls + extension grid — same construction the Garden uses, so
-	# Floor 1 reads as the same building viewed one story down.
+	# Floor 0 reads as the same building viewed one story down.
 	FloorChrome.build_slab(self, _c)
 	# Basement: seal the walls UP TO the Garden floor (one story) so you can't drift
 	# out, but no higher — a full seal would bleed into the Garden's doorways above.
@@ -108,7 +108,7 @@ func _ready() -> void:
 	FloorChrome.build_walls(self, _c, false, true, _c.FLOOR_3D_STORY_HEIGHT)
 	FloorChrome.build_extension_grid(self, _c)
 	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	# Corner vacuum tubes — Floor 1 is the bottom of the served stack; its tubes
+	# Corner vacuum tubes — Floor 0 is the bottom of the served stack; its tubes
 	# tile up into the Garden's. Bottom port feeds "out into the world".
 	VacuumTube.build_corner_tubes(self, _c, false)
 	_build_sources()
@@ -916,8 +916,8 @@ func _make_material(color: Color) -> StandardMaterial3D:
 
 # --- Source interaction loop ---------------------------------------------
 
-# True only while the player is physically standing on this floor (Floor 1 sits
-# at y=0 in the tower; global_position.y is its surface). Stops cross-floor
+# True only while the player is physically standing on this floor (the Utility
+# basement, Floor 0, sits at y=-6 in the tower; global_position.y is its surface). Stops cross-floor
 # interactions in the stacked world.
 func _player_on_this_floor() -> bool:
 	if _player == null:

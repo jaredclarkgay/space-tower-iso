@@ -145,7 +145,7 @@ static func _wall_piece(body: StaticBody3D, mat: Material, along_x: bool, perp: 
 
 # A perimeter wall with a centred doorway: two solid side pieces (mesh + collision)
 # flank an open gap, framed by jambs + a lintel. The gap has NO collision so the
-# player walks straight through. Used by the ground floor (Floor 0).
+# player walks straight through. Used by the ground floor (the Garden, Floor 1).
 static func _build_one_wall_doored(parent: Node3D, c: Node, side: String, half: float) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Wall_" + side
@@ -475,7 +475,7 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		# The lit "fill" overlay is ALWAYS built now (was build-time only). In the
 		# stacked tower every floor is built at startup, before any utility is
 		# online, so a build-time check always saw inactive and the lit state
-		# never climbed past Floor 1. Instead we build it for every system and
+		# never climbed past Floor 0. Instead we build it for every system and
 		# toggle visibility live: it joins the "passive_spine_fill" group tagged
 		# with its system id, and tower_controller drives `visible` from
 		# GameState.utility.pipe_active each frame, so activating a utility lights

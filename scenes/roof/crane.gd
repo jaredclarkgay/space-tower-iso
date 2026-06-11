@@ -109,7 +109,7 @@ func _update_driving(delta: float) -> void:
 		-input.x * sin(yaw) + input.y * cos(yaw),
 	)
 	if world_dir.length() > 0.05:
-		# Floor 5 has no rotation, so local XZ == world XZ; move in local space.
+		# The Roof has no rotation, so local XZ == world XZ; move in local space.
 		position += world_dir.normalized() * SPEED * delta
 		_yaw = atan2(world_dir.x, world_dir.z)
 		_last_drive_dir = world_dir.normalized()

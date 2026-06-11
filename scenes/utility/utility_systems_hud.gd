@@ -1,6 +1,6 @@
 extends Control
 
-# Top-right "Systems" status panel for Floor 1. Six rows (water, power,
+# Top-right "Systems" status panel for Floor 0 (Utility). Six rows (water, power,
 # atmosphere, data, waste, cargo), each showing the system's state with a
 # colour-coded dot:
 #   ● red    offline   (not yet connected)

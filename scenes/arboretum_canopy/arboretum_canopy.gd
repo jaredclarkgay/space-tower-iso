@@ -1,14 +1,14 @@
 extends Node3D
 
-# Floor 4 — Canopy deck. The upper half of the Arboretum. Its slab is built
+# Floor 3 — Canopy deck. The upper half of the Arboretum. Its slab is built
 # tile-by-tile with holes punched for the elevator shaft, the stairwell, and a
-# generous disc per edge tree plot (the Floor 3 trees grow up through these).
+# generous disc per edge tree plot (the Floor 2 trees grow up through these).
 #
-# In the stacked tower this node lives at world y = (4-1)*STORY_HEIGHT; geometry
+# In the stacked tower this node lives at world y = (3-1)*STORY_HEIGHT; geometry
 # is built in LOCAL space (slab top at local y=0). The trees + the staircase are
-# single physical objects owned by Floor 3 that pass up through here.
+# single physical objects owned by Floor 2 that pass up through here.
 #
-# Floor 4's pieces are split so the tower controller can treat the slab as a
+# Floor 3's pieces are split so the tower controller can treat the slab as a
 # GLASS CEILING from below:
 #   - _structure (walls / elevator / pipes / grid): hidden while the player is
 #     on a floor below — gated by set_structure_visible().
@@ -43,7 +43,7 @@ void fragment() {
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
 
-# Edge plot positions (where tree-holes go). Same algorithm as Floor 3 so the
+# Edge plot positions (where tree-holes go). Same algorithm as Floor 2 so the
 # holes align with the trunks one story below.
 var _tree_hole_positions: Array = []
 
@@ -74,7 +74,7 @@ func _ready() -> void:
 	var elev_data: Dictionary = FloorChrome.build_elevator_core(_structure, _c)
 	FloorChrome.build_passive_spine_pipes(_structure, _c, _gs, elev_data)
 	# Corner vacuum tubes — the Canopy is no longer the top (the Vista is above),
-	# so its tubes stay open and tile up into Floor 5's. Built into the gated
+	# so its tubes stay open and tile up into the Roof's. Built into the gated
 	# structure so they hide/show with the rest of the Canopy chrome.
 	VacuumTube.build_corner_tubes(_structure, _c, false)
 
@@ -147,7 +147,7 @@ func _compute_tree_hole_positions() -> void:
 	var inset: int = int(_c.ARBORETUM_EDGE_INSET)
 	var stride: int = int(_c.ARBORETUM_PLOT_STRIDE)
 	var half: float = grid * plot * 0.5
-	# Keep holes off the corner vacuum tubes — must match Floor 3's plot exclusion
+	# Keep holes off the corner vacuum tubes — must match Floor 2's plot exclusion
 	# exactly, or the Canopy would have an empty hole at each corner tube (and the
 	# player would drop through it when hopping up the tube). 2 m clearance.
 	var tube_anchors: Array = VacuumTube.corner_anchors(_c)
@@ -177,7 +177,7 @@ func _near_any_tube(wp: Vector3, tube_anchors: Array, radius: float) -> bool:
 
 
 # Builds the slab as one StaticBody3D with N child tile collision shapes.
-# Tiles inside any skip region are omitted (player falls through onto Floor 3).
+# Tiles inside any skip region are omitted (player falls through onto Floor 2).
 func _build_tiled_slab_with_holes() -> void:
 	var grid: int = int(_c.GARDEN_GRID_SIZE)
 	var plot: float = float(_c.GARDEN_PLOT_SIZE)
