@@ -107,6 +107,13 @@ var _arrival_walk_started: bool = false   # first-tick guard for begin_scripted_
 # elevator car + Cody up the shaft, concurrently with the orbit sweep.
 var _emerge_started: bool = false         # one-shot Beat-3 entry guard
 var _emerge_rollout_started: bool = false # one-shot: roll-out fired
+var _rollout_elapsed: float = 0.0         # seconds since the roll-out tween fired (gates the rotation)
+# ROTATE-DELAY: the yaw stays pinned at _walk_yaw() (0, over-the-shoulder) through the WHOLE
+# emergence; only once Cody is (nearly) settled does the rotation to the profile begin. It's
+# tracked with member state so it can keep advancing the SAME smoothstep across the Beat 3 →
+# Beat 5 boundary (emergence done before the 2.2 s ease finishes) — no snap/restart.
+var _rotate_started: bool = false         # true once the yaw→profile rotation has begun
+var _rotate_t: float = 0.0                # rotation ease elapsed (0 → ARRIVAL_CINE_ROTATE_DUR)
 var _emerge_basement_y: float = 0.0       # car_y at the basement (level 0)
 var _emerge_garden_y: float = 0.0         # car_y at the Garden (level 1)
 # Beat-3 focus point (JOB 1): the camera look-at target eases from the player toward
@@ -287,6 +294,9 @@ func _begin_arrival_cinematic() -> void:
 	_arrival_walk_started = false
 	_emerge_started = false
 	_emerge_rollout_started = false
+	_rollout_elapsed = 0.0
+	_rotate_started = false
+	_rotate_t = 0.0
 	_convo_opened = false
 	_convo_yaw = 0.0
 	_resume_started = false
@@ -759,33 +769,47 @@ func _update_arrival_cinematic(delta: float) -> void:
 		# elevator + Cody) and the FOCUS eases from the player to the player↔Cody pair
 		# midpoint. The widening + the small settle reveal Cody emerging — no orbit needed.
 		_update_emergence(delta)
-		var settle_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_SETTLE_DUR), 0.0, 1.0)
-		var se: float = smoothstep(0.0, 1.0, settle_p)
-		# FIX 1 — Yaw: monotonic walk_yaw(0) → PROFILE yaw (−90), one negative-direction sweep.
-		# The profile lands the camera on the +X/east side, the pair reading in profile facing
-		# each other. (The resume later continues −90 → iso(−135), the SAME direction.)
-		var yaw_settled: float = lerp_angle(_walk_yaw(), _profile_yaw(), se)
-		# Focus: ease from the player toward the player↔Cody pair midpoint (a two-shot).
+		# ROTATE-DELAY: HOLD the over-the-shoulder framing (yaw 0) through Cody's ENTIRE
+		# emergence — car rising, doors opening, Cody rolling out. The player watches Cody
+		# arrive over his shoulder, looking NORTH toward the elevator. We only widen the size a
+		# touch (gentle zoom, NOT a rotation) so the elevator + emerging Cody read clearly
+		# AHEAD of the player, and nudge the focus slightly forward toward the pair so the
+		# emergence isn't shoved off-frame. The yaw stays pinned at _walk_yaw() (0).
+		#
+		# Trigger the yaw→profile rotation only once Cody has (nearly) settled: a small lead
+		# (ARRIVAL_CINE_ROTATE_LEAD) before his roll-out tween ends, so the move overlaps his
+		# final settle slightly. Once started, advance the SAME smoothstep here; it PERSISTS
+		# into Beat 5 (which keeps advancing it) so the move never snaps at the beat boundary.
 		var pp: Vector3 = _player.global_position
 		var pair_mid: Vector3 = _pair_midpoint()
-		# Size: ease OTS-tight → the two-shot pair size so both the player and the emerging
-		# car/Cody fit. (EMERGE_SIZE was the old survey-wide orbit size; the pair size is the
-		# calm two-shot the conversation also holds, so the size never has to move again.)
-		var size_settled: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), se)
-		# Settle TARGETS: yaw to the settled value, focus to the pair midpoint, shoulder→0
-		# (eases out the OTS lateral offset), look-at dead-centre, size to the two-shot.
-		_cam_focus_tgt = pp.lerp(pair_mid, se)
-		_cam_yaw_tgt = yaw_settled
-		_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
-		_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
-		_cam_shoulder_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), 0.0, se)
-		_cam_size_tgt = size_settled
-		_cam_lookahead_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD), 0.0, se)
-		_cam_looklift_tgt = 0.8
+		if not _rotate_started:
+			# Begin the rotation a small lead before the roll-out tween finishes. Falling back
+			# to is_emergence_done() guards against odd timing (e.g. a replay).
+			var robot0: Node = get_node_or_null("Floors/Garden/IsoRobot")
+			var emerge_done0: bool = robot0 != null and robot0.has_method("is_emergence_done") and bool(robot0.call("is_emergence_done"))
+			var rollout_trigger: bool = _emerge_rollout_started and _rollout_elapsed >= float(_c.ARRIVAL_CINE_ROLLOUT_DUR) - float(_c.ARRIVAL_CINE_ROTATE_LEAD)
+			if rollout_trigger or emerge_done0:
+				_rotate_started = true
+				_rotate_t = 0.0
+		if not _rotate_started:
+			# Emergence in progress — HOLD yaw 0 (over-the-shoulder). Gentle widen + slight
+			# forward focus nudge so the elevator + Cody read ahead, but NO rotation.
+			_cam_focus_tgt = pp.lerp(pair_mid, 0.35)
+			_cam_yaw_tgt = _walk_yaw()
+			_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
+			_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
+			_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
+			_cam_size_tgt = float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE)
+			_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
+			_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
+		else:
+			# Cody has (nearly) settled — run the calm rotation: yaw 0 → profile (−90), focus →
+			# pair midpoint, size → pair two-shot, all on ONE smoothstep curve.
+			_advance_rotate_ease(delta)
 		_drive_arrival_camera(delta)
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
-		if settle_p >= 1.0 and emerge_done:
+		if _rotate_started and emerge_done:
 			# ASK 3: the intro animation is complete — go STRAIGHT into the conversation.
 			# Auto-open Cody's dialogue (once) and hand to Beat 5, a slow close orbit
 			# around the pair that runs for as long as the player stays in the chat.
@@ -812,21 +836,54 @@ func _update_conversation_orbit(delta: float) -> void:
 	# called out). The settle already landed the camera on the iso yaw + the two-shot
 	# pair size + the pair-midpoint focus, so we just KEEP those targets and let it sit;
 	# the only motion is the focus tracking the (frozen) pair midpoint, imperceptible.
-	# FIX 1 — hold the PROFILE two-shot: pair-midpoint focus, profile yaw (−90), pair size.
-	_cam_focus_tgt = _pair_midpoint()
-	_cam_yaw_tgt = _profile_yaw()
-	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
-	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
-	_cam_shoulder_tgt = 0.0
-	_cam_size_tgt = float(_c.ARRIVAL_CINE_PAIR_SIZE)
-	_cam_lookahead_tgt = 0.0
-	_cam_looklift_tgt = 0.8
+	# ROTATE-DELAY: the yaw→profile rotation that began as Cody settled (Beat 3) likely isn't
+	# finished when the emergence completes and Beat 5 begins — so KEEP advancing the SAME
+	# smoothstep here until it lands, then HOLD the profile two-shot. No snap/restart at the
+	# beat boundary; _advance_rotate_ease writes the same targets and clamps _rotate_t.
+	if _rotate_started and _rotate_t < float(_c.ARRIVAL_CINE_ROTATE_DUR):
+		_advance_rotate_ease(delta)
+	else:
+		# FIX 1 — hold the PROFILE two-shot: pair-midpoint focus, profile yaw (−90), pair size.
+		_cam_focus_tgt = _pair_midpoint()
+		_cam_yaw_tgt = _profile_yaw()
+		_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
+		_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
+		_cam_shoulder_tgt = 0.0
+		_cam_size_tgt = float(_c.ARRIVAL_CINE_PAIR_SIZE)
+		_cam_lookahead_tgt = 0.0
+		_cam_looklift_tgt = 0.8
 	_drive_arrival_camera(delta)
 	# Exit once the conversation that auto-opened has been closed by the player.
 	if _convo_opened and not bool(_gs.get("dialogue_open")):
 		_arrival_beat = 4
 		_arrival_t = 0.0
 		_resume_started = false
+
+
+# ROTATE-DELAY ease (shared by Beat 3 + Beat 5): advance _rotate_t and write the per-frame
+# TARGETS for the calm rotation from the over-the-shoulder hold (yaw 0, OTS framing) to the
+# profile two-shot (yaw −90, pair-midpoint focus, pair size). ONE smoothstep curve drives
+# yaw + focus + size together so the move lands cleanly on the conversation framing. Tracked
+# with member state so the SAME curve continues across the Beat 3 → Beat 5 boundary.
+func _advance_rotate_ease(delta: float) -> void:
+	_rotate_t = minf(_rotate_t + delta, float(_c.ARRIVAL_CINE_ROTATE_DUR))
+	var rp: float = clampf(_rotate_t / float(_c.ARRIVAL_CINE_ROTATE_DUR), 0.0, 1.0)
+	var re: float = smoothstep(0.0, 1.0, rp)
+	# Yaw: monotonic walk_yaw(0) → profile (−90), one negative-direction sweep. (The resume
+	# later continues −90 → iso(−135), the SAME direction — everything stays monotonic.)
+	var yaw_settled: float = lerp_angle(_walk_yaw(), _profile_yaw(), re)
+	# Focus eases from the emergence over-the-shoulder anchor toward the pair midpoint; size
+	# eases from the (gently widened) emergence size into the profile two-shot size. Both flow
+	# off where the emergence hold left them, so the rotation start never jumps.
+	var emerge_focus: Vector3 = _player.global_position.lerp(_pair_midpoint(), 0.35)
+	_cam_focus_tgt = emerge_focus.lerp(_pair_midpoint(), re)
+	_cam_yaw_tgt = yaw_settled
+	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
+	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
+	_cam_shoulder_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), 0.0, re)
+	_cam_size_tgt = lerpf(float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), re)
+	_cam_lookahead_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD), 0.0, re)
+	_cam_looklift_tgt = 0.8
 
 
 # World focus for the conversation orbit — the player↔Cody midpoint, lifted to torso
@@ -847,7 +904,7 @@ func _pair_midpoint() -> Vector3:
 # Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
 # Sub-phased off the beat timer _arrival_t (reset to 0 on Beat-3 entry), running
 # CONCURRENTLY with the orbit sweep. Lead → rise → doors → roll-out.
-func _update_emergence(_delta: float) -> void:
+func _update_emergence(delta: float) -> void:
 	var elevator: Node = get_node_or_null("ElevatorPlatform")
 	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 	if elevator == null:
@@ -893,6 +950,10 @@ func _update_emergence(_delta: float) -> void:
 		_emerge_rollout_started = true
 		if robot and robot.has_method("cinematic_roll_out"):
 			robot.call("cinematic_roll_out")
+	else:
+		# Track how long the roll-out tween has been running so Beat 3 can fire the
+		# yaw→profile rotation a small lead (ARRIVAL_CINE_ROTATE_LEAD) before it ends.
+		_rollout_elapsed += delta
 
 
 # Beat 4 (JOB 2) — resume ease: the conductor still owns the camera here. Capture
@@ -1624,6 +1685,9 @@ func _teardown_transient_state() -> void:
 	_arrival_walk_started = false
 	_emerge_started = false
 	_emerge_rollout_started = false
+	_rollout_elapsed = 0.0
+	_rotate_started = false
+	_rotate_t = 0.0
 	_convo_opened = false
 	_convo_yaw = 0.0
 	_resume_started = false

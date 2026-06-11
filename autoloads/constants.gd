@@ -532,6 +532,17 @@ const ARRIVAL_CINE_EMERGE_LEAD := 0.35   # orbit begins; car waits at the baseme
 const ARRIVAL_CINE_CAR_RISE_DUR := 1.3   # car (with Cody aboard) lerps basement→garden
 const ARRIVAL_CINE_DOOR_DUR := 0.6       # doors lower open once the car arrives
 const ARRIVAL_CINE_ROLLOUT_DUR := 1.1    # Cody rolls from the shaft center to his park spot
+# ROTATE-DELAY (operator timing refinement): hold the over-the-shoulder framing (yaw 0)
+# through Cody's ENTIRE emergence (rise → doors → roll-out), then rotate to the profile
+# ONLY as he settles. ROTATE_LEAD = seconds BEFORE the roll-out tween ends to trigger the
+# rotation (overlaps his final settle slightly). ROTATE_DUR = smoothstep ease yaw 0 → -90,
+# focus → pair midpoint, size → pair size; it persists across the Beat 3 → Beat 5 boundary.
+const ARRIVAL_CINE_ROTATE_LEAD := 0.3    # begin the rotation this many seconds before roll-out ends
+const ARRIVAL_CINE_ROTATE_DUR := 2.2     # smoothstep ease yaw 0 → profile (-90), a calm, nice ease
+# Gentle widen during the emergence (over-the-shoulder, NOT a rotation): the ortho size eases
+# from the tight OTS size to this so the elevator + emerging Cody read clearly AHEAD of the
+# player; it flows into the profile pair size when the rotation begins.
+const ARRIVAL_CINE_EMERGE_OTS_SIZE := 10.5
 # Step 4 — the FEEL FINALE.
 # JOB 1: during Beat 3 the camera focus eases off the player toward the
 # player↔elevator-center midpoint so the emergence is hero-framed (not shoved to
