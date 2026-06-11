@@ -120,6 +120,20 @@ func issue_directive(directive_or_id) -> void:
 		if node.has_method("deliver_directive") and bool(node.call("deliver_directive", d)):
 			return
 
+
+# Called when the sixth Utility source goes active (opening_sequence_spec Step 5).
+# Lifts the interiors gate — the felt payoff — and issues Cody's confirming beat.
+# One-shot; safe to call repeatedly.
+func complete_utilities() -> void:
+	if bool(_gs.interiors_unlocked):
+		return
+	_gs.interiors_unlocked = true
+	var tel: Node = get_node_or_null("/root/Telemetry")
+	if tel:
+		tel.call("record", "utilities_complete", {})
+		tel.call("record", "gate_lifted", {})
+	issue_directive("garden_live")
+
 func _ready() -> void:
 	_mirror()   # publish the initial phase into GameState for pollers
 

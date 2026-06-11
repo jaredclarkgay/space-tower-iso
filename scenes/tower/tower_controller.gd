@@ -1548,6 +1548,14 @@ func _drive_environment(snap: bool) -> void:
 	var bg: Color = p.bg
 	var sun: float = float(p.sun)
 	var exposure: float = float(p.get("sky_exposure", 0.0))
+	# Opening gate (opening_sequence_spec Step 5): the Garden reads UNPOWERED —
+	# dim + cool — until the utilities come on. When interiors_unlocked flips true,
+	# the per-frame ease below warms it back to full identity: the felt payoff.
+	if _current_level == _SPAWN_LEVEL and _gs and not bool(_gs.get("interiors_unlocked")):
+		energy *= 0.42
+		sun *= 0.30
+		amb = (amb as Color).lerp(Color(0.10, 0.12, 0.18), 0.5)
+		bg = (bg as Color).lerp(Color(0.03, 0.04, 0.06), 0.55)
 	var tod: Node = get_node_or_null("/root/TimeOfDay")
 	var running: bool = tod != null and bool(tod.running)
 	var s: Dictionary = _sky_state(float(_gs.time_of_day)) if running else {}

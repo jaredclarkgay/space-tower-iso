@@ -1048,6 +1048,12 @@ func _advance_source_tweens(delta: float) -> void:
 				var wave: Node3D = st.get("spine_wave")
 				if wave:
 					wave.visible = false
+				# Gate payoff: the sixth source completing lifts the interiors gate.
+				# Tell the Director (it flips the flag + issues Cody's confirming beat).
+				if _gs.utilities_all_active():
+					var gd: Node = get_node_or_null("/root/GameDirector")
+					if gd and gd.has_method("complete_utilities"):
+						gd.call("complete_utilities")
 		_source_state[id] = st
 
 

@@ -502,17 +502,25 @@ func _physics_process(delta: float) -> void:
 			and is_on_floor() \
 			and input.length_squared() < 0.001 \
 			and not arrival_cine:
-		# Only start the plant action if there's an empty plot in range AND
-		# the player has at least one of the selected seed in their pouch.
-		var seed_key: String = _gs.selected_seed_type
-		var has_seed: bool = int(_gs.seed_pouch.get(seed_key, 0)) > 0
-		if _nearest_empty_plot != null and has_seed:
-			_is_planting = true
-			_plant_target = _nearest_empty_plot
-			_plant_progress = 0.0
-			var to_plot: Vector3 = _plant_target.world_pos - global_position
-			if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
-				_facing_yaw = atan2(to_plot.x, to_plot.z)
+		# Hard gate (opening_sequence_spec Step 2): planting is dead until the
+		# building's utilities are powered. When locked, surface the reason through
+		# the Director (a HUD toast) instead of silently doing nothing.
+		if _gs and not bool(_gs.get("interiors_unlocked")):
+			var gd: Node = get_node_or_null("/root/GameDirector")
+			if gd and gd.has_method("issue_directive"):
+				gd.call("issue_directive", "plant_locked")
+		else:
+			# Only start the plant action if there's an empty plot in range AND
+			# the player has at least one of the selected seed in their pouch.
+			var seed_key: String = _gs.selected_seed_type
+			var has_seed: bool = int(_gs.seed_pouch.get(seed_key, 0)) > 0
+			if _nearest_empty_plot != null and has_seed:
+				_is_planting = true
+				_plant_target = _nearest_empty_plot
+				_plant_progress = 0.0
+				var to_plot: Vector3 = _plant_target.world_pos - global_position
+				if Vector2(to_plot.x, to_plot.z).length_squared() > 0.001:
+					_facing_yaw = atan2(to_plot.x, to_plot.z)
 
 	# Committed-charge movement lock: once the player has held jump past the
 	# CHARGE_LOCK_THRESHOLD they're winding up for a real spring — freezing
