@@ -1,7 +1,7 @@
 extends Node3D
 
 # Renders one Garden floor (Floor 3) procedurally. Phase 3 of the iso slice,
-# post-iteration: a square 20×20 m room with a 4×4 elevator shaft at center,
+# post-iteration: a square 30×30 m room with a 4×4 elevator shaft at center,
 # perimeter walls framed by vertical posts and translucent window panels,
 # and four spotlights outside the walls aiming inward to read as "sunlight
 # through windows".
@@ -12,8 +12,8 @@ extends Node3D
 #   - Translucent water pipes with flowing water visible beneath the planters
 #   - Warm grow-light glow over each planter
 #
-# Layout: 20×20 = 400 plot cells. Centre 4×4 (16 cells) is the elevator
-# shaft. Remaining 384 cells get a planter; ~10% are upgraded to "feature
+# Layout: 30×30 = 900 plot cells. Centre 4×4 (16 cells) is the elevator
+# shaft. Remaining 884 cells get a planter; ~10% are upgraded to "feature
 # plants" with stem + leafy foliage + tomato accents.
 #
 # Collision: slab is a StaticBody3D so the player walks/lands on it.
@@ -360,7 +360,7 @@ func _build_elevator_shaft() -> void:
 	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
 
 
-# --- 20×20 plot grid --------------------------------------------------------
+# --- 30×30 plot grid --------------------------------------------------------
 
 func _build_garden_grid() -> void:
 	# Opening-sequence Step 1: the Garden starts BARREN. Skip _seed_starter_garden()

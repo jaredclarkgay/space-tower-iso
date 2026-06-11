@@ -21,7 +21,7 @@ const ISO_TILE_H := 32
 
 # --- 3D world scale (Phase 3, post-iteration) ---
 # The iso slice deviates from the sibling 2D sim's 12-block-per-floor
-# convention: the operator asked for a square Garden floor with a 20×20 plot
+# convention: the operator asked for a square Garden floor with a 30×30 plot
 # grid and a centered elevator shaft. BLOCKS_PER_FLOOR (above) and
 # BLOCK_WIDTH/FLOOR_HEIGHT (above, 2D pixel values) are kept for sibling
 # parity but unused in the iso scene; iso geometry uses the GARDEN_* and
@@ -29,7 +29,7 @@ const ISO_TILE_H := 32
 const GARDEN_GRID_SIZE := 30             # plots per side; operator: +2 pane-units → +8 plots/side
 const GARDEN_PLOT_SIZE := 1.0            # metres per plot
 const ELEVATOR_RADIUS := 2               # plot cells from grid center on each axis
-const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 20 m
+const FLOOR_3D_SIZE := float(GARDEN_GRID_SIZE) * GARDEN_PLOT_SIZE    # 30 m
 const FLOOR_3D_SLAB_THICKNESS := 0.2
 const FLOOR_3D_STORY_HEIGHT := 6.0    # tall floors — room for trees to grow their canopy up onto the floor above
 const FLOOR_3D_TOP_Y := FLOOR_3D_SLAB_THICKNESS  # player feet level
