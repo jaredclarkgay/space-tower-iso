@@ -810,12 +810,17 @@ func _update_arrival_cinematic(delta: float) -> void:
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
 		if _rotate_started and emerge_done:
-			# ASK 3: the intro animation is complete — go STRAIGHT into the conversation.
-			# Auto-open Cody's dialogue (once) and hand to Beat 5, a slow close orbit
-			# around the pair that runs for as long as the player stays in the chat.
-			if robot and not _convo_opened and robot.has_method("open_dialogue"):
+			# Intro animation complete — hand the moment to the Director, which issues
+			# the opening beat; Cody (the primary mouth) delivers it (vision.md §1 —
+			# direction flows through the routable channel, not hardcoded into Cody).
+			# Then Beat 5: a slow close orbit around the pair for as long as the beat is up.
+			if not _convo_opened:
 				_convo_opened = true
-				robot.call("open_dialogue")
+				var gd: Node = get_node_or_null("/root/GameDirector")
+				if gd and gd.has_method("issue_directive"):
+					gd.call("issue_directive", "power_utilities")
+				elif robot and robot.has_method("open_dialogue"):
+					robot.call("open_dialogue")   # fallback if the channel is unavailable
 			_convo_yaw = 0.0   # time accumulator for the conversation-orbit ping-pong (starts at the settle yaw)
 			_arrival_beat = 5
 			_arrival_t = 0.0

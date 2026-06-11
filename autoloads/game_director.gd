@@ -26,9 +26,99 @@ enum Phase {
 
 signal phase_changed(phase: Phase)
 
+# Emitted whenever the Director issues a directive (see §"Director→mouth channel"
+# below). Passive mouths (the HUD objective line) listen here; the spoken delivery
+# is routed to a single mouth by issue_directive().
+signal directive_issued(directive: Dictionary)
+
 var current_phase: Phase = Phase.EMPTY_LOT
 
 @onready var _gs: Node = get_node("/root/GameState")
+
+# --- Director→mouth channel (vision.md §1-2) ------------------------------
+# The Director is the brain: it owns WHAT the player needs next. It does not speak
+# in its own voice — it speaks through *mouths*. A directive is mouth-agnostic data
+# (lines + objective + a telemetry id); the Director decides which to issue and
+# when, and a routable channel picks a mouth to render it. Cody is the primary
+# mouth; the HUD is a passive objective/toast mouth. New mouths (environment, a PA,
+# another character) register without rewiring the spine.
+
+# The directive library — the Director owns the CONTENT of direction; mouths only
+# render it. (Keep the player-facing words here, not buried in a speaker.)
+const DIRECTIVES := {
+	"power_utilities": {
+		"id": "power_utilities",
+		"speaker": "cody",
+		"lines": [
+			"Welcome. Status: Garden unpowered. Nothing takes root.",
+			"Go down to Utility. Bring all six sources online.",
+			"I'll know the moment you do.",
+		],
+		"objective": "Go to the Utility floor — bring all six sources online.",
+		"telemetry_beat": "director_beat",
+	},
+	"garden_live": {
+		"id": "garden_live",
+		"speaker": "cody",
+		"lines": [
+			"Power confirmed — all six. The Garden's live.",
+			"Now we build it out.",
+		],
+		"objective": "Build out the Garden.",
+		"telemetry_beat": "director_beat",
+	},
+	"plant_locked": {
+		"id": "plant_locked",
+		"speaker": "hud",        # a quick toast, not a full Cody beat
+		"transient": true,
+		"lines": ["Unpowered. Roots need the grid. Utility floor."],
+		"telemetry_beat": "director_beat",
+	},
+}
+
+# Registered mouths: nodes with a `mouth_id` and `deliver_directive(d) -> bool`,
+# sorted highest-priority first. Cody registers at high priority; the HUD low.
+var _mouths: Array = []
+var active_directive: Dictionary = {}
+
+
+func register_mouth(node: Object, priority: int = 0) -> void:
+	for m in _mouths:
+		if m.node == node:
+			return
+	_mouths.append({"node": node, "priority": priority})
+	_mouths.sort_custom(func(a, b): return int(a.priority) > int(b.priority))
+
+
+func unregister_mouth(node: Object) -> void:
+	_mouths = _mouths.filter(func(m): return m.node != node)
+
+
+# Issue a directive (by id, or a literal dict). The Director decides WHAT; this
+# routes the SPOKEN delivery to a mouth (the directive's named speaker, else the
+# highest-priority one that accepts it) and notifies every mouth via the signal so
+# passive ones (the HUD objective) can mirror it regardless of who speaks.
+func issue_directive(directive_or_id) -> void:
+	var d: Dictionary = directive_or_id if directive_or_id is Dictionary \
+		else DIRECTIVES.get(directive_or_id, {})
+	if d.is_empty():
+		push_warning("issue_directive: unknown directive '%s'" % str(directive_or_id))
+		return
+	if not bool(d.get("transient", false)):
+		active_directive = d
+	directive_issued.emit(d)
+	var tel: Node = get_node_or_null("/root/Telemetry")
+	if tel and d.has("telemetry_beat"):
+		tel.call("record", String(d.telemetry_beat), {"id": d.get("id", "")})
+	var want: String = String(d.get("speaker", ""))
+	for m in _mouths:
+		var node: Object = m.node
+		if not is_instance_valid(node):
+			continue
+		if want != "" and String(node.get("mouth_id")) != want:
+			continue
+		if node.has_method("deliver_directive") and bool(node.call("deliver_directive", d)):
+			return
 
 func _ready() -> void:
 	_mirror()   # publish the initial phase into GameState for pollers

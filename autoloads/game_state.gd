@@ -219,6 +219,23 @@ var utility := {
 }
 
 
+# Opening-sequence gate (opening_sequence_spec Step 2). Interior development —
+# planting / floor population — stays disabled until the building's utilities are
+# powered. GameDirector flips this true when all six sources go active (the
+# payoff), and gameplay gates on the flag, NOT on a new arc phase.
+var interiors_unlocked := false
+
+
+# True once all six Utility sources are active — the "utilities on" gate condition.
+func utilities_all_active() -> bool:
+	if utility.pipe_active.is_empty():
+		return false
+	for is_active in utility.pipe_active.values():
+		if not bool(is_active):
+			return false
+	return true
+
+
 # Floor 2 (Arboretum) state.
 #   water_connected:    has the player connected the floor's irrigation
 #                       (Phase 2B — currently always treated as on; trees

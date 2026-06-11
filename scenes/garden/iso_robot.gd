@@ -74,6 +74,14 @@ var _dialogue_choices_vbox: VBoxContainer
 var _dialogue_name_label: Label
 var _current_dialogue_node: String = ""
 var _current_choices: Array = []
+
+# Cody is the Director's primary MOUTH (vision.md §1-2). `mouth_id` lets the
+# Director route a spoken directive to him; `deliver_directive` renders it in
+# "director mode" — terse, sequential lines, advance-to-continue — distinct from
+# his pull-to-chat DIALOGUE_TREE.
+var mouth_id := "cody"
+var _director_lines: Array = []
+var _director_idx := 0
 # Override flag so trick animations can take over the LED without
 # _update_led overwriting the colour each frame.
 var _led_override_active: bool = false
@@ -87,6 +95,10 @@ func _ready() -> void:
 	_build_visual()
 	_build_spotlight()
 	visible = false
+	# Register as the Director's primary mouth (high priority).
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_method("register_mouth"):
+		gd.register_mouth(self, 10)
 
 
 func _physics_process(delta: float) -> void:
@@ -893,6 +905,50 @@ func close_dialogue() -> void:
 	if _dialogue_panel:
 		_dialogue_panel.visible = false
 	_gs.dialogue_open = false
+
+
+# --- Director-mouth rendering (vision.md §1) ------------------------------
+# The Director hands Cody a directive; he renders its lines in his panel in
+# "director mode" — one terse line at a time, advance-to-continue, no choice tree.
+# Returns true once he's taken it (he's the speaker). The Director decides WHEN to
+# issue, so we render regardless of his idle state — he's the mouth.
+func deliver_directive(d: Dictionary) -> bool:
+	var speaker: String = String(d.get("speaker", ""))
+	if speaker != "" and speaker != mouth_id:
+		return false
+	var lines: Array = d.get("lines", [])
+	if lines.is_empty():
+		return false
+	_director_lines = lines
+	_director_idx = 0
+	if _dialogue_panel == null:
+		_build_dialogue_panel()
+	_render_director_line()
+	_dialogue_panel.visible = true
+	_gs.dialogue_open = true   # iso_camera focuses the pair; player input freezes
+	return true
+
+
+func _render_director_line() -> void:
+	_current_choices = []   # director mode — number-key choice input stays inert
+	_dialogue_text.text = String(_director_lines[_director_idx])
+	for child in _dialogue_choices_vbox.get_children():
+		child.queue_free()
+	var last: bool = _director_idx >= _director_lines.size() - 1
+	var btn := Button.new()
+	btn.text = "▸ On it" if last else "▸ Continue"
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.pressed.connect(_advance_director_line)
+	_dialogue_choices_vbox.add_child(btn)
+
+
+func _advance_director_line() -> void:
+	_director_idx += 1
+	if _director_idx >= _director_lines.size():
+		close_dialogue()
+		return
+	_render_director_line()
 
 
 # Number-key shortcuts (1..9) to pick a choice; ESC to leave. Only fires

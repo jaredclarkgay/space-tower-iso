@@ -72,6 +72,11 @@ var _garden_group: Control
 var _utility_group: Control
 var _schematic: Node
 
+# Director-mouth identity (vision.md §1). The HUD speaks only transient toasts;
+# its main job is mirroring the active directive's objective.
+var mouth_id := "hud"
+var _objective_override := ""
+
 var _eyebrow: Label
 var _title: Label
 var _objective_label: RichTextLabel
@@ -110,11 +115,17 @@ func _ready() -> void:
 	_build_debug_clock()
 	_build_central_prompt()
 	_displayed_cash = int(_gs.cash)
-	# Objective line tracks the arc phase, not the floor.
+	# Objective line tracks the arc phase, not the floor. The HUD is also a passive
+	# Director MOUTH (vision.md §1): it mirrors a directive's objective (overriding
+	# the phase line) and renders transient "toast" directives addressed to it.
 	var gd: Node = get_node_or_null("/root/GameDirector")
 	if gd:
 		if gd.has_signal("phase_changed"):
 			gd.phase_changed.connect(_set_objective)
+		if gd.has_signal("directive_issued"):
+			gd.directive_issued.connect(_on_directive)
+		if gd.has_method("register_mouth"):
+			gd.register_mouth(self, 0)
 		_set_objective(int(gd.current_phase))
 
 
@@ -300,10 +311,52 @@ func _punch_central_prompt() -> void:
 
 
 # Updates the arc objective line. Connected to GameDirector.phase_changed and
-# seeded once in _ready.
+# seeded once in _ready. An active directive's objective (set in _on_directive)
+# overrides the per-phase line — the Director's specific "what now" wins.
 func _set_objective(phase: int) -> void:
 	if _objective_label:
-		_objective_label.text = _format_hint("[OBJECTIVE]  " + String(OBJECTIVE.get(phase, "")))
+		var text: String = _objective_override if _objective_override != "" else String(OBJECTIVE.get(phase, ""))
+		_objective_label.text = _format_hint("[OBJECTIVE]  " + text)
+
+
+# Passive-mouth hook: mirror a directive's objective into the objective line, and
+# render a transient directive addressed to the HUD as a brief toast.
+func _on_directive(d: Dictionary) -> void:
+	if d.has("objective"):
+		_objective_override = String(d.objective)
+		if _objective_label:
+			_objective_label.text = _format_hint("[OBJECTIVE]  " + _objective_override)
+
+
+# Spoken delivery for directives routed to the HUD (speaker == "hud"): a brief
+# centred toast that fades. Returns true when the HUD took it.
+func deliver_directive(d: Dictionary) -> bool:
+	if String(d.get("speaker", "")) != mouth_id:
+		return false
+	var lines: Array = d.get("lines", [])
+	if lines.is_empty():
+		return false
+	_show_toast(String(lines[0]))
+	return true
+
+
+func _show_toast(text: String) -> void:
+	var toast := Label.new()
+	toast.text = text
+	toast.add_theme_font_size_override("font_size", 22)
+	toast.add_theme_color_override("font_color", Color(1.0, 0.86, 0.4))
+	toast.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	toast.add_theme_constant_override("outline_size", 6)
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.set_anchors_preset(Control.PRESET_CENTER)
+	toast.anchor_top = 0.36
+	toast.anchor_bottom = 0.36
+	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(toast)
+	var tw := create_tween()
+	tw.tween_interval(1.6)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(toast.queue_free)
 
 
 func _process(delta: float) -> void:
