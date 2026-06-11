@@ -147,6 +147,15 @@ def summarize(path: Path) -> dict:
         by_seed[e.get("seed", "?")] = by_seed.get(e.get("seed", "?"), 0) + 1
     harvested_by_player = sum(1 for e in harvested if e.get("by_player"))
 
+    # Director / gate funnel (the opening-sequence beats).
+    director_beats = [
+        {"id": e.get("id", "?"), "t_ms": int(e.get("t_ms", 0))}
+        for e in events if e.get("event") == "director_beat"
+    ]
+    utilities_complete = first_event(events, "utilities_complete")
+    gate_lifted = first_event(events, "gate_lifted")
+    floor_alive = first_event(events, "floor_alive")
+
     # Time-to-X (from session start, which is t_ms≈0).
     hire = first_event(events, "partner_hired")
     first_plant = planted[0] if planted else None
@@ -167,9 +176,15 @@ def summarize(path: Path) -> dict:
         "crops_planted_by_seed": by_seed,
         "crops_harvested": len(harvested),
         "crops_harvested_by_player": harvested_by_player,
+        "director_beats": director_beats,
+        "reached_gate_lifted": gate_lifted is not None,
+        "reached_floor_alive": floor_alive is not None,
         "time_to": {
             "hire_ms": int(hire["t_ms"]) if hire else None,
             "first_floor_ms": int(first_interior["t_ms"]) if first_interior else None,
+            "utilities_complete_ms": int(utilities_complete["t_ms"]) if utilities_complete else None,
+            "gate_lifted_ms": int(gate_lifted["t_ms"]) if gate_lifted else None,
+            "floor_alive_ms": int(floor_alive["t_ms"]) if floor_alive else None,
             "first_plant_ms": int(first_plant["t_ms"]) if first_plant else None,
             "first_harvest_ms": int(first_harvest["t_ms"]) if first_harvest else None,
         },
@@ -196,6 +211,17 @@ def print_report(s: dict) -> None:
 
     print(f"  Crops planted ....... {s['crops_planted']}" + (f"  {s['crops_planted_by_seed']}" if s["crops_planted_by_seed"] else ""))
     print(f"  Crops harvested ..... {s['crops_harvested']}  ({s['crops_harvested_by_player']} by player, {s['crops_harvested'] - s['crops_harvested_by_player']} by robot)")
+
+    # Opening-sequence funnel (only shown if those beats appear).
+    if s["director_beats"] or s["reached_gate_lifted"]:
+        print("  " + "─" * 56)
+        print("  OPENING FUNNEL")
+        for b in s["director_beats"]:
+            print(f"    director beat ..... {b['id']:<16} {fmt_ms(b['t_ms'])}")
+        print(f"    utilities complete  {fmt_ms(s['time_to']['utilities_complete_ms'])}")
+        print(f"    gate lifted ....... {fmt_ms(s['time_to']['gate_lifted_ms'])}")
+        if s["reached_floor_alive"] or s["time_to"]["floor_alive_ms"] is not None:
+            print(f"    floor alive ....... {fmt_ms(s['time_to']['floor_alive_ms'])}")
 
     tt = s["time_to"]
     print("  " + "─" * 56)
@@ -243,6 +269,8 @@ def print_aggregate(files: list[Path]) -> None:
     print("  " + "─" * 56)
     print(f"  Reached the tower ... {sum(1 for s in summaries if s['levels_reached'])}/{len(summaries)}")
     print(f"  Hired a partner ..... {sum(1 for s in summaries if s['partner'])}/{len(summaries)}")
+    print(f"  Powered utilities ... {sum(1 for s in summaries if s['reached_gate_lifted'])}/{len(summaries)}  (gate lifted)")
+    print(f"  Garden went alive ... {sum(1 for s in summaries if s['reached_floor_alive'])}/{len(summaries)}")
     print(f"  Reached TEMPORAL .... {sum(1 for s in summaries if s['reached_temporal'])}/{len(summaries)}")
     print("  Furthest-phase spread:")
     for p in PHASE_ORDER:
@@ -251,6 +279,7 @@ def print_aggregate(files: list[Path]) -> None:
     print("  Median time-to:")
     print(f"    hire ............. {fmt_ms(med('hire_ms'))}")
     print(f"    enter tower ...... {fmt_ms(med('first_floor_ms'))}")
+    print(f"    gate lifted ...... {fmt_ms(med('gate_lifted_ms'))}")
     print(f"    first plant ...... {fmt_ms(med('first_plant_ms'))}")
     print(f"    first harvest .... {fmt_ms(med('first_harvest_ms'))}")
     print()
