@@ -6,7 +6,7 @@ extends RefCounted
 # Layout: bottom of stairs sits south of the central elevator at
 # (0, base_y, STAIRCASE_BOTTOM_Z), top is STAIRCASE_RUN south of that,
 # STAIRCASE_RUN further south, at height base_y + FLOOR_3D_STORY_HEIGHT.
-# Slope is ~28° (atan(3/5.5)) which the CharacterBody3D can walk up.
+# Slope is ~31° (atan(6/10)) which the CharacterBody3D can walk up.
 #
 # Visible:
 #   - Smooth inclined slab (the actual walkable surface + collision).
@@ -19,7 +19,7 @@ extends RefCounted
 # On Floor 2 this is FLOOR_3D_TOP_Y (~0.2 m); the staircase climbs to
 # Floor 2's ceiling level (Floor 3's floor). On Floor 3 the same
 # staircase is rendered with base_y = FLOOR_3D_TOP_Y - FLOOR_3D_STORY_HEIGHT
-# (~-2.8 m) so the visible portion above Floor 3's slab matches the top
+# (~-5.8 m) so the visible portion above Floor 3's slab matches the top
 # of what's visible on Floor 2.
 #
 # Loaded via preload, NOT class_name (per F-010).

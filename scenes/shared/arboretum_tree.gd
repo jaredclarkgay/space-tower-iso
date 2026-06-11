@@ -15,7 +15,7 @@ extends RefCounted
 # GameState.arboretum.trees, so it never drifts.
 #
 # Floor 2 renders trees with their base at FLOOR_3D_TOP_Y (~0.2 m). Floor 3
-# renders the SAME trees offset by -FLOOR_3D_STORY_HEIGHT (-3 m) so the visible
+# renders the SAME trees offset by -FLOOR_3D_STORY_HEIGHT (-6 m) so the visible
 # portion above Floor 3's slab is exactly the part poking above Floor 2's
 # ceiling. Floor 3's slab has a hole at each tree position; lean is clamped so
 # the trunk always clears that hole.

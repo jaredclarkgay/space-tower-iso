@@ -36,7 +36,9 @@ the player in the Garden with all flags cleared).
   in `d66cfaa` (smoke-clean).
 - **D1 (`floor_design_system.md`)** — full rewrite for the stacked world in `bcc6d8c`.
 
-Still open: **O3** (comment-vs-code "3 m" story-height drift) and **D2** (Cody lore).
+**O3 (story-height comment drift)** — fixed. **D2 (Cody lore)** — folded into the
+planned Cody-as-Director-voice speech revamp (don't fix the line in isolation).
+All audit items now actioned.
 
 ---
 
@@ -62,7 +64,7 @@ sweep left them and annotated the comments instead:
   `FLOOR_4_*`→`CANOPY_*`/`FLOOR_3_*`) when convenient. Pure renames, low risk, but
   cross-file — worth doing deliberately, not piecemeal.
 
-### O3 · [Low] Comment-vs-code value drift (story height + stair geometry)
+### O3 · [Low] Comment-vs-code value drift (story height + stair geometry)  ✅ DONE
 Comments assume a **3 m** story, but `FLOOR_3D_STORY_HEIGHT = 6.0`. And the stair
 comments cite the pre-resize geometry (`STAIRCASE_RUN` is now `10.0`, slope ~31°,
 base offset ~-5.8 m), not the old `5.5 m` / `~28°` / `~-2.8 m`. Spots:
@@ -84,7 +86,7 @@ staircase, deleted `floor_4.gd`/`spiral_staircase.gd`, `GameState.floor_1/floor_
 keys, old 1-indexed numbers). Banner-flagged in `bc61b24` pointing to current
 truth; the body still wants a proper rewrite.
 
-### D2 · Cody "floor-three" dialogue vs his Garden home
+### D2 · Cody "floor-three" dialogue vs his Garden home  ⏸ FOLDED INTO CODY REVAMP
 `iso_robot.gd:1195` — Cody's line "Built for floor-three operations." He's the
 Garden (Floor 1) helper. Could be intentional backstory (a robot built for an
 Arboretum-class floor, reassigned) or stale lore. **A narrative call for the

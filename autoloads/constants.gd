@@ -276,13 +276,13 @@ const TUCK_FLIP_CHARGE_THRESHOLD := 0.3
 const TUCK_FLIP_ROTATIONS := 1.0          # full forward rotations per jump
 
 # --- Extension grid (faint blueprint-style hint that tower could expand) ---
-# Grid unit = one floor's story height (FLOOR_3D_STORY_HEIGHT = 3 m). Each
-# perpendicular line extends 2 units (6 m) outward from the wall, solid for
-# the first 1 unit (3 m) and fading to 0 alpha across the second unit.
+# Grid unit = one floor's story height (FLOOR_3D_STORY_HEIGHT = 6 m). Each
+# perpendicular line extends 2 units (12 m) outward from the wall, solid for
+# the first 1 unit (6 m) and fading to 0 alpha across the second unit.
 # The perpendicular crossbar runs at distance 1 unit from the wall.
-const EXTENSION_GRID_UNIT := FLOOR_3D_STORY_HEIGHT  # 3 m — one floor height
-const EXTENSION_GRID_LENGTH := 2.0 * EXTENSION_GRID_UNIT          # 6 m
-const EXTENSION_LINE_SOLID_LENGTH := 1.0 * EXTENSION_GRID_UNIT    # 3 m
+const EXTENSION_GRID_UNIT := FLOOR_3D_STORY_HEIGHT  # 6 m — one floor height
+const EXTENSION_GRID_LENGTH := 2.0 * EXTENSION_GRID_UNIT          # 12 m
+const EXTENSION_LINE_SOLID_LENGTH := 1.0 * EXTENSION_GRID_UNIT    # 6 m
 const EXTENSION_LINE_PEAK_ALPHA := 0.30   # very subtle even at full opacity
 const EXTENSION_PANE_COUNT := 6           # extension lines per side; positions computed at runtime
 
@@ -871,7 +871,7 @@ const CANOPY_TREE_HOLE_RADIUS := 1.5                        # m — open radius 
 
 # --- Straight stairs (Floor 2 ↔ Floor 3) -----------------------------------
 # Simple straight inclined ramp going south from the elevator's south face,
-# climbing FLOOR_3D_STORY_HEIGHT (3 m) in STAIRCASE_RUN (5.5 m) — a ~28°
+# climbing FLOOR_3D_STORY_HEIGHT (6 m) in STAIRCASE_RUN (10 m) — a ~31°
 # slope that the CharacterBody3D walks up smoothly. Replaces the v1/v2
 # spiral, which was over-engineered AND hard to navigate (rotating
 # segments left collision gaps + the camera-relative input mapping
@@ -938,7 +938,7 @@ const TREE_SPROUT_STAGGER_MS := 1200                         # batch ripple offs
 
 # Trunk + crown waypoints. Tweened linearly between MIN and MAX from
 # growth_t = 0 → 1. Mature trunk height (4.5 m) is well above one
-# story (3 m), so the canopy sits cleanly above Floor 3's slab.
+# story (6 m), so the canopy sits cleanly above Floor 3's slab.
 const TREE_TRUNK_HEIGHT_MIN := 0.4
 const TREE_TRUNK_HEIGHT_MAX := 9.0    # tall enough that mature crowns clear the 6 m canopy floor
 const TREE_CROWN_DIAMETER_MIN := 0.25
