@@ -196,6 +196,27 @@ func _tower_controller() -> Node:
 	return nodes[0] if not nodes.is_empty() else null
 
 
+# Called by tower_controller._teardown_transient_state so a dev chapter jump from
+# ANY state can't leave the crane owning the player — driving/falling both write
+# the player's transform every frame and would yank them back to the cab. Drops
+# cleanly to IDLE; if it was mid-plunge, restores the knocked beams + the parked
+# crane pose and ends the plunge presentation.
+func force_release() -> void:
+	if _state == State.FALLING:
+		if _roof and _roof.has_method("restore_beams"):
+			_roof.call("restore_beams")
+		_gs.set("roof_falling", false)
+		position = _enter_pos
+		rotation = Vector3(0.0, _enter_yaw, 0.0)
+		_yaw = _enter_yaw
+	_state = State.IDLE
+	_fall_vel = Vector3.ZERO
+	_knocked = false
+	_gs.set("driving_crane", false)
+	if _prompt_root:
+		_prompt_root.visible = false
+
+
 func _exit() -> void:
 	_state = State.IDLE
 	_gs.set("driving_crane", false)

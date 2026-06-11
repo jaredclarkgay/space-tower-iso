@@ -149,6 +149,15 @@ func _update_hopping(delta: float) -> void:
 		_state = State.IDLE
 
 
+# Called by tower_controller._teardown_transient_state so a dev chapter jump
+# mid-hop can't leave the lift driving the player's transform (HOPPING writes
+# global_position every frame, and tube_hopping freezes their own physics).
+func force_release() -> void:
+	_state = State.IDLE
+	_gs.set("tube_hopping", false)
+	_gs.set("in_tube_mouth", false)
+
+
 # --- Queries --------------------------------------------------------------
 
 # Nearest corner whose mouth the player is standing in (XZ), or -1.

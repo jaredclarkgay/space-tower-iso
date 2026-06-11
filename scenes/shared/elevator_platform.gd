@@ -176,6 +176,18 @@ func _begin_ride(level: int) -> void:
 	_state = State.MOVING
 
 
+# Called by tower_controller._teardown_transient_state so a dev chapter jump
+# mid-ride can't leave the car owning the rider (MOVING + _hold_rider would yank
+# them back into the shaft every frame, and riding_elevator would freeze their
+# own physics). Drops the rider and resets to IDLE.
+func force_release() -> void:
+	if _rider_aboard:
+		_rider_aboard = false
+		_gs.set("riding_elevator", false)
+	_state = State.IDLE
+	_show_chooser(false)
+
+
 func _hold_rider() -> void:
 	if not _rider_aboard:
 		return

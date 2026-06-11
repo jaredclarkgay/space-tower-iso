@@ -1713,6 +1713,23 @@ func _teardown_transient_state() -> void:
 	_cam_tween_t = 1.0
 	# Roof plunge.
 	_gs.set("roof_falling", false)
+	# Transform-owning traversal modes (crane / elevator / vacuum hop). Each owner's
+	# _physics_process writes the player's transform every frame while active, so a
+	# jump that interrupts one would yank/freeze the player on the target floor. Tell
+	# each to release the rider AND clear its flag so the jump lands clean.
+	_gs.set("driving_crane", false)
+	_gs.set("riding_elevator", false)
+	_gs.set("tube_hopping", false)
+	_gs.set("in_tube_mouth", false)
+	var crane: Node = get_node_or_null("Floors/Roof/Crane")
+	if crane and crane.has_method("force_release"):
+		crane.force_release()
+	var elevator: Node = get_node_or_null("ElevatorPlatform")
+	if elevator and elevator.has_method("force_release"):
+		elevator.force_release()
+	var lift: Node = get_node_or_null("VacuumLift")
+	if lift and lift.has_method("force_release"):
+		lift.force_release()
 	# Dialogue: drop the flag AND tell Cody to hide his panel (both sides).
 	_gs.set("dialogue_open", false)
 	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
