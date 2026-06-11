@@ -1,303 +1,275 @@
 # Floor Design System
 
-> **⚠️ STALE — predates the stacked-world refactor. Read for the design
-> *principles* (footprint, walls, camera grammar, interaction rules), NOT for
-> the implementation specifics.** This doc still describes the OLD architecture:
-> per-floor `.tscn` files, `scenes/floor_2/`-style dirs, a scene-swap elevator +
-> spiral staircase, `floor_4.gd` / `spiral_staircase.gd` (both deleted), and
-> `GameState.floor_1` / `floor_3` keys (now `GameState.utility` / `arboretum`).
-> It also uses the OLD 1-indexed floor numbers (utility = "Floor 1", Arboretum =
-> "Floor 3/4"). **For current truth:** the architecture callout at the top of
-> `CLAUDE.md`, the locked 0-indexed numbering (Utility 0, Garden 1, Arboretum 2,
-> Canopy 3, Residential 4, Sky Lounge 5, Roof unnumbered), the real files under
-> content-named `scenes/<name>/` dirs, and `scenes/shared/stairs.gd` (straight
-> stairs, Floor 2 ↔ 3 — the spiral was deleted). This doc needs a full rewrite;
-> until then trust the code. The numbers/filenames below are deliberately left
-> unswept so this banner isn't contradicted by a half-migration.
-
-The Space Tower has many floors. This doc captures the rules every floor
-follows so they read as the same building viewed at different stories,
-and so a player who learned how to operate one floor can operate any
-other one without retraining.
+The Space Tower has many floors. This doc captures the rules every floor follows
+so they read as the same building viewed at different stories, and so a player who
+learned how to operate one floor can operate any other one without retraining.
 
 These are constraints, not suggestions. New floors follow them by default;
-deviations require an explicit reason.
+deviations require an explicit reason (see §11).
+
+> **Architecture this doc assumes (current — stacked world).** There is **one
+> runtime scene**, `scenes/tower/tower.tscn`, driven by
+> `scenes/tower/tower_controller.gd`. There are **no per-floor `.tscn` files**:
+> each floor is a `.gd` controller in a content-named `scenes/<name>/` dir
+> (`utility/`, `garden/`, `arboretum_ground/`, `arboretum_canopy/`,
+> `residential/`, `sky_lounge/`, `roof/`), instanced as an offset child of
+> `tower.tscn` under `Floors/<Name>` at `y = (level − GROUND_LEVEL) × story`
+> (story = 6 m). **One** player, **one** camera, **one** HUD — shared across all
+> floors. You **walk / fall / ride / hop** between floors; nothing scene-swaps.
+> **Locked numbering (0-indexed):** Utility **0** (basement, below grade), Garden
+> **1** (ground/spawn), Arboretum-ground **2**, Canopy **3**, Residential **4**,
+> Sky Lounge **5**, Roof **unnumbered** (internal level 6). See the architecture
+> callout at the top of `CLAUDE.md` for the canonical statement.
 
 ---
 
 ## 1. Footprint
 
 - **30 × 30 m square slab.** Constants: `FLOOR_3D_SIZE = 30.0`.
-- **Slab thickness** `FLOOR_3D_SLAB_THICKNESS = 0.2` m. Top face at y = 0.
+- **Slab thickness** `FLOOR_3D_SLAB_THICKNESS = 0.2` m. Local top face at y = 0
+  (the floor node is then offset to its stacked height by the tower).
 - **Floor centred on the world origin** (xz extent: ±15).
-- **One central elevator/spine column.** 4 × 4 m square footprint with
-  the four corners chamfered at 45° (octagonal-ish cross-section, see
-  `ELEVATOR_CHAMFER`). Taller than the wall trim (`ELEVATOR_HEIGHT_MULT
-  × WALL_HEIGHT`) so it pokes above the ceiling and reads as a
-  multi-story shaft. The four cardinal faces hold sliding doors (built
-  + animated by `ElevatorHandler`); the four chamfered corner faces
-  hold spine pipes — Floor 1 distributes its six pipes 1-2-1-2 across
-  them, and every other floor renders **passive** copies of the same
-  pipes (via `FloorChrome.build_passive_spine_pipes`) reading
-  GameState.floor_1 so an online lane glows on every floor it passes
-  through, not just the floor where you flipped the switch. Collision
-  is on the chamfer panels only — the cardinal-face areas are passable
-  so the player can walk INTO the elevator through the doors.
+- **One central elevator/spine column.** ~4 × 4 m footprint with chamfered
+  corners. Built by `FloorChrome.build_elevator_core`; taller than the wall trim
+  so it pokes above the ceiling and reads as a multi-story shaft. The chamfered
+  corner faces hold spine pipes; the **Utility** floor (Floor 0) distributes its
+  six live pipes across them, and every other floor renders **passive** copies via
+  `FloorChrome.build_passive_spine_pipes(self, _c, _gs, elevator_data)`, driven
+  from `GameState.utility.pipe_active`, so an online lane glows on every floor it
+  passes through — not just the floor where you flipped the switch.
 
-  Travel sequence (`ElevatorHandler` state machine):
-
-  1. **PROXIMITY** (default): doors slide apart as the player approaches,
-     close as they walk away. Glow at baseline (faint blue).
-  2. **DEPARTING** (E pressed near elevator): doors slide closed around
-     the player; inner core glow ramps up to a hot yellow over the same
-     0.35 s; brief 0.1 s held pose with doors shut + glow at full;
-     0.4 s screen fade-to-black; `change_scene_to_file`.
-  3. **ARRIVING** (next floor's `_ready`, with `GameState.in_transit`):
-     player positioned at elevator centre, doors closed, glow at full.
-     0.4 s fade-in from black; 0.3 s held pose with doors still shut +
-     glow on; 0.4 s doors slide apart while glow fades to baseline.
-     Returns to PROXIMITY.
-
-  The yellow glow leaks visibly through the seams between door panels
-  and the gaps between chamfer panels — that's the visual signature of
-  "rider inside the column."
-
-A floor that needs more space negotiates that as a design exception
-(e.g. an open rooftop). A floor that needs *less* doesn't exist —
-shrinking the footprint breaks the visual continuity.
+A floor that needs more space negotiates that as a design exception (e.g. the open
+Roof). A floor that needs *less* doesn't exist — shrinking the footprint breaks the
+visual continuity.
 
 ---
 
 ## 2. Walls and chrome
 
-Built by `scenes/shared/floor_chrome.gd`. Every floor calls:
+Built by `scenes/shared/floor_chrome.gd` (a `RefCounted`, loaded via `preload`,
+NOT `class_name` — F-010). Every floor's `_ready()` calls into it:
 
 ```gdscript
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 
-FloorChrome.build_slab(self, _c)
-FloorChrome.build_walls(self, _c)
+FloorChrome.build_slab(self, _c)              # + optional shaft_half to cut a central hole
+FloorChrome.build_walls(self, _c)             # doorways:bool, seal:bool, seal_height:float
 FloorChrome.build_extension_grid(self, _c)
-FloorChrome.build_elevator_core(self, _c)
+var elevator_data = FloorChrome.build_elevator_core(self, _c)
+FloorChrome.build_passive_spine_pipes(self, _c, _gs, elevator_data)
 ```
 
-The walls are: low solid base + vertical posts + translucent glass +
-thin top trim. The blueprint extension grid extends past each wall
-(6 lines per side fading to transparent + a perpendicular crossbar),
-which is the visual language for "the tower could keep growing here".
+The slab is a `StaticBody3D` named **`SlabBody`** on collision **layer 2**. The
+tower toggles each floor's `SlabBody.collision_layer` by the player's current
+floor — floors ABOVE you switch off, so a jump arcs straight up through the
+ceiling and falls back to the SAME floor (vertical travel is the elevator / stairs
+/ vacuum hop, never jumping). The Canopy's slab is the exception (see §11).
 
-Wall height: `WALL_HEIGHT = 2.6` m. Don't override. A floor with extra
-ceiling height belongs to a different visual category (exterior, atrium).
+The walls are: low solid base + vertical posts + translucent glass + thin top
+trim. `seal` raises an invisible collision wall (`WALL_SEAL_HEIGHT`) so a charged
+jump can't clear the perimeter — leave it off for the basement and for grade
+floors with doorways (the Garden), where it would bleed into the opening. The
+blueprint **extension grid** past each wall is the visual language for "the tower
+could keep growing here". Wall height: `WALL_HEIGHT`. Don't override.
 
 ---
 
 ## 3. Vacuum tubes (corner cargo conduits)
 
-Every floor has **four corner vacuum tubes** placed inset from the wall:
-- Constants: `VACUUM_TUBE_INSET`, `VACUUM_TUBE_RADIUS`,
-  `VACUUM_TUBE_HEIGHT`, `VACUUM_TUBE_INTERACT_RADIUS`.
-- `VACUUM_TUBE_HAS_FLOOR_ABOVE = false` seals the up port; the same flag
-  set true on a floor with a story above unlocks bidirectional routing.
-- Down port routes to Floor 1 → out to the world for cash. Player drops
-  full backpack with E, sees `+$N (M sold)` floater + whoosh on the
-  tube glow.
+Every floor has **four corner vacuum tubes** (`scenes/shared/vacuum_tube.gd`),
+inset from the walls. Constants: `VACUUM_TUBE_*`.
 
-Floor 1 is the special exception: tubes don't terminate at the floor's
-own corners — they terminate at the central spine's six lanes (water,
-power, atmosphere, data, waste, cargo). The cargo lane is what receives
-produce dropped through other floors' corner tubes.
+- The **down** port routes produce down the shaft and out to the world for cash.
+  Player drops a full backpack with E → `+$N (M sold)` floater + whoosh on the
+  tube glow.
+- The **up** port is sealed unless a floor exists above (build-state dependent).
+- The four corner tubes double as the **vacuum-lift hop** path
+  (`scenes/shared/vacuum_lift.gd`): standing in a corner mouth, **jump** hops you
+  up one floor and **down** hops you down one (±1, reaches every floor 0→Roof).
+  The Roof is tube-only; the Canopy has no elevator stop, so the tubes + stairs
+  are how you reach it.
+
+The **Utility** floor (Floor 0) is the special case: its tubes terminate at the
+central spine's six lanes (water, power, atmosphere, data, waste, cargo); the
+cargo lane receives produce dropped from the floors above.
 
 ---
 
 ## 4. Camera
 
-`scenes/floor_2/iso_camera.gd` is the canonical floor camera. Every
-floor's `.tscn` has the same node structure:
+There is **one** camera for the whole tower: `CameraPivot/Camera3D` in
+`tower.tscn`, scripted by `scenes/garden/iso_camera.gd` (the `iso_*` name
+describes the *renderer*, not the Garden — it serves every floor). Orthographic,
+tilt `CAMERA_TILT_DEG` (−30°), initial yaw `CAMERA_YAW_DEG_INITIAL` (−135°),
+size `CAMERA_ORTHO_SIZE_DEFAULT` (40). The tower owns pivot **y** (floor + jump +
+fall follow); the camera owns pivot **xz** (player follow + lead).
 
-```
-CameraPivot (Node3D, position (0, 1, 0))
-  Camera3D (script = iso_camera.gd, projection = ORTHOGONAL, size = 40)
-```
+Affordances (consistent on every floor):
+- **Q / R** — 90° rotation snaps around the pivot.
+- **Mouse wheel** or **`=` / `-`** — zoom (clamped `CAMERA_ORTHO_SIZE_MIN..MAX`).
+- **Middle-drag / left-drag** — pan.
+- **Camera modes** iso / profile / over-shoulder via the bottom-right
+  `CameraModesHud`.
+- **Dialogue close-up** — automatic when `GameState.dialogue_open` flips; tweens
+  to the player + NPC midpoint and orbits. Floors with no dialogue NPC simply
+  never set the flag, so it's a no-op.
 
-Camera affordances every floor inherits:
-- **Q / R** — 90° rotation snaps (around the pivot)
-- **Mouse wheel** or **`=` / `-`** — zoom (clamped to
-  `CAMERA_ORTHO_SIZE_MIN..MAX`)
-- **Middle-drag or left-drag** — pan
-- **Camera mode toggle** (iso / profile / over-shoulder) via the
-  `CameraModesHud` Control, anchored bottom-right
-- **Dialogue close-up** — automatic when `GameState.dialogue_open` flips,
-  tweens to a player + NPC midpoint
-
-A floor with no dialogue NPC (Floor 1 today) leaves the
-`iso_robot_path` empty on the camera; the dialogue close-up is gated on
-non-null `_iso_robot`, so the missing reference is a no-op.
-
-Tilt: -30° on X. Yaw: -135° initial. Distance 20. Ortho size 40.
-Constants: `CAMERA_TILT_DEG`, `CAMERA_YAW_DEG_INITIAL`,
-`CAMERA_DISTANCE`, `CAMERA_ORTHO_SIZE_DEFAULT`.
+`iso_camera._process` hands the camera off entirely to whichever exclusive mode is
+active (construction view, exterior walk, arrival cinematic, re-entry ease, Sky
+Lounge look-out, dialogue) and resumes cleanly when it clears.
 
 ---
 
 ## 5. Lighting
 
-Every floor lights its character and its critical interactables with
-soft top-down spotlights, even in a fully-lit room. This is the visual
-hook that says "the tower cares about *people*, not just spaces."
+Every floor lights its character and its critical interactables with soft top-down
+spotlights, even in a fully-lit room — the visual hook that says "the tower cares
+about *people*, not just spaces."
 
-- **Player follow-spotlight** parented to `IsoPlayer` in the .tscn:
-  ```
-  [node name="PlayerSpot" type="SpotLight3D" parent="World/IsoPlayer"]
-  position = Vector3(0, 3.2, 0)
-  rotation_degrees = Vector3(-90, 0, 0)
-  spot_range = 4.5
-  spot_angle = 38.0
-  spot_attenuation = 0.7
-  ```
-  Energy varies per floor: dimmer (0.9) where ambient is bright, brighter
-  (1.4) where ambient is low.
-- **Fixed spotlights on critical interactables** (e.g. Floor 1's master
-  breaker). Pulled into 30 % energy when the floor's primary lighting
-  comes on so they stay subtly visible as returnable targets.
-- **Always-on emergency overhead OmniLight** for any floor that has a
-  pre-lit (intro) state — gives the room enough fill to be readable
-  before the master breaker / equivalent activates.
+- **Player follow-spotlight** (`PlayerSpot`, a `SpotLight3D` child of the single
+  `Player` node in `tower.tscn`). Energy varies per floor: dimmer where ambient is
+  bright, brighter where ambient is low.
+- **Fixed spotlights on critical interactables** (e.g. the Utility master
+  breaker), pulled to ~30 % energy once the floor's primary lighting comes on so
+  they stay subtly visible as returnable targets.
+- **Always-on emergency overhead Omni** for any floor with a pre-lit intro state,
+  so the room is readable before its master switch activates.
+
+Per-floor lighting identity (ambient colour/energy, background, sun energy,
+sky-exposure) lives in `tower_controller._preset_for(level)`; time-of-day
+modulates on top, scaled by each floor's exposure.
 
 ---
 
 ## 6. HUD layout
 
-Each region has a defined purpose. Floors fill in the slots they need;
-they don't put content in slots reserved for other purposes.
+One shared `HUD` CanvasLayer in `tower.tscn`; per-floor groups (`GardenGroup`,
+`UtilityGroup`, …) toggle visibility by current floor. Each region has a defined
+purpose; floors fill the slots they need and don't poach reserved ones.
 
-- **Top-left — Floor identity + controls.**
-  - `HeaderLabel`: large amber title, e.g. `FLOOR 1 / UTILITY`. The first
-    thing the player reads when the scene loads.
-  - `ControlsLabel`: dim, smaller, 3–5 short lines max. Group related
-    keys with `·` separators rather than one-key-per-line.
-- **Top-right — Per-floor primary status panel.**
-  - Garden: `ResourcesPanel` (Backpack count, Cash).
-  - Floor 1: `SystemsHud` (offline/connected/online dot per system).
-  - Future floors: pick the one stat that defines the floor's loop.
-  - Style is consistent: `PanelContainer` with `ResourcePanelStyle`
-    (warm-cream borders, dark-olive bg, drop shadow).
-- **Bottom-left — Conversational dialogue.** Cody chat panel when open;
-  empty otherwise.
-- **Bottom-centre — Floor-specific tools.** Garden uses this for
-  `SeedHud`. Floors with no tool stack leave it empty.
-- **Bottom-right — `CameraModesHud`.** Always present, always at the
-  bottom-right corner with consistent margin. Don't put anything else
-  here.
-- **Centre — modal overlays.** Schematics, future floor-specific
-  modals. Hidden by default.
+- **Top-left — Floor identity + controls.** Large amber `HeaderLabel`
+  (e.g. `FLOOR 0 / UTILITY`); dim `ControlsLabel`, 3–5 short lines, related keys
+  grouped with `·` separators.
+- **Top-right — Per-floor primary status.** Garden → resources (Backpack, Cash);
+  Utility → `SystemsHud` (per-system offline/connected/online dot). Pick the one
+  stat that defines the floor's loop. Consistent `PanelContainer` styling.
+- **Bottom-left — Conversational dialogue** (Cody chat panel when open).
+- **Bottom-centre — Floor-specific tools** (Garden's `SeedHud`). Empty otherwise.
+- **Bottom-right — `CameraModesHud`.** Always present; don't put anything else here.
+- **Centre — modal overlays** (Schematics, etc.). Hidden by default.
 
-What NOT to do: put a floor name in the bottom-right (collides with
-camera modes), or pile resources into the bottom-centre (the controls
-hint and the SeedHud already share that visual lane).
+Don't: put a floor name bottom-right (collides with camera modes), or pile
+resources into bottom-centre (the controls hint + SeedHud already share that lane).
 
 ---
 
-## 7. Player spawn
+## 7. Player + spawn
 
-Every floor spawns the player just south of the elevator core, at
-`Vector3(0, 0.2, 3.0)`. The player's facing yaw is set to face the
-camera (`deg_to_rad(CAMERA_YAW_DEG_INITIAL)`), so on first frame their
-front is visible rather than their back. The same position + facing is
-applied on arrival via the elevator (`ElevatorHandler` repositions the
-player after the scene swap so they exit through the south door
-instead of inside the elevator collision shape).
+There is **one** `Player` (a `CharacterBody3D`) for the whole tower; you don't
+re-spawn per floor, you traverse to floors. The tower owns the spawn
+(`tower_controller._spawn_in_garden`): the player starts on the **Garden**
+(Floor 1, the ground floor) facing the camera. Arrival on any other floor is
+handled by the traversal that took you there — the elevator car repositions the
+rider as it stops, the stairs/hop land you on solid slab — so you never appear
+inside a wall or the elevator collision.
 
-If a floor needs the player to spawn elsewhere (e.g. a cinematic intro),
-override the `IsoPlayer` transform in that floor's `.tscn` and reset
-the facing yaw with `IsoPlayer.set_facing_yaw(...)`.
+A scripted intro (e.g. the Garden arrival cinematic) drives the player via
+`tower_controller`, which sets velocity/position directly while suppressing input.
 
 ---
 
 ## 8. Interaction grammar
 
-- **Tap-E** for any verb. No 1.6/1.2/0.9-second holds; the iso slice
-  established a tap-and-tween idiom (~0.5 s animation, no charge bar)
-  and every floor matches that.
-- **3D Label3D prompts** float above an interactable when the player is
-  in range. Format: an `[E]` glyph above a verb subtitle, both billboarded
-  + outlined for legibility. Hidden when the verb is no longer applicable
-  (e.g. master breaker prompt hides once the breaker is on).
-- **The HUD's controls hint** lists the floor's verbs in one column;
-  match the existing format so floors feel related.
+- **Tap-E** for any verb. No long holds; the iso idiom is tap-and-tween (~0.5 s
+  animation, no charge bar) and every floor matches it. (Exception: the charged
+  *jump* is a deliberate movement verb, not an interaction.)
+- **3D `Label3D` prompts** float above an interactable in range: an `[E]` glyph
+  over a verb subtitle, billboarded + outlined. Hidden when the verb no longer
+  applies. Use `scenes/shared/label_scaler.gd` so prompts hold a roughly constant
+  screen size as the camera zooms.
+- **The HUD's controls hint** lists the floor's verbs in one column; match the
+  existing format so floors feel related.
 
 ---
 
 ## 9. Constants and state
 
-- Per-floor constants live as a `FLOOR_<n>_*` block in
-  `autoloads/constants.gd`, after the shared base constants.
+- Per-floor constants live as a **content-named** block in
+  `autoloads/constants.gd` (e.g. `UTILITY_*`, `GARDEN_*`, `ARBORETUM_*`,
+  `CANOPY_*`). **Do not embed floor numbers in names** — the Session-9 renumber
+  left a trail of stale `FLOOR_1_*`/`FLOOR_4_*` identifiers that had to be
+  renamed; content names don't go stale.
 - Per-floor runtime state lives in a typed dict on `autoloads/game_state.gd`,
-  e.g. `GameState.floor_1 = { master_on, connected, pipe_active }`.
-  Persists across scene swaps via the autoload.
-- Multi-floor save/load (when it lands) reads/writes those dicts.
+  keyed by **content name** (e.g. `GameState.utility = { master_on, connected,
+  pipe_active }`, `GameState.arboretum.trees`). It persists across floor
+  transitions because it's autoload state. **Litmus:** what's *true* in the world
+  → `GameState`; what should *happen next* → `GameDirector`.
 
 ---
 
 ## 10. Adding a new floor — checklist
 
-- [ ] `scenes/floor_<n>/floor_<n>.tscn` + `floor_<n>.gd`
-- [ ] `_ready` calls `FloorChrome.build_slab/walls/extension_grid/elevator_core`
-- [ ] Camera setup uses `CameraPivot` + `Camera3D` with `iso_camera.gd`
-- [ ] HUD includes `CameraModesHud`, controls hint top-left
-- [ ] `IsoPlayer` is reused; add `PlayerSpot` SpotLight3D as child
-- [ ] Four corner `VacuumTube` nodes (or the floor's equivalent — Floor 1
-  uses the central spine instead)
-- [ ] State dict added to `GameState`
-- [ ] Per-floor constants block in `autoloads/constants.gd`
-- [ ] Backslash debug-swap available until the elevator wires properly (M6)
+(See `CLAUDE.md` "Constraints" for the authoritative version.)
+
+- [ ] New content-named dir `scenes/<name>/` + a `<name>.gd` controller
+      (`extends Node3D`), building geometry procedurally in `_ready()`.
+- [ ] `_ready()` calls `FloorChrome.build_slab / build_walls /
+      build_extension_grid / build_elevator_core / build_passive_spine_pipes`,
+      plus `VacuumTube.build_corner_tubes`.
+- [ ] Wired into `tower.tscn` as a `Floors/<Name>` node, and into
+      `tower_controller._FLOORS` (node path + level + display name).
+- [ ] If elevator-served, add the level to `elevator_platform.gd`'s `SERVED`
+      list + `NAMES`. (Canopy is stairs/hop-only; Roof is tube-only.)
+- [ ] Per-floor state dict on `GameState` (content-named key).
+- [ ] Content-named constants block in `autoloads/constants.gd`.
+- [ ] A `▾ CHAPTERS` entry in `scenes/shared/chapter_jump.gd` + the
+      `tower_controller` chapter map, so you can jump straight to it while iterating.
+- [ ] Verify every visual/behavioural change with the **windowed** screenshot
+      harness (`agent/rules/godot_screenshot_harness.md`) — never `--headless` for
+      capture.
+
+The two blank floors (`scenes/residential/`, `scenes/sky_lounge/`) are the minimal
+template to copy.
 
 ---
 
 ## When to break a rule
 
-If breaking one of these makes a floor *feel* obviously better, do it
-and document the deviation here. The default is conformance; the
-exception is reasoned and recorded.
+If breaking one of these makes a floor *feel* obviously better, do it and document
+the deviation below. The default is conformance; the exception is reasoned and
+recorded.
 
 ---
 
 ## 11. Documented deviations
 
-### Floor 4 (Canopy) — no elevator stop, stairs-only access
+### Canopy (Floor 3) — no elevator stop, stairs/hop access
 
-Floor 4 is reachable ONLY by walking up the spiral staircase from Floor 3
-(`scenes/shared/spiral_staircase.gd`). The elevator's geometry still
-passes through Floor 4's slab (the central square footprint is cut out)
-and the spine pipes still render so the architectural continuity reads,
-but no `ElevatorHandler` is instanced — there is no E-prompt or door
-animation. Intent: making the canopy private and unreachable by lift
-gives the floor a more elevated, contemplative feel, and turns the
-spiral staircase into a meaningful piece of architecture rather than
-redundant geometry.
+The Canopy is reachable only by the straight staircase up from Arboretum-ground
+(Floor 2, `scenes/shared/stairs.gd`) or a corner vacuum hop — not the elevator.
+The elevator geometry + spine pipes still pass through so the architectural
+continuity reads, but the level is absent from the elevator `SERVED` list. Intent:
+making the canopy lift-private gives it a more elevated, contemplative feel and
+turns the stairs into meaningful architecture.
 
-### Floor 4 — slab is tiled, not a single box
+### Canopy (Floor 3) — slab is tiled, not a single box
 
-Where every other floor uses `FloorChrome.build_slab` (single BoxMesh +
-collision), Floor 4 builds its slab tile-by-tile in `floor_4.gd` so it
-can punch holes in three regions:
-1. Central square ±`ELEVATOR_RADIUS` (elevator passes through).
-2. Annular ring `STAIRCASE_HOLE_INNER_RADIUS..STAIRCASE_HOLE_OUTER_RADIUS`
-   (staircase emerges from below).
-3. Edge tree-plot tiles (mature crowns emerge through; a dark torus
-   rim is rendered around each hole for visual read).
+Where other floors use `FloorChrome.build_slab` (single `BoxMesh`), the Canopy
+builds its slab tile-by-tile in `arboretum_canopy.gd` so it can punch holes for:
+(1) the central elevator footprint, (2) the stairwell aperture, and (3) each edge
+tree plot (mature crowns emerge through; a dark rim reads the hole). Its slab is on
+collision **layer 1** and is **never toggled off** — it stays a solid **glass
+ceiling**: from Floor 2 you can't jump through it (you bonk it, which lights a
+localized glow), and standing on Floor 3 it's a translucent glass floor. This
+tile-with-holes pattern is the right move whenever a floor's slab needs cutouts.
 
-This pattern is the right move whenever a floor's slab needs cutouts.
-Other floors (Garden, Floor 1) don't need any, so they stay on the
-single-box `build_slab` for speed.
+### Arboretum (Floors 2-3) — edge-only growing plots, trees span two floors
 
-### Floors 3-4 (Arboretum) — edge-only growing plots
-
-The Arboretum uses every-other-cell along a 1-cell-deep ring inside the
-walls (`ARBORETUM_EDGE_INSET` and `ARBORETUM_PLOT_STRIDE`). With
-`GARDEN_GRID_SIZE = 30` this yields ~52 plots. The choice keeps the
-floor reading as a curated arboretum, not a hedge, and leaves the
-centre clear for the elevator + spiral staircase. Tree visuals span
-two floors: trunk + lower foliage on Floor 3, upper trunk + canopy
-on Floor 4. Floor 3 owns the tree state in `GameState.floor_3.trees`;
-Floor 4 reads the same dict and renders its slice (mirrors the
-`build_passive_spine_pipes` cross-floor render pattern from Floor 1).
+The Arboretum plants on an every-other-cell ring just inside the walls
+(`ARBORETUM_EDGE_INSET`, `ARBORETUM_PLOT_STRIDE`), keeping it a curated arboretum
+(not a hedge) with the centre clear for the elevator + stairs. A tree is a single
+physical object owned by **Floor 2** that passes up through the Canopy's slab hole:
+Floor 2 renders trunk + lower foliage, the **Canopy (Floor 3)** renders the crown
+above the slab. Floor 2 owns the state in `GameState.arboretum.trees`; the Canopy
+reads the same dict and renders its slice — the same cross-floor render pattern as
+`build_passive_spine_pipes` driving off `GameState.utility`.
