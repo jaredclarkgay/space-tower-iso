@@ -68,6 +68,12 @@ var exterior_walk := false
 # the cinematic hands off (Cody's in-place arrival fires) and iso_camera resumes.
 var arrival_cinematic := false
 
+# True while the camera is easing from the exterior-walk follow pose to iso's resting
+# pose after the player walks BACK in through the doorway (re-entry). The player KEEPS
+# control (not frozen) — only the camera is controller-owned for the short ease, so
+# iso_camera bows out until it completes (then resumes from the identical pose).
+var reentry_ease := false
+
 # True while the player is plunging off the open roof to the ground. The
 # tower_controller reveals the whole tower + site ground and chases the camera
 # down; the fall-catch is bypassed so it lands instead of respawning. Cleared on

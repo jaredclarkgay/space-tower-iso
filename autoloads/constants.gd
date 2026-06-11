@@ -562,6 +562,30 @@ const ARRIVAL_CINE_CONVO_SEED_DEG := 30.0   # one-time starting offset off the s
 # glide so no beat boundary snaps.
 const ARRIVAL_CINE_CAM_EASE_RATE := 7.0
 
+# FIX 1 (see-through): the cinematic camera sits BEHIND the player (back/lift), which
+# at the south doorway (z≈-13) pushes it past the Garden's south edge (z=-FLOOR_3D_SIZE/2
+# = -15) — out over the void/site-ground/basement, looking back UNDER the slab edge. To
+# keep the floor reading solid we CLAMP the camera's world XZ to stay inside the footprint
+# minus this margin, so the slab always fills the lower frame. The look-at still aims at
+# the focus, so the framing only shifts (the camera slides inward over the slab); it never
+# peers under the edge. Margin keeps it a touch inside the wall, not exactly on the seam.
+const ARRIVAL_CINE_CAM_FOOTPRINT_MARGIN := 2.0
+# When the cinematic camera is within this many metres of a footprint edge, pitch its
+# look-at DOWN by up to ARRIVAL_CINE_EDGE_PITCH_DROP so the low OTS frame lands on the slab
+# instead of skimming past the edge to the sky below grade (kills the residual doorway band).
+const ARRIVAL_CINE_EDGE_PITCH_BAND := 6.0
+const ARRIVAL_CINE_EDGE_PITCH_DROP := 5.0
+
+# FIX 2 (intro ease): seconds to ease the camera FROM wherever the prior mode left it
+# (exterior-walk or iso resting pose) INTO the over-the-shoulder follow as the player
+# starts walking in. Quick but smooth (smoothstep s-curve) — no snap to behind-the-back.
+const ARRIVAL_CINE_INTRO_DUR := 0.7
+
+# FIX 3 (re-entry ease): seconds to ease the camera from the exterior-walk follow pose to
+# iso's resting pose when the player walks BACK in through the doorway (no hard cut). The
+# player keeps control the whole time; only the camera eases. Mirrors the resume ease.
+const ARRIVAL_CINE_REENTRY_DUR := 0.9
+
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
 # Footprint matches the Garden (FLOOR_3D_SIZE = 30 m, same walls + extension

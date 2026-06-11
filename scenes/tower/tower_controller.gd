@@ -155,6 +155,26 @@ var _resume_from_yaw: float = 0.0
 var _resume_from_cam_pos: Vector3 = Vector3.ZERO
 var _resume_from_cam_basis: Basis = Basis.IDENTITY
 var _resume_from_size: float = 0.0
+# FIX 2 — intro ease (cinematic start). Capture the LIVE camera WORLD pose the moment the
+# cinematic begins (wherever the prior mode left it) and smoothstep FROM it TO the OTS
+# follow pose over ARRIVAL_CINE_INTRO_DUR while Beat 1 (the walk) already runs, so the
+# camera GLIDES in behind the walking player instead of snapping. _intro_t times it. We
+# blend in WORLD space (the pivot moves during the ease) then re-derive the local offset.
+var _intro_t: float = 0.0
+var _intro_active: bool = false
+var _intro_from_cam_world: Vector3 = Vector3.ZERO
+var _intro_from_cam_basis: Basis = Basis.IDENTITY
+var _intro_from_size: float = 0.0
+# FIX 3 — re-entry ease (walk back in through the doorway). Eases the camera from the
+# exterior-walk follow pose to iso's resting pose without teleporting the player. The
+# player keeps control; only the camera eases. _reentry_ease is the active flag.
+var _reentry_ease: bool = false
+var _reentry_t: float = 0.0
+var _reentry_from_pivot: Vector3 = Vector3.ZERO
+var _reentry_from_yaw: float = 0.0
+var _reentry_from_cam_pos: Vector3 = Vector3.ZERO
+var _reentry_from_cam_basis: Basis = Basis.IDENTITY
+var _reentry_from_size: float = 0.0
 # Decays 1→0 after the player bonks their head on the ceiling; drives the
 # localized glass ping on the floor directly above them, placed at _bonk_pos.
 var _ceiling_pulse: float = 0.0
@@ -300,11 +320,19 @@ func _begin_arrival_cinematic() -> void:
 	_cam_size_tgt = _cam_size
 	_cam_lookahead_tgt = _cam_lookahead
 	_cam_looklift_tgt = _cam_looklift
-	# Snap the pivot + apply the seeded pose immediately (no jump-in from wherever the
-	# iso pivot last was). _drive_arrival_camera with delta=0 just applies the seed.
-	if _pivot:
-		_pivot.global_position = _cam_focus
-	_drive_arrival_camera(0.0)
+	# FIX 2 — do NOT snap the camera behind the player. Capture the LIVE pose the prior
+	# mode left (exterior-walk follow or iso resting) and ease FROM it INTO the OTS follow
+	# over ARRIVAL_CINE_INTRO_DUR (smoothstep), while Beat 1's walk already runs — so the
+	# camera GLIDES in behind the walking player. _update_intro_ease (called from
+	# _update_arrival_cinematic) blends the applied pose; here we just snapshot the start.
+	if _pivot and _camera:
+		_intro_active = true
+		_intro_t = 0.0
+		_intro_from_cam_world = _camera.global_position
+		_intro_from_cam_basis = _camera.global_transform.basis
+		_intro_from_size = _camera.size
+	else:
+		_intro_active = false
 	_hud_level = -1   # refresh the floor header
 	_update(true)
 
@@ -591,6 +619,20 @@ func _update_exterior_walk(snap: bool) -> void:
 # Walk-in: enter the finished tower. Drop into the Garden, advance the arc to
 # BUILD_INTERIORS, and resume normal interior play.
 func _enter_building() -> void:
+	# FIX 3 — RE-ENTRY is anything after the first-time cinematic already played. On
+	# re-entry we must NOT teleport the player (they physically walked across the
+	# threshold) and must NOT hard-cut the camera. Capture the exterior-walk pose first
+	# so the re-entry ease can glide it to iso's resting pose.
+	var reentry: bool = _arrival_played
+	if reentry and _pivot and _camera:
+		_reentry_ease = true
+		_gs.set("reentry_ease", true)         # iso_camera bows out while the controller eases
+		_reentry_t = 0.0
+		_reentry_from_pivot = _pivot.global_position
+		_reentry_from_yaw = _pivot.rotation.y
+		_reentry_from_cam_pos = _camera.position
+		_reentry_from_cam_basis = _camera.transform.basis
+		_reentry_from_size = _camera.size
 	_exterior_walk = false
 	_gs.set("exterior_walk", false)
 	_gs.set("constructing", false)
@@ -606,7 +648,17 @@ func _enter_building() -> void:
 	var gd: Node = get_node_or_null("/root/GameDirector")
 	if gd and gd.has_method("set_phase"):
 		gd.set_phase(gd.Phase.BUILD_INTERIORS)
-	_arrive_in_garden()
+	# FIX 3 — on re-entry the player keeps their current (threshold) position: skip the
+	# _arrive_in_garden() teleport entirely. Just re-anchor the spawn + zero momentum so
+	# they walk in continuously. The first-time path still runs the cinematic.
+	if reentry:
+		_current_level = _level_for_y(_player.global_position.y) if _player else _SPAWN_LEVEL
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
+		if _player and _player.has_method("set_spawn_here"):
+			_player.set_spawn_here()
+	else:
+		_arrive_in_garden()
 	_hud_level = -1                           # force the floor header to push (iso_camera resumes)
 	_update(true)
 
@@ -640,6 +692,13 @@ func _exit_building() -> void:
 # end the cinematic so iso_camera resumes.
 func _update_arrival_cinematic(delta: float) -> void:
 	_arrival_t += delta
+	# FIX 2 — advance the intro-ease timer first so the per-beat _drive_arrival_camera
+	# (which still eases the _cam_* members toward the OTS targets) is OVERRIDDEN by a
+	# smoothstep blend from the captured start pose for the first ARRIVAL_CINE_INTRO_DUR.
+	if _intro_active:
+		_intro_t += delta
+		if _intro_t >= float(_c.ARRIVAL_CINE_INTRO_DUR):
+			_intro_active = false   # hand to the normal member-ease cleanly (members already at OTS)
 	if _arrival_beat == 1:
 		# Kick off the scripted walk once (target = the mark at the same floor height).
 		if not _arrival_walk_started:
@@ -893,6 +952,54 @@ func _update_resume_ease(delta: float) -> void:
 		_update(true)   # clears arrival_cinematic for iso_camera; pivot resumes seamlessly
 
 
+# FIX 3 — re-entry ease: walking BACK in through the doorway. The player has CONTROL the
+# whole time (not frozen); only the camera is controller-owned for this short ease. We
+# smoothstep the camera FROM the captured exterior-walk follow pose TO iso's resting pose
+# over ARRIVAL_CINE_REENTRY_DUR. The iso target is recomputed each frame because the
+# player keeps moving (pivot XZ tracks them). On completion we release to iso, which picks
+# up from the identical transform — no hard cut, no warp (the player was never teleported).
+func _update_reentry_ease(delta: float) -> void:
+	if _pivot == null or _camera == null or _player == null:
+		_reentry_ease = false
+		_gs.set("reentry_ease", false)
+		return
+	# iso RESTING-pose target (mirrors _update_resume_ease) — recomputed live so the pivot
+	# follows the walking player's XZ while the rest of the framing eases in.
+	var pp: Vector3 = _player.global_position
+	var iso_pivot_y: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
+	var iso_pivot := Vector3(pp.x, iso_pivot_y, pp.z)
+	var iso_yaw: float = deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))
+	var tilt_rad: float = deg_to_rad(abs(float(_c.CAMERA_TILT_DEG)))
+	var d: float = float(_c.CAMERA_DISTANCE)
+	var iso_cam_pos := Vector3(0.0, d * sin(tilt_rad), d * cos(tilt_rad))
+	var iso_cam_basis := Basis.from_euler(Vector3(deg_to_rad(float(_c.CAMERA_TILT_DEG)), 0.0, 0.0))
+	var iso_size: float = float(_c.CAMERA_ORTHO_SIZE_DEFAULT)
+
+	_reentry_t += delta
+	var e: float = smoothstep(0.0, 1.0, clampf(_reentry_t / float(_c.ARRIVAL_CINE_REENTRY_DUR), 0.0, 1.0))
+
+	# Ease the live camera exterior-walk → iso. Pivot global pos + yaw, Camera3D local pos +
+	# orientation (slerp the basis), and ortho size — the same shape as the resume ease.
+	_pivot.global_position = _reentry_from_pivot.lerp(iso_pivot, e)
+	var yaw_diff: float = wrapf(iso_yaw - _reentry_from_yaw + PI, 0.0, TAU) - PI
+	_pivot.rotation = Vector3(0.0, _reentry_from_yaw + yaw_diff * e, 0.0)
+	_camera.position = _reentry_from_cam_pos.lerp(iso_cam_pos, e)
+	_camera.transform.basis = _reentry_from_cam_basis.slerp(iso_cam_basis, e)
+	_camera.size = lerpf(_reentry_from_size, iso_size, e)
+	_gs.camera.ortho_size = _camera.size
+
+	if _reentry_t >= float(_c.ARRIVAL_CINE_REENTRY_DUR):
+		# Snap to the exact iso pose, then release — iso_camera resumes from here seamlessly.
+		_pivot.global_position = iso_pivot
+		_pivot.rotation = Vector3(0.0, iso_yaw, 0.0)
+		_camera.position = iso_cam_pos
+		_camera.transform.basis = iso_cam_basis
+		_camera.size = iso_size
+		_gs.camera.ortho_size = iso_size
+		_reentry_ease = false
+		_gs.set("reentry_ease", false)
+
+
 # Per-beat TARGET helper — the settled over-the-shoulder WALK-IN framing (Beats 1/2).
 # Sets ONLY the _cam_*_tgt members; the persistent _cam_* members ease toward these
 # in _drive_arrival_camera. The members were seeded to the higher/farther OPENING pose
@@ -944,14 +1051,103 @@ func _drive_arrival_camera(delta: float) -> void:
 		# Camera south (-Z) of and above the pivot, offset _cam_shoulder to one side; look
 		# back at the focus from behind/above. He walks +Z (north), so south = behind.
 		_camera.position = Vector3(_cam_shoulder, _cam_lift, -_cam_back)
+		# FIX 1 — clamp the camera's WORLD XZ to stay over the floor footprint. The
+		# behind-the-back pose pushes the camera past the south edge at the doorway, where
+		# it would look UNDER the slab (void / site-ground / basement). Clamping it inward
+		# keeps the slab filling the lower frame at every point in the cinematic; the look-at
+		# (below) still aims at the focus, so only the framing slides — never sees under the
+		# edge. We convert the clamped world point back to a pivot-local offset.
+		_clamp_cam_over_footprint()
 		# Look-at: a touch toward the shoulder side + ahead (+Z) + up. With shoulder→0 and
 		# lookahead→0 (the orbit/convo targets) this is the dead-centre clean-circle aim;
 		# with the OTS values it's the over-the-shoulder, look-ahead framing — and because
 		# both ease continuously the transition between them never snaps.
 		var look_local := Vector3(_cam_shoulder * 0.45, _cam_looklift, _cam_lookahead)
-		_camera.look_at(_pivot.global_transform * look_local, Vector3.UP)
+		var look_world: Vector3 = _pivot.global_transform * look_local
+		# FIX 1 — edge-proximity downward pitch. Clamping keeps the camera OVER the slab, but
+		# a low OTS angle near an EDGE still lets the lower frustum corners skim PAST the edge
+		# to the sky below grade (the residual blue band at the south doorway). When the
+		# camera's world XZ is within EDGE_PITCH_BAND of any footprint edge, pull the look-at
+		# DOWN toward the floor — pitching the camera down so the lower frame lands on the slab
+		# instead of past the edge. Zero in the interior (no effect on the orbit/normal pose),
+		# ramps up only at the perimeter where the see-through would occur.
+		look_world.y -= _edge_pitch_drop()
+		_camera.look_at(look_world, Vector3.UP)
 		_camera.size = _cam_size
 		_gs.camera.ortho_size = _camera.size
+		# FIX 2 — intro ease: for the first ARRIVAL_CINE_INTRO_DUR the OTS pose just
+		# computed (and clamped + look_at-oriented above) is the END pose; smoothstep-blend
+		# the APPLIED transform FROM the captured live start pose TO it, so the camera glides
+		# in behind the walking player instead of snapping. We blend the basis directly (no
+		# re-run of look_at) so e=0 holds the exact live orientation — no first-frame pop.
+		# The _cam_* members keep easing underneath, so when the intro completes the live
+		# pose already equals the driven pose — no second pop at the hand-off.
+		if _intro_active:
+			_blend_intro_pose()
+			_gs.camera.ortho_size = _camera.size
+
+
+# FIX 2 helper — blend the just-applied OTS pose toward the captured cinematic-start pose
+# by the inverse intro progress, so e=0 → start pose, e=1 → full OTS follow. Mirrors the
+# resume ease, reversed (start→OTS). Pivot global pos + yaw, Camera3D local pos + basis
+# (slerped — no look_at re-run so the start orientation is held exactly at e=0), ortho size.
+func _blend_intro_pose() -> void:
+	if _pivot == null or _camera == null:
+		return
+	var e: float = smoothstep(0.0, 1.0, clampf(_intro_t / float(_c.ARRIVAL_CINE_INTRO_DUR), 0.0, 1.0))
+	# The pivot already sits at the DRIVEN position/yaw (we keep it — the pivot tracks the
+	# player). We blend only the Camera3D's WORLD pose from the captured start toward the
+	# driven world pose, so the camera body glides in independent of the pivot motion.
+	var to_cam_world: Vector3 = _camera.global_position
+	var to_cam_basis: Basis = _camera.global_transform.basis
+	var to_size: float = _camera.size
+	var blended_world: Vector3 = _intro_from_cam_world.lerp(to_cam_world, e)
+	# FIX 1 also during the ease-in: clamp the blended camera WORLD XZ over the footprint so
+	# the glide (which may start from the far exterior-walk pose) never peers under the slab.
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5 - float(_c.ARRIVAL_CINE_CAM_FOOTPRINT_MARGIN)
+	blended_world.x = clampf(blended_world.x, -half, half)
+	blended_world.z = clampf(blended_world.z, -half, half)
+	var blended_basis: Basis = _intro_from_cam_basis.slerp(to_cam_basis, e)
+	# Write the blended WORLD pose back (Godot derives the local transform under the pivot).
+	_camera.global_transform = Transform3D(blended_basis, blended_world)
+	_camera.size = lerpf(_intro_from_size, to_size, e)
+
+
+# FIX 1 helper — keep the cinematic camera's WORLD XZ inside the Garden footprint (minus a
+# margin) so the slab always reads solid and the camera never peers under the south/edge.
+# The camera local pos is already set; we read its world XZ, clamp, and write back the
+# pivot-local offset for the clamped world point (Y/local-Z framing preserved otherwise).
+# FIX 1 helper — how far to drop the look-at target (pitch the camera down) based on how
+# close the camera's WORLD XZ is to a footprint edge. 0 in the interior; ramps to
+# ARRIVAL_CINE_EDGE_PITCH_DROP at/over the edge, so the lower frame lands on the slab and
+# never skims past the perimeter to the sky below grade. Keeps the orbit/center pose unchanged.
+func _edge_pitch_drop() -> float:
+	if _camera == null or _pivot == null:
+		return 0.0
+	var w: Vector3 = _pivot.global_transform * _camera.position
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+	# Distance from the camera to the NEAREST footprint edge (negative = outside).
+	var edge_dist: float = minf(half - absf(w.x), half - absf(w.z))
+	var band: float = float(_c.ARRIVAL_CINE_EDGE_PITCH_BAND)
+	if band <= 0.0:
+		return 0.0
+	# 0 when comfortably interior (edge_dist >= band), 1 at/over the edge.
+	var t: float = clampf(1.0 - edge_dist / band, 0.0, 1.0)
+	return smoothstep(0.0, 1.0, t) * float(_c.ARRIVAL_CINE_EDGE_PITCH_DROP)
+
+
+func _clamp_cam_over_footprint() -> void:
+	if _camera == null or _pivot == null:
+		return
+	var world: Vector3 = _pivot.global_transform * _camera.position
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5 - float(_c.ARRIVAL_CINE_CAM_FOOTPRINT_MARGIN)
+	var cx: float = clampf(world.x, -half, half)
+	var cz: float = clampf(world.z, -half, half)
+	if cx == world.x and cz == world.z:
+		return
+	world.x = cx
+	world.z = cz
+	_camera.position = _pivot.global_transform.affine_inverse() * world
 
 
 func _process(delta: float) -> void:
@@ -997,6 +1193,11 @@ func _process(delta: float) -> void:
 	# the scripted walk while iso_camera bows out (gated on arrival_cinematic).
 	if _arrival_cine:
 		_update_arrival_cinematic(delta)
+	# FIX 3 — re-entry ease: after walking back in, the controller eases the camera from
+	# the exterior-walk follow pose to iso's resting pose (the player keeps control). Runs
+	# while iso_camera bows out (gated on reentry_ease), then releases to iso seamlessly.
+	if _reentry_ease:
+		_update_reentry_ease(delta)
 	# Ceiling bonk → a localized glass glow at the hit point on the floor above.
 	if _player and _player.has_method("is_on_ceiling") and _player.is_on_ceiling():
 		_ceiling_pulse = 1.0
@@ -1125,7 +1326,7 @@ func _update(snap: bool) -> void:
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself. The arrival
 	# cinematic owns the pivot directly (behind-the-back follow), so skip it then.
-	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")) and not _arrival_cine:
+	if _pivot and String(_gs.get("camera_mode")) == "iso" and not bool(_gs.get("dialogue_open")) and not bool(_gs.get("looking_out")) and not _arrival_cine and not _reentry_ease:
 		var floor_anchor: float = _base_y_for_level(_current_level) + _PIVOT_CHEST
 		# Jump-follow: now that a charged jump clears ~9 m, anchoring the pivot to
 		# the floor lets the player launch clean out of the top of frame. Let the
@@ -1139,6 +1340,11 @@ func _update(snap: bool) -> void:
 	# The site ground reads as the world's ground only at grade (the Garden); on
 	# floors above/below it would float in the tight iso framing, so hide it there.
 	# The exterior / construct / walk branches manage their own visibility.
+	# FIX 1 — KEEP the site ground visible during the arrival cinematic. The low OTS angle
+	# at the south doorway can catch the area just past the slab's south edge; with the
+	# ground shown (it sits at grade with the Garden, reading straight out the doorways) that
+	# area is solid GROUND, not blue void — so even at the worst frame there's no see-through
+	# hole. The sub-floor gate (basement hidden) + the footprint clamp keep the rest solid.
 	if _site_ground:
 		_site_ground.visible = (_current_level == _SPAWN_LEVEL)
 	# The placeholder cityscape shows only from the upper floors (so it doesn't
