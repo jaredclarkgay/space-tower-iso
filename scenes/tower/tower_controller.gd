@@ -654,8 +654,13 @@ func _update_conversation_orbit(delta: float) -> void:
 	# front of the core), as a smooth (1−cos) ping-pong so a long chat keeps circling.
 	var settle: float = float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
 	var amp: float = float(_c.ARRIVAL_CINE_CONVO_ORBIT_AMP) * (-float(_c.ARRIVAL_CINE_ORBIT_DIR))
+	# One-time seed off the settle yaw so the FIRST frame is already a clean two-shot
+	# (at the bare settle yaw Cody sits directly behind the player). Sign follows the
+	# orbit direction. The (1−cos) term is 0 at phase 0, so the orbit still starts with
+	# zero velocity — the seed just shifts the starting angle (no jump, smooth start).
+	var seed: float = float(_c.ARRIVAL_CINE_CONVO_SEED_DEG) * (-float(_c.ARRIVAL_CINE_ORBIT_DIR))
 	var phase: float = _convo_yaw * deg_to_rad(float(_c.ARRIVAL_CINE_CONVO_ORBIT_RATE))
-	var yaw: float = settle + amp * (1.0 - cos(phase)) * 0.5
+	var yaw: float = settle + seed + amp * (1.0 - cos(phase)) * 0.5
 	var mid: Vector3 = _pair_midpoint()
 	if not _arrival_focus_init:
 		_arrival_focus_init = true
@@ -841,7 +846,10 @@ func _apply_arrival_camera(lower_t: float, orbit_deg: float = 0.0, focus: Vector
 		# ahead open up — a real over-the-shoulder framing, not dead-centre behind.
 		var look_local := Vector3(0.0, 0.8, 0.0)
 		if ots:
-			look_local = Vector3(shoulder * 0.45, 0.8, float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD))
+			# Aim at head/shoulder height a touch ahead so, at the flatter (low, near-
+			# horizontal) OTS angle, the look-at doesn't sink into the floor — keeps
+			# headroom and opens the Garden/elevator ahead.
+			look_local = Vector3(shoulder * 0.45, float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT), float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD))
 		_camera.look_at(_pivot.global_transform * look_local, Vector3.UP)
 		# Tight ortho framing so the figure reads LARGE (the iso default is far wider).
 		_camera.size = float(_c.ARRIVAL_CINE_OTS_SIZE) if ots else size

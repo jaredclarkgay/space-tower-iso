@@ -536,11 +536,12 @@ const ARRIVAL_CINE_RESUME_DUR := 1.1
 # --- Close-camera enhancements (3 asks) ---
 # ASK 1 — over-the-shoulder WALK-IN (Beat 1/2): much closer, lower, offset to one
 # side so we look PAST the character's shoulder as he walks toward the elevator.
-const ARRIVAL_CINE_OTS_BACK := 3.2       # camera distance behind the player (much closer than CAM_BACK)
-const ARRIVAL_CINE_OTS_LIFT := 1.9       # camera height above the player (lower than CAM_LIFT)
+const ARRIVAL_CINE_OTS_BACK := 3.6       # camera distance behind the player (much closer than CAM_BACK)
+const ARRIVAL_CINE_OTS_LIFT := 1.5       # camera height above the player — LOW + near shoulder/head height so the look-down stays shallow (~12–18°), a true horizontal over-the-shoulder rather than a top-down-ish behind view
 const ARRIVAL_CINE_OTS_SHOULDER := 2.2   # lateral offset (behind-and-to-one-side, not dead-centre)
 const ARRIVAL_CINE_OTS_SIZE := 6.5       # tight ortho size so the figure reads LARGE
 const ARRIVAL_CINE_OTS_LOOK_AHEAD := 2.2 # aim the OTS look-at this far ahead of the player (opens the view ahead, pushes him to a frame edge)
+const ARRIVAL_CINE_OTS_LOOK_LIFT := 0.6  # height of the OTS look-at target (head/shoulder height) — keeps headroom so we see the space ahead, not the floor, at the flatter angle
 # ASK 2 — close orbit on the PAIR once Cody settles. Tighter than EMERGE_SIZE.
 const ARRIVAL_CINE_PAIR_SIZE := 9.5      # close framing for the player↔Cody pair (both read + breathing room)
 const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height so both bodies sit in the upper frame
@@ -549,6 +550,7 @@ const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height
 # elevator core between camera and the pair).
 const ARRIVAL_CINE_CONVO_ORBIT_RATE := 16.0  # deg/sec phase rate (leisurely turn; ~22s per full ping-pong)
 const ARRIVAL_CINE_CONVO_ORBIT_AMP := 55.0  # arc swept off the settle yaw toward the front (keeps the pair framed in front of the core)
+const ARRIVAL_CINE_CONVO_SEED_DEG := 30.0   # one-time starting offset off the settle yaw so the FIRST conversation frame is already a clean two-shot (Cody sits behind the player at the bare settle yaw); the smooth (1−cos) orbit proceeds from this seeded angle
 
 # --- Floor 1 (utility / infrastructure floor under the Garden) -----------
 # Operator's renumber: Garden = Floor 2, Floor 1 = utility floor below.
