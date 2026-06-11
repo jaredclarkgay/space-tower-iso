@@ -291,6 +291,16 @@ func _begin_arrival_cinematic() -> void:
 	_convo_yaw = 0.0
 	_resume_started = false
 	_resume_t = 0.0
+	# FIX 3 — reset Cody + the elevator to their PRE-cinematic state so the emergence REPLAYS
+	# in full (on a replay they're left parked/visible/at-rest-with-doors-open, which would
+	# short-circuit is_emergence_done()). On the first boot play these are already at rest, so
+	# the resets are safe no-ops.
+	var robot0: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	if robot0 and robot0.has_method("cinematic_reset"):
+		robot0.call("cinematic_reset")
+	var elevator0: Node = get_node_or_null("ElevatorPlatform")
+	if elevator0 and elevator0.has_method("cinematic_reset"):
+		elevator0.call("cinematic_reset")
 	_gs.set("arrival_cinematic", true)
 	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
 	_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
@@ -323,26 +333,20 @@ func _begin_arrival_cinematic() -> void:
 	_cam_size_tgt = _cam_size
 	_cam_lookahead_tgt = _cam_lookahead
 	_cam_looklift_tgt = _cam_looklift
-	# FIX 2 — the entry is a slow vertical DESCEND. The OLD code snapshotted the LIVE prior
-	# camera (yaw differs from the new behind yaw 0), so blending FROM it ROTATED (the flip).
-		# Instead we synthesize the HIGH-behind start pose below; yaw stays 0 the whole
-		# descend (no flip), and the blend eases DOWN from it into the OTS follow over
-		# ARRIVAL_CINE_INTRO_DUR (a lowering 'zoom to over his shoulder' motion).
+	# FIX 2 (rework) — the entry is a slow ZOOM-IN from the LIVE prior camera pose to behind
+	# the player. Capture the actual `_camera` world transform + ortho size the moment the
+	# cinematic starts (wherever the exterior / prior mode left it), and ease FROM it INTO the
+	# OTS-behind follow over ARRIVAL_CINE_INTRO_DUR (smoothstep, slerped basis). This is one
+	# continuous gentle zoom-in that arrives behind the character — NO cut, NO overhead jump.
+	# The old synthesized high-above start pose (which made frame 1 a cut to directly overhead)
+	# is gone. The _cam_* members ease underneath, so at intro completion the live pose already
+	# equals the driven OTS follow — no second pop at the hand-off.
 	if _pivot and _camera:
 		_intro_active = true
 		_intro_t = 0.0
-		# FIX 2 (rework): synthesize the intro START pose as HIGH above-and-directly-behind the
-		# player at yaw 0 (big lift, pulled-in back, looking DOWN at him); the blend then eases
-		# DOWN from it into the settled OTS follow. Yaw stays 0 the whole descend, so there is
-		# NO sideways flip — just a lowering "zoom to over his shoulder." Computed in WORLD space
-		# (same pivot-local geometry the driver uses, but with the intro lift/back/size).
-		var start_basis := Basis.from_euler(Vector3(0.0, _walk_yaw(), 0.0))   # yaw 0 = directly behind
-		var start_local := Vector3(0.0, float(_c.ARRIVAL_CINE_INTRO_LIFT), -float(_c.ARRIVAL_CINE_INTRO_BACK))
-		var pivot_world := Transform3D(start_basis, _player.global_position)
-		_intro_from_cam_world = pivot_world * start_local
-		var look_at: Vector3 = _player.global_position + Vector3(0.0, float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT), 0.0)
-		_intro_from_cam_basis = _looking_at_basis(_intro_from_cam_world, look_at)
-		_intro_from_size = float(_c.ARRIVAL_CINE_INTRO_SIZE)
+		_intro_from_cam_world = _camera.global_position
+		_intro_from_cam_basis = _camera.global_transform.basis
+		_intro_from_size = _camera.size
 	else:
 		_intro_active = false
 	_hud_level = -1   # refresh the floor header
@@ -735,6 +739,17 @@ func _update_arrival_cinematic(delta: float) -> void:
 		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
 			_arrival_beat = 3
 			_arrival_t = 0.0
+			# FIX 1 — lock the player facing toward Cody's park spot (+Z/north) so the profile
+			# two-shot reads as the two facing each other. The walk already left him facing
+			# +Z; set it explicitly so a replay or odd arrival angle can't break the framing.
+			if _player and _player.has_method("set_facing_yaw"):
+				var robot: Node3D = get_node_or_null("Floors/Garden/IsoRobot")
+				var face_z: float = 1.0
+				if robot:
+					face_z = signf((robot.global_position.z) - _player.global_position.z)
+					if face_z == 0.0:
+						face_z = 1.0
+				_player.call("set_facing_yaw", atan2(0.0, face_z))
 	elif _arrival_beat == 3:
 		# CALM REDESIGN — the SETTLE. NO orbit. While Cody EMERGES from the elevator (car
 		# rises, doors open, Cody rolls out) the camera does ONE small, single, monotonic
@@ -746,8 +761,10 @@ func _update_arrival_cinematic(delta: float) -> void:
 		_update_emergence(delta)
 		var settle_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_SETTLE_DUR), 0.0, 1.0)
 		var se: float = smoothstep(0.0, 1.0, settle_p)
-		# Yaw: monotonic walk_yaw → iso_yaw (a single small settle, never reversing).
-		var yaw_settled: float = lerp_angle(_walk_yaw(), _iso_yaw(), se)
+		# FIX 1 — Yaw: monotonic walk_yaw(0) → PROFILE yaw (−90), one negative-direction sweep.
+		# The profile lands the camera on the +X/east side, the pair reading in profile facing
+		# each other. (The resume later continues −90 → iso(−135), the SAME direction.)
+		var yaw_settled: float = lerp_angle(_walk_yaw(), _profile_yaw(), se)
 		# Focus: ease from the player toward the player↔Cody pair midpoint (a two-shot).
 		var pp: Vector3 = _player.global_position
 		var pair_mid: Vector3 = _pair_midpoint()
@@ -795,8 +812,9 @@ func _update_conversation_orbit(delta: float) -> void:
 	# called out). The settle already landed the camera on the iso yaw + the two-shot
 	# pair size + the pair-midpoint focus, so we just KEEP those targets and let it sit;
 	# the only motion is the focus tracking the (frozen) pair midpoint, imperceptible.
+	# FIX 1 — hold the PROFILE two-shot: pair-midpoint focus, profile yaw (−90), pair size.
 	_cam_focus_tgt = _pair_midpoint()
-	_cam_yaw_tgt = _iso_yaw()
+	_cam_yaw_tgt = _profile_yaw()
 	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
 	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
 	_cam_shoulder_tgt = 0.0
@@ -821,7 +839,9 @@ func _pair_midpoint() -> Vector3:
 		return pp + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), 0.0)
 	var cp: Vector3 = robot.global_position
 	var mid := Vector3((pp.x + cp.x) * 0.5, pp.y, (pp.z + cp.z) * 0.5)
-	return mid + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), 0.0)
+	# FIX 1 — nudge the focus NORTH (toward Cody, +Z) so the profile two-shot sits in the
+	# upper frame, clear of the bottom-left dialogue panel.
+	return mid + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), float(_c.ARRIVAL_CINE_PROFILE_FOCUS_Z))
 
 
 # Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
@@ -1000,6 +1020,14 @@ func _update_reentry_ease(delta: float) -> void:
 # a non-event (the resume yaw delta is ~0).
 func _iso_yaw() -> float:
 	return deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))
+
+
+# FIX 1 — the PROFILE conversation yaw the cinematic settles to and holds. The pair lies
+# along Z facing each other; a profile = camera along ±X. ARRIVAL_CINE_PROFILE_YAW_DEG is
+# −90 (camera east, looking west across the pair), only 45° off iso (−135) so the resume
+# stays gentle. The settle eases walk_yaw(0) → this; Beat 4 then eases this → iso(−135).
+func _profile_yaw() -> float:
+	return deg_to_rad(float(_c.ARRIVAL_CINE_PROFILE_YAW_DEG))
 
 
 # The walk-follow pivot yaw (radians): iso resting yaw (-135) + WALK_YAW_BIAS (135) = 0 =

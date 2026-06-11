@@ -284,6 +284,20 @@ func cinematic_end() -> void:
 	_state = State.IDLE
 
 
+# FIX 3 — return the elevator to its pre-cinematic REST state so the arrival can REPLAY
+# from scratch (the conductor's cinematic_begin will then re-seed the basement start). Car
+# back at the Garden rest floor, doors shut, glow cleared, IDLE. Called from jump_to_chapter
+# / _teardown when re-arming the garden_intro cinematic.
+func cinematic_reset() -> void:
+	_car_y = _floor_y(1)        # Garden rest floor
+	_door_open_t = 0.0
+	_glow_t = 0.0
+	_state = State.IDLE
+	_apply_car_y()
+	_apply_doors()
+	_apply_glow()
+
+
 # --- Build ----------------------------------------------------------------
 
 func _build_car() -> void:

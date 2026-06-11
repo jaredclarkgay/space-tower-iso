@@ -386,10 +386,62 @@ func cinematic_roll_out() -> void:
 	tween.set_ease(Tween.EASE_OUT)
 	# Settle onto the floor as he rolls out (his ride y is a touch above the slab).
 	tween.tween_property(self, "position", park, float(_c.ARRIVAL_CINE_ROLLOUT_DUR))
+	# FIX 1 — on arrival, turn to FACE THE PLAYER for the profile two-shot (he parks just
+	# in front of the player toward the elevator; both end facing each other).
+	tween.tween_callback(_face_player)
 	tween.tween_callback(_finish_arrival)
+
+
+# FIX 1 — orient Cody's dome front (+Z local) toward the player so the conversation reads
+# as a profile of the two facing each other. Falls back to no-op if the player isn't found.
+func _face_player() -> void:
+	var player: Node3D = null
+	var towers := get_tree().get_nodes_in_group("tower_controller")
+	if not towers.is_empty():
+		player = (towers[0] as Node).get_node_or_null("Player")
+	if player == null:
+		return
+	var to_player: Vector3 = player.global_position - global_position
+	to_player.y = 0.0
+	if to_player.length_squared() > 0.0001:
+		rotation.y = atan2(to_player.x, to_player.z)
 
 func is_emergence_done() -> bool:
 	return _state == State.AWAITING_ACTIVATION
+
+
+# FIX 3 — return Cody to his PRE-cinematic state so the arrival ceremony can REPLAY fully
+# (e.g. jump_to_chapter("garden_intro") from any other chapter). Without this, Cody is left
+# AWAITING_ACTIVATION/visible/parked with the dialogue maybe open, so is_emergence_done() is
+# immediately true and the emergence beat short-circuits. We reset to OFFLINE/hidden, close
+# the dialogue, clear the spotlight + any banner/light/arrival-panel leftovers, and reset the
+# emergence flags. The conductor then calls cinematic_begin → cinematic_board, replaying it.
+func cinematic_reset() -> void:
+	_state = State.OFFLINE
+	visible = false
+	_cinematic_into_dialogue = false
+	rotation.y = 0.0
+	# Close / hide both dialogue surfaces.
+	close_dialogue()
+	_dismiss_arrival_dialogue()
+	# Kill the top-down spotlight immediately (no fade — this is a hard reset).
+	if _spotlight:
+		_spotlight.light_energy = 0.0
+		_spotlight.visible = false
+	# Clear the camera focus the legacy arrival path may have left latched.
+	if _gs:
+		_gs.set("camera_focus_active", false)
+	# Free any leftover ceremony nodes from a prior play (banner/light live under the HUD /
+	# the floor node, the arrival-dialogue clears via _dismiss_arrival_dialogue above).
+	if _hud:
+		var b: Node = _hud.get_node_or_null("ArrivalBanner")
+		if b:
+			b.queue_free()
+	var parent := get_parent()
+	if parent:
+		var lt: Node = parent.get_node_or_null("ArrivalLight")
+		if lt:
+			lt.queue_free()
 
 
 # Tall translucent emissive column at the elevator. Reads as a beam of

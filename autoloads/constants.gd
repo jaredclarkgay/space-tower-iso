@@ -556,8 +556,20 @@ const ARRIVAL_CINE_OTS_SIZE := 7.0       # tight ortho size so the figure reads 
 const ARRIVAL_CINE_OTS_LOOK_AHEAD := 2.2 # aim the OTS look-at this far ahead of the player (opens the view ahead, pushes him to a frame edge)
 const ARRIVAL_CINE_OTS_LOOK_LIFT := 0.7  # height of the OTS look-at target (chest/shoulder height) — with the raised LIFT this sets the ~30° downward look so the Garden floor fills the lower frame (no see-through past the edge)
 # ASK 2 — close orbit on the PAIR once Cody settles. Tighter than EMERGE_SIZE.
-const ARRIVAL_CINE_PAIR_SIZE := 9.5      # close framing for the player↔Cody pair (both read + breathing room)
+const ARRIVAL_CINE_PAIR_SIZE := 8.5      # FIX 1: close profile two-shot — tightened so the player + the low-profile Cody both read LARGER while staying in the upper-centre frame, clear of the bottom-left dialogue panel (was 9.5)
 const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height so both bodies sit in the upper frame
+# FIX 1 (profile two-shot) — the cinematic now ENDS on a PROFILE of the player and Cody
+# facing each other. The pair lies along Z (player at z=-5 facing +Z/north toward Cody;
+# Cody parked ~2 m north at z=-3 facing −Z/south toward the player), so a profile reads
+# from the side = camera along ±X. We use −90° (camera on the +X/east side, looking across
+# the pair westward). −90 is only 45° from the iso resting yaw (−135), so the post-
+# conversation resume is a gentle ~45° turn, NOT a spin. The Beat-3 settle now eases the
+# walk yaw (0) → this profile yaw; Beat 5 HOLDS here; Beat 4 resumes profile (−90) → iso
+# (−135) — the SAME negative direction the settle took, so the whole arc is monotonic.
+const ARRIVAL_CINE_PROFILE_YAW_DEG := -90.0
+# The pair-midpoint focus is nudged NORTH (toward Cody, +Z) so both bodies sit in the
+# UPPER half of the frame, well clear of the bottom-left dialogue panel.
+const ARRIVAL_CINE_PROFILE_FOCUS_Z := 0.6
 # CALM REDESIGN: the conversation is a STILL HOLD — no orbit, no ping-pong, no
 # reversal. The camera just sits at the iso yaw + the two-shot pair size + the
 # pair-midpoint focus while the dialogue runs. These knobs are kept at 0 only so any
@@ -591,10 +603,13 @@ const ARRIVAL_CINE_EDGE_PITCH_DROP := 5.0
 # FIX 2 (intro ease): seconds to ease the camera FROM wherever the prior mode left it
 # (exterior-walk or iso resting pose) INTO the over-the-shoulder follow as the player
 # starts walking in. Quick but smooth (smoothstep s-curve) — no snap to behind-the-back.
-const ARRIVAL_CINE_INTRO_DUR := 2.0  # the entry is a slow vertical DESCEND: the camera starts HIGH above-and-directly-behind the player (yaw 0, big lift, looking down) and eases (smoothstep) straight DOWN into the settled OTS follow pose. Yaw stays 0 the whole descend, so there is NO sideways flip — just a "zoom down to over his shoulder." Longer so the lowering reads leisurely; flows continuously into the walk follow (no pause).
-const ARRIVAL_CINE_INTRO_LIFT := 16.0   # the descend's START height above the player (camera lift) — well above the settled OTS lift so the motion reads as a clear downward descend onto his shoulder.
-const ARRIVAL_CINE_INTRO_BACK := 2.0    # the descend's START distance behind the player — pulled IN (less back than the OTS back) so the high start is near-directly-overhead-and-behind, looking down, then it eases back+down into the OTS follow.
-const ARRIVAL_CINE_INTRO_SIZE := 11.0   # the descend's START ortho size — a touch wider (pulled up / further out) so it tightens to the OTS size as it lowers in.
+const ARRIVAL_CINE_INTRO_DUR := 1.8  # FIX 2 (rework): seconds to ease the camera FROM the LIVE prior pose (captured at cinematic start — wherever the exterior/prior mode left it) INTO the over-the-shoulder behind-the-player follow. A continuous slow ZOOM-IN that arrives behind the character — NO synthesized overhead start, NO cut. ~1.5–2.0s reads as a gentle zoom-in; flows straight into the walk follow.
+# DEPRECATED (FIX 2 rework) — the intro START pose is now the captured LIVE camera pose, not a
+# synthesized high-above-and-behind one, so these no longer drive anything. Kept as stubs only
+# so any stale reference resolves; safe to delete later.
+const ARRIVAL_CINE_INTRO_LIFT := 16.0   # (deprecated — was the synthesized descend start lift)
+const ARRIVAL_CINE_INTRO_BACK := 2.0    # (deprecated — was the synthesized descend start back)
+const ARRIVAL_CINE_INTRO_SIZE := 11.0   # (deprecated — was the synthesized descend start size)
 
 # FIX 3 (re-entry ease): seconds to ease the camera from the exterior-walk follow pose to
 # iso's resting pose when the player walks BACK in through the doorway (no hard cut). The
