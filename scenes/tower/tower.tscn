@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://scenes/shared/empty_lot.gd" id="24_lot"]
 [ext_resource type="Script" path="res://scenes/shared/site_ground.gd" id="26_site"]
 [ext_resource type="Script" path="res://scenes/garden/hire_partner.gd" id="25_hire"]
+[ext_resource type="Script" uid="uid://dg7dybn20yyv7" path="res://scenes/shared/chapter_jump.gd" id="27_chapter"]
 
 [sub_resource type="Environment" id="Environment_tower"]
 background_mode = 1
@@ -226,3 +227,6 @@ script = ExtResource("24_lot")
 [node name="SiteGround" type="Node3D" parent="."]
 visible = false
 script = ExtResource("26_site")
+
+[node name="ChapterJump" type="CanvasLayer" parent="."]
+script = ExtResource("27_chapter")

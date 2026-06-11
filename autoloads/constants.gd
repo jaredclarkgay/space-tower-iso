@@ -464,6 +464,10 @@ const TOD_SUN_YAW_SWEEP := 70.0        # deg — east->west azimuth swing across
 # real opening boots onto the lot; the dev fallback boots straight to the
 # Garden so existing-floor work still launches in one step.
 const BOOT_TO_EXTERIOR := true
+# Dev affordance: the always-clickable "▾ CHAPTERS" overlay (top-center) that jumps
+# straight to any narrative beat / floor from ANY state. A tool, not shipped UI —
+# flip false for a real build to hide it entirely.
+const DEV_CHAPTER_JUMP := true
 # Construct-from-empty: after the hire, the player raises the tower floor-by-floor
 # in an external dollhouse view, then occupies it. false = the whole tower is
 # present and the hire drops straight into the Garden (today's dev boot).

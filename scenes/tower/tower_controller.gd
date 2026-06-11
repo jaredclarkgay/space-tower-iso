@@ -39,6 +39,27 @@ const _FLOORS := [
 	{"node": "Floors/Roof", "level": 6, "name": "ROOF / VISTA — UNDER CONSTRUCTION"},
 ]
 const _SPAWN_LEVEL := 1   # the player starts on the Garden (home floor)
+# Dev "chapter jump" list — the single source of truth for the always-clickable
+# overlay (chapter_jump.gd reads this). Each entry maps a stable id to a label;
+# jump_to_chapter(id) sets the matching state. Floor ids below resolve to a level
+# in jump_to_chapter (utility=0 … roof=top), so adding a floor only needs a row.
+const CHAPTERS := [
+	{"id": "empty_lot",    "label": "Empty Lot (survey)"},
+	{"id": "hire",         "label": "Hire a Partner"},
+	{"id": "build",        "label": "Build the Tower"},
+	{"id": "garden_intro", "label": "Garden — Intro Cinematic"},
+	{"id": "garden",       "label": "Garden (Floor 1)"},
+	{"id": "utility",      "label": "Utility (Floor 0)"},
+	{"id": "arboretum",    "label": "Arboretum (Floor 2)"},
+	{"id": "canopy",       "label": "Canopy (Floor 3)"},
+	{"id": "residential",  "label": "Residential (Floor 4)"},
+	{"id": "sky_lounge",   "label": "Sky Lounge (Floor 5)"},
+	{"id": "roof",         "label": "Roof / Vista"},
+]
+# Chapter id -> floor level for the plain "teleport onto a floor" jumps.
+const _CHAPTER_FLOOR := {
+	"utility": 0, "arboretum": 2, "canopy": 3, "residential": 4, "sky_lounge": 5,
+}
 const _PIVOT_CHEST := 1.0      # camera look-at height above a floor's surface
 # Fraction of the player's height-above-floor the pivot follows on a jump, so a
 # big jump stays in frame without the camera feeling glued to the body.
@@ -1343,6 +1364,115 @@ func _debug_advance_phase() -> void:
 		enter_tower()
 	elif not _exterior and on_exterior_beat:
 		enter_exterior()
+
+
+# --- Dev chapter jump ----------------------------------------------------
+# The chapter list for the dev overlay. A method (not a bare const) so the
+# overlay can read it via the group — Object.get() can't fetch a `const`.
+func chapter_list() -> Array:
+	return CHAPTERS
+
+
+# Cleanly exit ANY active world-presentation / scripted mode so a jump is safe
+# from ANYWHERE (mid-cinematic, in dialogue, on the lot, mid-build). Clears every
+# flag a mode sets — both the local member and its GameState mirror — so the jump
+# target never inherits a half-state. Idempotent: safe to call when already idle.
+func _teardown_transient_state() -> void:
+	# Arrival cinematic + all its beat bookkeeping.
+	_arrival_cine = false
+	_gs.set("arrival_cinematic", false)
+	_arrival_beat = 0
+	_arrival_t = 0.0
+	_arrival_walk_started = false
+	_emerge_started = false
+	_emerge_rollout_started = false
+	_convo_opened = false
+	_convo_yaw = 0.0
+	_resume_started = false
+	_resume_t = 0.0
+	# Exterior / construction modes.
+	_exterior = false
+	_constructing = false
+	_gs.set("constructing", false)
+	_exterior_walk = false
+	_gs.set("exterior_walk", false)
+	_cam_tween_t = 1.0
+	# Roof plunge.
+	_gs.set("roof_falling", false)
+	# Dialogue: drop the flag AND tell Cody to hide his panel (both sides).
+	_gs.set("dialogue_open", false)
+	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	if robot and robot.has_method("close_dialogue"):
+		robot.close_dialogue()
+	# Scripted walk + any carried momentum on the player.
+	if _player:
+		if _player.has_method("clear_scripted_walk"):
+			_player.call("clear_scripted_walk")
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
+		_player.visible = true
+
+
+# Jump straight to a narrative beat / floor from any state. Tears down whatever's
+# active, then sets up the target (GameDirector phase + world mode + spawn), and
+# forces a HUD/camera refresh. Defensive throughout — a jump must never leave the
+# game half-in-two-modes. `id` is one of CHAPTERS[*].id.
+func jump_to_chapter(id: String) -> void:
+	if _player == null or _floors.is_empty():
+		return
+	_teardown_transient_state()
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	match id:
+		"empty_lot":
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.EMPTY_LOT)
+			enter_exterior()
+		"hire":
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.HIRE_PARTNER)
+			enter_exterior()   # the hire happens on the lot
+		"build":
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.BUILD_STRUCTURE)
+			enter_construction()   # the dollhouse "raise the tower" view
+		"garden_intro":
+			# Replay the intro cinematic from the top.
+			_arrival_played = false
+			_gs.built_level = _top_level
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.BUILD_INTERIORS)
+			_begin_arrival_cinematic()
+		"garden":
+			# Normal Garden play — skip the cinematic.
+			_arrival_played = true
+			_gs.built_level = _top_level
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.BUILD_INTERIORS)
+			_spawn_in_garden()
+		_:
+			# Floor teleports (utility / arboretum / canopy / residential /
+			# sky_lounge), plus roof (which resolves to _top_level).
+			var level: int = int(_CHAPTER_FLOOR.get(id, -999))
+			if id == "roof":
+				level = _top_level
+			if level == -999:
+				push_warning("jump_to_chapter: unknown id '%s'" % id)
+				return
+			_arrival_played = true
+			_gs.built_level = _top_level
+			if gd and gd.has_method("set_phase"):
+				gd.set_phase(gd.Phase.BUILD_INTERIORS)
+			_player.global_position = Vector3(0.0, _base_y_for_level(level) + float(_c.FLOOR_3D_TOP_Y) + 0.1, -6.0)
+			if _player is CharacterBody3D:
+				(_player as CharacterBody3D).velocity = Vector3.ZERO
+			if _player.has_method("set_spawn_here"):
+				_player.set_spawn_here()
+			_current_level = level   # resolve immediately so camera + gating are right pre-grounding
+	# Force a full HUD + camera + floor-visibility refresh after any jump.
+	_hud_level = -1
+	_grid_key = -999
+	_pulse_level = 0
+	_update(true)
 
 
 func _level_for_y(py: float) -> int:
