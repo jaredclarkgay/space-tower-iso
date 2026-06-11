@@ -1,5 +1,20 @@
 # Floor Design System
 
+> **⚠️ STALE — predates the stacked-world refactor. Read for the design
+> *principles* (footprint, walls, camera grammar, interaction rules), NOT for
+> the implementation specifics.** This doc still describes the OLD architecture:
+> per-floor `.tscn` files, `scenes/floor_2/`-style dirs, a scene-swap elevator +
+> spiral staircase, `floor_4.gd` / `spiral_staircase.gd` (both deleted), and
+> `GameState.floor_1` / `floor_3` keys (now `GameState.utility` / `arboretum`).
+> It also uses the OLD 1-indexed floor numbers (utility = "Floor 1", Arboretum =
+> "Floor 3/4"). **For current truth:** the architecture callout at the top of
+> `CLAUDE.md`, the locked 0-indexed numbering (Utility 0, Garden 1, Arboretum 2,
+> Canopy 3, Residential 4, Sky Lounge 5, Roof unnumbered), the real files under
+> content-named `scenes/<name>/` dirs, and `scenes/shared/stairs.gd` (straight
+> stairs, Floor 2 ↔ 3 — the spiral was deleted). This doc needs a full rewrite;
+> until then trust the code. The numbers/filenames below are deliberately left
+> unswept so this banner isn't contradicted by a half-migration.
+
 The Space Tower has many floors. This doc captures the rules every floor
 follows so they read as the same building viewed at different stories,
 and so a player who learned how to operate one floor can operate any
