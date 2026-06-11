@@ -11,14 +11,21 @@ var _c: Node
 var _gs: Node
 var _player: Node3D
 var _camera_pivot: Node3D
+var _roof: Node                # the roof floor — owns the knockable beams
 
-enum State { IDLE, DRIVING }
+enum State { IDLE, DRIVING, FALLING }
 var _state: int = State.IDLE
 
 const SPEED := 5.5             # m/s drive speed
 const TURN_RATE := 5.0         # rad/s the rig swings toward its heading
 const INTERACT_RADIUS := 3.0   # m — how close to climb in
 const EXIT_OFFSET := 2.6       # m to the side where you step out
+
+# --- Drive-off-the-edge plunge gag ---------------------------------------
+const FALL_GRAVITY := 32.0     # m/s² — matches the player roof plunge
+const EDGE_MARGIN := 1.0       # m past the deck half-extent before it tips over
+const BEAM_KNOCK_RADIUS := 6.0 # m — beams within this of the crane go down with it
+const PLUNGE_TUMBLE := Vector3(2.6, 0.4, 1.4)   # rad/s the rig tumbles as it falls
 
 var _yaw := 0.0
 var _t := 0.0
@@ -28,19 +35,31 @@ var _prompt_root: Node3D
 var _prompt_e: Label3D
 var _prompt_label: Label3D
 
+# Plunge bookkeeping.
+var _fall_vel: Vector3 = Vector3.ZERO    # current plunge velocity (local space)
+var _last_drive_dir: Vector3 = Vector3.ZERO  # heading at the instant it tips over
+var _enter_pos: Vector3 = Vector3.ZERO   # crane spot when the player climbed in
+var _enter_yaw := 0.0                     # crane heading when they climbed in
+var _knocked := false                     # beams already knocked this plunge
+var _bottom_y := -100.0                    # world y at which the plunge bottoms out
+
 const YELLOW := Color(0.92, 0.74, 0.18)
 const STEEL := Color(0.36, 0.38, 0.42)
 const DARK := Color(0.16, 0.17, 0.20)
 
 
-func setup(player: Node3D, camera_pivot: Node3D) -> void:
+func setup(player: Node3D, camera_pivot: Node3D, roof: Node = null) -> void:
 	_player = player
 	_camera_pivot = camera_pivot
+	_roof = roof
 
 
 func _ready() -> void:
 	_c = get_node("/root/Constants")
 	_gs = get_node("/root/GameState")
+	# One story below the basement (level 0) in world space — the same floor the
+	# player roof-plunge bottoms out on, so the crane disappears past the tower.
+	_bottom_y = -float(int(_c.GROUND_LEVEL) + 1) * float(_c.FLOOR_3D_STORY_HEIGHT)
 	_build_crane()
 	_build_prompt()
 
@@ -55,6 +74,8 @@ func _physics_process(delta: float) -> void:
 			_update_idle()
 		State.DRIVING:
 			_update_driving(delta)
+		State.FALLING:
+			_update_falling(delta)
 
 
 func _update_idle() -> void:
@@ -70,6 +91,9 @@ func _update_idle() -> void:
 func _enter() -> void:
 	_state = State.DRIVING
 	_gs.set("driving_crane", true)
+	# Remember exactly where they climbed in — the plunge gag flashes back to here.
+	_enter_pos = position
+	_enter_yaw = rotation.y
 
 
 func _update_driving(delta: float) -> void:
@@ -88,12 +112,14 @@ func _update_driving(delta: float) -> void:
 		# Floor 5 has no rotation, so local XZ == world XZ; move in local space.
 		position += world_dir.normalized() * SPEED * delta
 		_yaw = atan2(world_dir.x, world_dir.z)
+		_last_drive_dir = world_dir.normalized()
 	rotation.y = lerp_angle(rotation.y, _yaw, TURN_RATE * delta)
 
-	# Keep the crawler on the deck.
-	var clamp_xz: float = float(_c.FLOOR_3D_SIZE) * 0.5 - 2.8
-	position.x = clampf(position.x, -clamp_xz, clamp_xz)
-	position.z = clampf(position.z, -clamp_xz, clamp_xz)
+	# Drive off the deck → the crane tips over the edge and plunges (no clamp).
+	var edge: float = float(_c.FLOOR_3D_SIZE) * 0.5 + EDGE_MARGIN
+	if absf(position.x) > edge or absf(position.z) > edge:
+		_begin_plunge()
+		return
 
 	# The player rides the cab.
 	_player.global_position = _cab_seat.global_position
@@ -105,6 +131,69 @@ func _update_driving(delta: float) -> void:
 	_prompt_label.text = "Exit crane"
 	if Input.is_action_just_pressed(&"interact"):
 		_exit()
+
+
+# The crane has driven past the deck edge: knock the nearby beams off, kick off
+# the shared roof-plunge presentation (whole tower + ground revealed, camera
+# chases the falling body), and start the rig falling with the player aboard.
+func _begin_plunge() -> void:
+	_state = State.FALLING
+	_prompt_root.visible = false
+	# Carry the drive momentum off the edge, then gravity takes over.
+	_fall_vel = _last_drive_dir * SPEED + Vector3(0.0, 1.0, 0.0)
+	# Reuse the player roof-plunge presentation; the player rides the cab, so the
+	# chase camera (which follows the player) tracks the crane all the way down.
+	_gs.set("roof_falling", true)
+	if _roof and _roof.has_method("knock_beams_near") and not _knocked:
+		_knocked = true
+		_roof.call("knock_beams_near", global_position, BEAM_KNOCK_RADIUS, _fall_vel)
+
+
+func _update_falling(delta: float) -> void:
+	# Plunge under gravity, tumbling, carrying the player in the cab.
+	_fall_vel.y -= FALL_GRAVITY * delta
+	position += _fall_vel * delta
+	rotation += PLUNGE_TUMBLE * delta
+	_player.global_position = _cab_seat.global_position
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	if _roof and _roof.has_method("tick_falling_beams"):
+		_roof.call("tick_falling_beams", delta)
+	# Hit the bottom → flash back to the roof.
+	if global_position.y <= _bottom_y:
+		_land_plunge()
+
+
+# Bottomed out: snap the rig back to the spot the player climbed in, restore the
+# knocked beams to their parked positions, end the plunge presentation, and drop
+# the player back into the driver's seat (still driving).
+func _land_plunge() -> void:
+	position = _enter_pos
+	rotation = Vector3(0.0, _enter_yaw, 0.0)
+	_yaw = _enter_yaw
+	_fall_vel = Vector3.ZERO
+	_last_drive_dir = Vector3.ZERO
+	_knocked = false
+	if _roof and _roof.has_method("restore_beams"):
+		_roof.call("restore_beams")
+	_state = State.DRIVING
+	# Seat the player back in the cab FIRST, so when the controller snaps the view
+	# below it reads the player at the roof (not still at the fall's bottom) and
+	# there's no one-frame wrong-floor flash.
+	_player.global_position = _cab_seat.global_position
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	_gs.set("roof_falling", false)
+	# The player rode the cab (physics skipped), so the tower never re-grounded the
+	# current floor — tell it to snap the view back to the roof.
+	var tower: Node = _tower_controller()
+	if tower and tower.has_method("recover_from_crane_plunge"):
+		tower.call("recover_from_crane_plunge")
+
+
+func _tower_controller() -> Node:
+	var nodes: Array = get_tree().get_nodes_in_group("tower_controller")
+	return nodes[0] if not nodes.is_empty() else null
 
 
 func _exit() -> void:

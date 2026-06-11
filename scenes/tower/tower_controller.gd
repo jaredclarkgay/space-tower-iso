@@ -1596,6 +1596,18 @@ func _update_roof_fall(snap: bool) -> void:
 	_update_extension_grids()
 
 
+# Called by the crane when its drive-off-the-edge plunge gag bottoms out and it
+# flashes back to the roof. The player rode the cab the whole way (its own
+# physics skipped), so the controller never re-grounded a floor and _current_level
+# is still the roof-fall sentinel (-1). Snap the view back to the Roof so the deck,
+# the restored beams, and the seated player render normally again.
+func recover_from_crane_plunge() -> void:
+	_gs.set("roof_falling", false)
+	_current_level = _top_level
+	_pulse_level = _top_level
+	_update(true)
+
+
 # Positions + fades the wall-bump glow on the wall surface the player hit. The
 # quad lies flat against the wall (oriented to its normal) and feathers out like
 # the ceiling ping, so a bump reads as a soft impact rather than a hard line.
