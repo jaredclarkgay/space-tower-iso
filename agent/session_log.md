@@ -1539,3 +1539,64 @@ GameState mirror) so a jump never lands half-in-two-modes.
 rule `cinematic_camera_target_ease.md`; competency `cinematic_camera_choreography`
 added. Open threads unchanged (C-001 true shell/interior split + build economy;
 Q-005 worldbuilding fill).
+
+## Session 17 — 2026-06-11 — The Director→mouth channel + utilities-first gate (opening sequence ships)
+
+**Direction (operator):** stand up the keystone from `docs/vision.md` §1-2 — a
+narrative Director that owns WHAT the player needs next but speaks through
+swappable *mouths* — and wire the first real gate on top of it: planting is locked
+until the player powers the Garden from Utility. Shipped across `b2e487c → cccf38b`
+(not pushed); each step harness-verified.
+
+### The keystone — `autoloads/game_director.gd` (`b2e487c`)
+GameDirector now owns a `DIRECTIVES` library (mouth-agnostic content: lines +
+objective + telemetry id) and a routable channel. Mouths register
+(`register_mouth(node, priority)`) with a `mouth_id` + `deliver_directive(d)->bool`;
+`issue_directive()` BROADCASTS via `directive_issued` (every mouth mirrors —
+HUD objective) AND routes the spoken delivery to one mouth (named `speaker`, else
+highest-priority acceptor). Cody is primary @10, HUD passive @0. New mouths slot in
+without touching the spine. Cody renders directives in a terse "director mode"
+(one line, advance) distinct from his chatty pull-to-talk tree — the mode is chosen
+by the entry point, not a branch. New rule: **`rules/director_mouth_channel.md`**.
+
+### Utilities-first gate (`4ab9306`, Steps 2+5)
+- **Gate:** the `P` plant path is dead until `GameState.interiors_unlocked`. When
+  locked, the *reason* surfaces through the Director (`plant_locked` transient
+  toast via the HUD mouth) — never a silent no-op.
+- **Payoff:** while locked, the Garden reads UNPOWERED — `_drive_environment` dims +
+  cools its preset on the Garden floor. Completing the sixth Utility source calls
+  `GameDirector.complete_utilities()` → flips the gate, records `utilities_complete`
+  + `gate_lifted`, issues Cody's `garden_live` beat. The per-frame env ease then
+  warms the Garden back to full identity (spine risers glow) — a *felt* reward.
+- **One greeting (`2a0fcf7`):** both arrival paths (cinematic hand-off + the
+  now-wired `greet_on_entry`) issue the same `power_utilities` beat. Deleted the dead
+  legacy "start harvesting" panel that contradicted the gate. Exactly one greeting,
+  and it mentions utilities, not harvesting.
+
+### Chapter-jump teardown bug (F-030, fix `6ff5db0`, found in core-systems audit)
+A dev chapter-jump that interrupted a transform-owning traversal mode (crane /
+elevator / vacuum hop) left the owner running — it writes the player transform every
+physics frame, and its flag freezes the player's own `_physics_process`, so the jump
+landed the player frozen on the wrong floor, yanked back onto the abandoned rig.
+Fix: every owner got an idempotent `force_release()`; `_teardown_transient_state()`
+calls all of them. Rule: any mode that owns the player transform per-frame must
+expose a release, and a state-jump must release ALL of them.
+
+### Roof crane plunge gag (`d325ae7`)
+Drive the cosmetic roof crane off the edge → it plunges and takes the beams with it
+(extends the Session-15 roof-fall work). Cosmetic gag.
+
+### Truth-sync sweep (docs + constants, several commits)
+`c9248df` core-systems audit report; constants content-named (`FLOOR_1_*`/`FLOOR_4_*`
+→ Utility/Canopy families, dead consts dropped, `d66cfaa`); `floor_design_system.md`
+fully rewritten for the stacked world (`bcc6d8c`); story-height (3→6 m) + stair-geometry
+comment drift fixed (`7cd3925`); floor-numbering 0-indexed truth-sync across the tree.
+Specs reconciled: opening_sequence_spec LARGELY BUILT, floor_population_spec NOT STARTED
+(its job is to replace the interim gate→plant with gate→populate→ALIVE→plant). vision.md
+§5: the whole game is grid-founded.
+
+### DONE — commits `d325ae7 → cccf38b` (not pushed). F-030 logged; new rule
+`director_mouth_channel.md`; competency `narrative_director` added. Open: the
+floor-population slice (the post-gate "now what?" — slot-based grid-snapped placement,
+one component [planter bed], Cody introduces it); C-001 true shell/interior split +
+build economy still stand.

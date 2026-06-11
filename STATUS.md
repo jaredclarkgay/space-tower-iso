@@ -8,7 +8,7 @@
 > the present tense.** Use it to brief a fresh agent (or yourself) and to
 > generate prompts that are synced to a real baseline.
 >
-> **Last refreshed:** 2026-06-11 — end of Session 16 (`606a092`). **Nothing
+> **Last refreshed:** 2026-06-11 — end of Session 17 (`cccf38b`). **Nothing
 > pushed yet.**
 
 ## One-liner
@@ -41,7 +41,9 @@ live direction.
   ride / hop between floors.
 - **7 autoloads (the only globals):** `Constants` (tunable knobs), `GameState`
   (single source of truth for the world), `SaveManager` + `AudioManager` (both
-  ~15-line no-op stubs), `GameDirector` (the narrative phase spine), `TimeOfDay`
+  ~15-line no-op stubs), `GameDirector` (the narrative phase spine **+ a
+  directive→mouth channel**: it owns the player-facing direction as data and
+  routes spoken delivery to a registered mouth — Cody or the HUD), `TimeOfDay`
   (day/night clock), `Telemetry` (append-only session event stream → JSONL; a
   pure sink, drives nothing). **Litmus:** what's *true* in the world →
   `GameState`; what should *happen next* → `GameDirector`; what *actually
@@ -75,8 +77,31 @@ Three traversal methods: multi-destination **elevator** (serves 0, 1, 2, 4, 5),
   are placeholder transitions, not real mechanics. The hire is a name only (no
   mechanical consequence). Save/load + audio are no-ops.
 
-## What just shipped (Session 16 — local only, not pushed)
+## What just shipped (Session 17 — local only, not pushed)
 
+**The Director→mouth channel + the first real gate (the opening sequence ships).**
+The keystone from `docs/vision.md`: `GameDirector` now owns a `DIRECTIVES` library
+(mouth-agnostic content — lines + objective + telemetry id) and a routable channel.
+Mouths register with a `mouth_id` + `deliver_directive()`; `issue_directive()`
+*broadcasts* to every mouth (the HUD mirrors the objective) **and** routes the spoken
+delivery to one (Cody @ priority 10, HUD @ 0). Cody renders directives in a terse
+"director mode" distinct from his chatty pull-to-talk tree. On top of it: the
+**utilities-first gate** — planting is dead until `GameState.interiors_unlocked`;
+while locked the Garden reads *unpowered* (dimmed/cooled preset), and the lock reason
+surfaces as a transient HUD toast through the channel, never a silent no-op.
+Completing the sixth Utility source calls `GameDirector.complete_utilities()` → flips
+the gate, records `utilities_complete`/`gate_lifted`, and Cody confirms — the per-frame
+env ease then warms the Garden back to full identity (spine risers glow): a felt
+payoff. Both arrival paths now issue the *same* single greeting beat (the dead legacy
+"start harvesting" panel that contradicted the gate was deleted). Also: a
+core-systems audit fixed **F-030** — a dev chapter-jump that interrupted a
+transform-owning traversal mode (crane/elevator/vacuum hop) left the owner running and
+froze the player on the wrong floor; every owner now has `force_release()` and teardown
+calls all of them. Plus a roof crane plunge gag, the `floor_design_system.md` rewrite
+for the stacked world, content-named constants, and a story-height/floor-numbering
+truth-sync sweep.
+
+**Earlier (Session 16 — local only).**
 **The Garden first-entry cinematic — meet Cody.** Arriving in the Garden is now a
 real opening: you walk in, the camera glides behind you, Cody emerges from the
 elevator, and you slide straight into the first conversation — one calm,
@@ -134,6 +159,11 @@ placement, partner on-site (`C-001`).
 
 *Each "Make it playable" session opens here, picks one, ships it small.*
 
+- **Floor-population slice** (the planned next build, `docs/floor_population_spec.md`):
+  close the post-gate "now what?" gap. Replace the interim gate→plant with
+  gate→populate→ALIVE→plant — slot-based grid-snapped placement of one component
+  (a planter bed) on bare ground, with Cody introducing the verb through the
+  Director channel. Reuses the gate + directive channel that just shipped.
 - Give the **hire** a single mechanical consequence (one stat or one unlocked
   verb that differs across the 5 partners) so the choice stops being cosmetic.
 - Add **water / sunlight gating** to one tree variety so growth is earned, not
@@ -145,15 +175,15 @@ placement, partner on-site (`C-001`).
 
 *Each "Make it agentic" session opens here, picks one, ships it small.*
 
-- Build a **session-summary reader** over the telemetry JSONL (latest session →
-  phases reached, time-to-X, planted vs harvested) — the first lens on the new
-  event stream, and the seed of the analysis agent.
+- Add a **second mouth** to the Director channel (an environment mouth, a PA, or a
+  resident) to prove the channel generalizes past Cody+HUD — and/or wire a real
+  auto-advance **gate** on a phase transition (the spine is still manually set).
 - Split `BUILD_INTERIORS` into a real **shell-then-fit-out** step in
   `GameDirector` so the phase spine matches the fiction.
 - Turn the 5 partners into **data-driven** definitions (one dict/resource) so a
   new partner is data, not code — the flexibility seam for the hire system.
-- Add an **objective/step** field to `GameDirector` (the missing in-game step
-  sequencer) so phases can carry a player-facing "what now."
+- Extend `agent/analysis/session_summary.py` (the telemetry lens, now reads the
+  opening funnel) toward an actual recommendation step that feeds Next-move lists.
 - Move `SaveManager` / `AudioManager` off no-op stubs (even minimally) so the
   autoload contracts are real.
 

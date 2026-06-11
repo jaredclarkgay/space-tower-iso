@@ -405,6 +405,22 @@
       "files_touched": [
         "scenes/shared/chapter_jump.gd"
       ]
+    },
+    {
+      "id": "F-030",
+      "phase": "iteration",
+      "date": "2026-06-11",
+      "category": "godot_state_ownership",
+      "summary": "A dev chapter-jump that interrupted a transform-owning traversal mode (crane drive / elevator ride / vacuum hop) left that owner running. Each owner writes the player's transform every physics frame while its flag is set, AND that same flag freezes iso_player's own _physics_process \u2014 so the player got yanked back onto the abandoned rig and frozen on the wrong floor.",
+      "trigger": "_teardown_transient_state() cleared roof_falling but not driving_crane / riding_elevator / tube_hopping. The crane was the most reachable (you can sit in it indefinitely, then jump).",
+      "fix": "Give every transform-owning mode a force_release() that stops driving + clears its flag, and call all of them from teardown. Rule: any mode that owns the player transform per-frame must expose an idempotent release, and a state-jump must release ALL of them, not just the one it knows about. Verified with a harness (jump\u2192Garden mid-drive and mid-plunge both land clean).",
+      "rule_added": "none (extends stacked_tower_invariants.md transform-ownership note + audit_report.md F1)",
+      "files_touched": [
+        "scenes/tower/tower_controller.gd",
+        "scenes/roof/crane.gd",
+        "scenes/shared/elevator_platform.gd",
+        "scenes/shared/vacuum_lift.gd"
+      ]
     }
   ]
 }

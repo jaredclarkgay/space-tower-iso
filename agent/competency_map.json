@@ -1,5 +1,5 @@
 {
-  "version": "1.7",
+  "version": "1.8",
   "last_updated": "2026-06-11",
   "domains": {
     "godot_isometric": {
@@ -229,6 +229,21 @@
         "Camera looking under a slab edge at a doorway (F-027); replay short-circuit from un-reset actors (F-028); child reading parent state in its own _ready before the parent's _ready ran (F-029)."
       ],
       "needs_from_human": []
+    },
+    "narrative_director": {
+      "confidence": "high",
+      "evidence": [
+        "Built the Director->mouth channel (autoloads/game_director.gd): a DIRECTIVES library of mouth-agnostic content + register_mouth/issue_directive routing. Cody (primary @10) and the HUD (passive @0) register; issue_directive broadcasts to all (objective mirroring) and routes spoken delivery to one. New mouths slot in without rewiring the spine.",
+        "Collapsed two divergent first-entry greetings into one by routing both arrival paths through the same directive (commit 2a0fcf7) - proving the 'words live in the Director, not the speaker' rule prevents speaker-divergence.",
+        "Wired the first real gate (interiors_unlocked): planting locked until the Garden is powered; the lock REASON surfaces as a transient toast through the channel, never a silent no-op; the payoff is felt (Garden dim->warm + spine glow on lift).",
+        "A character can carry two voices cleanly: Cody's terse 'director mode' (one line, advance) vs his chatty pull-to-talk tree, selected by entry point not a branch."
+      ],
+      "rules_learned": [
+        "Keep the player-facing CONTENT of direction in the Director's directive library, not buried in whichever speaker delivers it - otherwise every new speaker re-wires the spine and greetings diverge.",
+        "issue_directive does two jobs: broadcast (every mouth mirrors the objective) + route the spoken delivery to one mouth (named speaker, else highest-priority acceptor). Passive mouths listen to the signal; they are never routed to.",
+        "Gate flags live in GameState (pure data); the DECISION to lift them and SAY so lives in the Director. complete_utilities() is the single funnel: flip flag -> record telemetry -> issue payoff directive.",
+        "Surface a gate's reason through the channel as a transient directive (doesn't overwrite the standing objective), never as a silent no-op."
+      ]
     }
   }
 }
