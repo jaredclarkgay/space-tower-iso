@@ -9,6 +9,7 @@ extends Node3D
 @onready var _c: Node = get_node("/root/Constants")
 
 var _paths: Array[MeshInstance3D] = []   # the doorway path strips, toggled by the controller
+var _ground_mesh: MeshInstance3D         # the SiteGroundMesh child — recentered on the camera each frame
 
 
 func _ready() -> void:
@@ -25,6 +26,7 @@ func _ready() -> void:
 	mat.roughness = 1.0
 	ground.material_override = mat
 	add_child(ground)
+	_ground_mesh = ground
 
 	# Collision is a FRAME with the tower footprint cut out: the exterior ground
 	# only exists outside the building. The footprint itself is floored by the
@@ -77,6 +79,19 @@ func _ready() -> void:
 func set_paths_visible(v: bool) -> void:
 	for p in _paths:
 		p.visible = v
+
+
+# Recenter the VISUAL ground mesh (the SiteGroundMesh child ONLY — not the doorway path
+# strips, not the collision body) on the given world XZ, keeping it flat at y=0. Called
+# every frame by the controller with the camera/player XZ so the flat ground plane always
+# fills the view and its edge is NEVER visible, even from the pulled-back Roof survey
+# (the Roof is 36 m up, where a fixed plane could otherwise show an edge). The collision
+# frame stays put at x=0 — it only matters around the tower footprint, which the player
+# never leaves except up the tower, so the visual-only recenter is risk-free.
+func recenter_mesh(world_xz: Vector3) -> void:
+	if _ground_mesh == null:
+		return
+	_ground_mesh.global_position = Vector3(world_xz.x, 0.0, world_xz.z)
 
 
 # One collision strip of the perimeter frame (local-space box at the given size + center).

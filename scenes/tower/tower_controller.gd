@@ -298,16 +298,19 @@ func _begin_arrival_cinematic() -> void:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
-	# Seed the persistent _cam_* members to the OTS STARTING pose (what the old
-	# _apply_arrival_camera(1.0) produced: lower_t=1 → higher/farther back+lift, half
-	# shoulder, OTS size, look-at ahead). Beat 1 then eases these toward the settled OTS
-	# targets, so the cinematic opens from a stable pose with no pop from a stale value.
+	# CALM REDESIGN: seed the persistent _cam_* members DIRECTLY AT the settled
+	# walk-follow OTS pose — NOT a higher/farther "opening" pose. The old seed eased a big
+	# back/lift/shoulder drop over Beat 1 (a perceptible swoop) and started yaw at 0 (a 24°+
+	# rotation into the walk yaw). Seeding at the final follow pose makes entry→walk ONE
+	# motion: the only thing that moves at the start is the intro blend gliding the live
+	# camera from the prior mode into the (already-correct) follow. The walk yaw sits a
+	# small bias OFF the iso resting yaw, ONE direction; the emergence eases that bias to 0.
 	_cam_init = true
 	_cam_focus = _player.global_position
-	_cam_yaw = 0.0
-	_cam_back = float(_c.ARRIVAL_CINE_OTS_BACK) * 1.6
-	_cam_lift = float(_c.ARRIVAL_CINE_OTS_LIFT) * 1.8
-	_cam_shoulder = float(_c.ARRIVAL_CINE_OTS_SHOULDER) * 0.5
+	_cam_yaw = _walk_yaw()
+	_cam_back = float(_c.ARRIVAL_CINE_OTS_BACK)
+	_cam_lift = float(_c.ARRIVAL_CINE_OTS_LIFT)
+	_cam_shoulder = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
 	_cam_size = float(_c.ARRIVAL_CINE_OTS_SIZE)
 	_cam_lookahead = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
 	_cam_looklift = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
@@ -724,43 +727,39 @@ func _update_arrival_cinematic(delta: float) -> void:
 			_arrival_beat = 3
 			_arrival_t = 0.0
 	elif _arrival_beat == 3:
-		# Orbit the camera (eased accel/decel) while Cody EMERGES from the elevator
-		# (car rises from the basement, doors open, Cody rolls out). The orbit +
-		# emergence run concurrently; Beat 3 ends only once BOTH finish so Cody always
-		# settles first. JOB 1: the camera focus eases off the player toward the
-		# player↔elevator-center midpoint during the emergence so the car/Cody roll-out
-		# is HERO-framed instead of shoved to the frame edge — and the ortho size widens
-		# so both the player and the emerging car fit. Only TARGETS are set here; the
-		# shoulder target goes to 0 and the look-at bias targets go to the orbit values,
-		# so the _cam_* ease carries the lateral offset + look-direction out smoothly
-		# (no lateral pop / look-direction snap at the Beat 2→3 boundary).
+		# CALM REDESIGN — the SETTLE. NO orbit. While Cody EMERGES from the elevator (car
+		# rises, doors open, Cody rolls out) the camera does ONE small, single, monotonic
+		# move: the yaw eases from the walk-follow yaw (iso_yaw + small bias) to EXACTLY the
+		# iso yaw — the only notable rotation in the whole piece, ≤ the bias, ONE direction.
+		# Concurrently the SIZE eases wider (OTS-tight → a two-shot that includes the
+		# elevator + Cody) and the FOCUS eases from the player to the player↔Cody pair
+		# midpoint. The widening + the small settle reveal Cody emerging — no orbit needed.
 		_update_emergence(delta)
-		var orbit_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_ORBIT_DUR), 0.0, 1.0)
-		var orbit_deg: float = smoothstep(0.0, 1.0, orbit_p) * float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
-		# Bias the look-at toward the elevator center (floor center == world (0,y,0)).
+		var settle_p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_SETTLE_DUR), 0.0, 1.0)
+		var se: float = smoothstep(0.0, 1.0, settle_p)
+		# Yaw: monotonic walk_yaw → iso_yaw (a single small settle, never reversing).
+		var yaw_settled: float = lerp_angle(_walk_yaw(), _iso_yaw(), se)
+		# Focus: ease from the player toward the player↔Cody pair midpoint (a two-shot).
 		var pp: Vector3 = _player.global_position
-		var elev_center := Vector3(0.0, pp.y, 0.0)
-		var bias_full: Vector3 = pp.lerp(elev_center, float(_c.ARRIVAL_CINE_EMERGE_FOCUS_BIAS))
-		# Ease the bias in over EMERGE_FOCUS_DUR so the focus glides (no jump on entry).
-		var fe: float = smoothstep(0.0, 1.0, clampf(_arrival_t / float(_c.ARRIVAL_CINE_EMERGE_FOCUS_DUR), 0.0, 1.0))
-		# ASK 2: pull the orbit in CLOSE — ease toward the tight pair size so the car/
-		# Cody (and the nearby player) read big as they emerge, not survey-distant.
-		var size_target: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), fe)
-		# Orbit TARGETS: yaw sweeps with the orbit, focus biases toward the elevator,
-		# shoulder→0, look-at dead-centre (lookahead 0, looklift the orbit value). The
-		# camera ortho size widens to fit the pair.
-		_cam_focus_tgt = pp.lerp(bias_full, fe)
-		_cam_yaw_tgt = deg_to_rad(orbit_deg)
+		var pair_mid: Vector3 = _pair_midpoint()
+		# Size: ease OTS-tight → the two-shot pair size so both the player and the emerging
+		# car/Cody fit. (EMERGE_SIZE was the old survey-wide orbit size; the pair size is the
+		# calm two-shot the conversation also holds, so the size never has to move again.)
+		var size_settled: float = lerpf(float(_c.ARRIVAL_CINE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), se)
+		# Settle TARGETS: yaw to the settled value, focus to the pair midpoint, shoulder→0
+		# (eases out the OTS lateral offset), look-at dead-centre, size to the two-shot.
+		_cam_focus_tgt = pp.lerp(pair_mid, se)
+		_cam_yaw_tgt = yaw_settled
 		_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
 		_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
-		_cam_shoulder_tgt = 0.0
-		_cam_size_tgt = size_target
-		_cam_lookahead_tgt = 0.0
+		_cam_shoulder_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), 0.0, se)
+		_cam_size_tgt = size_settled
+		_cam_lookahead_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD), 0.0, se)
 		_cam_looklift_tgt = 0.8
 		_drive_arrival_camera(delta)
 		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
 		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
-		if orbit_p >= 1.0 and emerge_done:
+		if settle_p >= 1.0 and emerge_done:
 			# ASK 3: the intro animation is complete — go STRAIGHT into the conversation.
 			# Auto-open Cody's dialogue (once) and hand to Beat 5, a slow close orbit
 			# around the pair that runs for as long as the player stays in the chat.
@@ -782,30 +781,13 @@ func _update_arrival_cinematic(delta: float) -> void:
 # pair size for as long as the player stays in the chat. When they end it
 # (GameState.dialogue_open goes false), hand to Beat 4 (the existing resume ease).
 func _update_conversation_orbit(delta: float) -> void:
-	# Slow leisurely orbit around the pair midpoint. Bounded to the SOUTH hemisphere
-	# (where both characters sit IN FRONT of the elevator core) as a gentle ping-pong,
-	# so a long chat keeps circling the two of them without the core ever swinging
-	# between camera and the pair. _convo_yaw accumulates time; yaw is a sine of it.
-	_convo_yaw += delta
-	# Settle yaw the emergence landed on (where the pair is well framed in front of the
-	# core); swing a bounded arc OFF it toward the front (0°, more south = pair stays in
-	# front of the core), as a smooth (1−cos) ping-pong so a long chat keeps circling.
-	var settle: float = float(_c.ARRIVAL_CINE_ORBIT_DEG) * float(_c.ARRIVAL_CINE_ORBIT_DIR)
-	var amp: float = float(_c.ARRIVAL_CINE_CONVO_ORBIT_AMP) * (-float(_c.ARRIVAL_CINE_ORBIT_DIR))
-	# One-time seed off the settle yaw so the FIRST frame is already a clean two-shot
-	# (at the bare settle yaw Cody sits directly behind the player). Sign follows the
-	# orbit direction. The (1−cos) term is 0 at phase 0, so the orbit still starts with
-	# zero velocity — the seed just shifts the starting angle (no jump, smooth start).
-	var seed: float = float(_c.ARRIVAL_CINE_CONVO_SEED_DEG) * (-float(_c.ARRIVAL_CINE_ORBIT_DIR))
-	var phase: float = _convo_yaw * deg_to_rad(float(_c.ARRIVAL_CINE_CONVO_ORBIT_RATE))
-	var yaw: float = settle + seed + amp * (1.0 - cos(phase)) * 0.5
-	var mid: Vector3 = _pair_midpoint()
-	# Conversation TARGETS. The seed (+30°) is now applied to the yaw TARGET, not the
-	# live yaw — Beat 3 ended on _cam_yaw≈settle, and the eased member GLIDES into
-	# (settle + seed) over a few frames instead of snapping by 30°. Focus eases to the
-	# pair midpoint; the close pair size + dead-centre look-at give the two-shot.
-	_cam_focus_tgt = mid
-	_cam_yaw_tgt = deg_to_rad(yaw)
+	# CALM REDESIGN — the conversation is a STILL HOLD. NO orbit, NO ping-pong, NO
+	# reversal (the old (1−cos) swing was a back-and-forth = a reversal the operator
+	# called out). The settle already landed the camera on the iso yaw + the two-shot
+	# pair size + the pair-midpoint focus, so we just KEEP those targets and let it sit;
+	# the only motion is the focus tracking the (frozen) pair midpoint, imperceptible.
+	_cam_focus_tgt = _pair_midpoint()
+	_cam_yaw_tgt = _iso_yaw()
 	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
 	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
 	_cam_shoulder_tgt = 0.0
@@ -1005,9 +987,22 @@ func _update_reentry_ease(delta: float) -> void:
 # in _drive_arrival_camera. The members were seeded to the higher/farther OPENING pose
 # at cinematic start, so easing toward these tight values IS the old camera-lower-in
 # (the per-frame lower_t lerp is now the continuous member ease — same motion, no pop).
+# The iso resting pivot yaw (radians) — what the cinematic must LAND on so the exit is
+# a non-event (the resume yaw delta is ~0).
+func _iso_yaw() -> float:
+	return deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))
+
+
+# The walk-follow pivot yaw (radians): the iso resting yaw plus a small one-direction
+# "behind" bias so the camera trails the walking player at a slight, calm offset. The
+# emergence eases this single bias back to exactly the iso yaw (the only notable rotation).
+func _walk_yaw() -> float:
+	return _iso_yaw() + deg_to_rad(float(_c.ARRIVAL_CINE_WALK_YAW_BIAS))
+
+
 func _set_ots_walk_targets() -> void:
 	_cam_focus_tgt = _player.global_position
-	_cam_yaw_tgt = 0.0
+	_cam_yaw_tgt = _walk_yaw()
 	_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
 	_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
 	_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
@@ -1328,6 +1323,13 @@ func _update(snap: bool) -> void:
 	# exterior / construct / walk branches manage their own visibility.
 	if _site_ground:
 		_site_ground.visible = (_current_level >= int(_c.GROUND_LEVEL))
+		# Recenter the VISUAL ground mesh on the camera pivot XZ each frame so its edge is
+		# NEVER visible from any view — including the pulled-back Roof survey (36 m up). The
+		# flat plane just slides under wherever we're looking; collision (around the tower
+		# footprint) is unaffected. Fall back to the player XZ if the pivot isn't ready.
+		if _site_ground.visible and _site_ground.has_method("recenter_mesh"):
+			var anchor: Vector3 = _pivot.global_position if _pivot else (_player.global_position if _player else Vector3.ZERO)
+			_site_ground.recenter_mesh(anchor)
 	# The placeholder cityscape shows only from the upper floors (so it doesn't
 	# clutter the tight iso framing down on the Garden / Utility).
 	if _cityscape:

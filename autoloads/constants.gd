@@ -485,7 +485,7 @@ const CONSTRUCT_DESIGN_ASPECT := 1.7778    # 16:9 — framing widens below this 
 # Walk-in occupy: ground-floor doorways (one per side) + the exterior site ground.
 const DOOR_WIDTH := 3.0                     # m — doorway opening width (centred on each wall)
 const DOOR_HEIGHT := 3.0                    # m — doorway opening height (lintel above)
-const SITE_GROUND_SIZE := 72.0             # m — walkable ground plane around the tower base
+const SITE_GROUND_SIZE := 288.0            # m — walkable ground plane around the tower base (4x: the edge must NEVER be visible, even from the pulled-back Roof survey). The visual mesh ALSO recenters on the camera each frame (site_ground.recenter_mesh) so the edge is effectively infinite regardless of zoom; this size is the static fallback.
 const SITE_GROUND_COLOR := Color(0.30, 0.31, 0.27)
 const SITE_PATH_COLOR := Color(0.46, 0.44, 0.38)
 const SITE_PATH_WIDTH := 3.4               # m — path strip width out from each doorway
@@ -514,9 +514,18 @@ const ARRIVAL_CINE_CAM_BACK := 7.0    # camera distance BEHIND the player (south
 const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
 const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
 const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
-const ARRIVAL_CINE_ORBIT_DEG := 130.0 # total eased sweep around the player (Beat 3); lands near the iso resting yaw (−135°) so the resume ease is short
-const ARRIVAL_CINE_ORBIT_DUR := 2.7   # orbit settles to its final angle BEFORE the roll-out finishes (rollout ends ≈3.35s), so Cody emerges at the stable hero angle rather than mid-sweep
-const ARRIVAL_CINE_ORBIT_DIR := -1.0  # +1 / -1 sweep direction (tune for best framing)
+# CALM REDESIGN: the whole cinematic is ONE gentle settle — no orbit sweep, no
+# ping-pong, no exit spin. The pivot yaw is MONOTONIC across the entire piece and lands
+# EXACTLY on the iso resting yaw (−135°) so the exit is a non-event. _cam_yaw is in the
+# SAME space the iso pivot uses (both written to _pivot.rotation.y), so 0 = behind the
+# player and −135° = the iso resting heading.
+# The camera follows the walking player at a yaw only SLIGHTLY off the iso resting yaw
+# (iso_yaw + WALK_YAW_BIAS, ONE direction), then during the emergence the yaw eases
+# MONOTONICALLY by that small bias down to exactly the iso yaw — the only notable
+# rotation in the piece (≤ the bias, one direction). The widening size + the focus
+# shift to the pair midpoint reveal Cody; no orbit needed.
+const ARRIVAL_CINE_WALK_YAW_BIAS := 24.0  # degrees the walk-follow yaw sits OFF the iso resting yaw (one direction); the emergence eases this single small bias back to 0 (a gentle settle, the only notable rotation)
+const ARRIVAL_CINE_SETTLE_DUR := 3.0  # seconds the emergence eases the small yaw bias → iso yaw + widens the size + shifts focus to the pair midpoint (slow + barely-perceptible; covers the whole roll-out so Cody emerges within the single settle)
 # Cody-emerges-from-the-elevator sub-phasing (Step 3), driven concurrently with the
 # Beat-3 orbit by the conductor. Budget ≈ lead+rise+doors+rollout.
 const ARRIVAL_CINE_EMERGE_LEAD := 0.35   # orbit begins; car waits at the basement, doors shut
@@ -536,7 +545,7 @@ const ARRIVAL_CINE_EMERGE_SIZE := 13.5
 const ARRIVAL_CINE_EMERGE_FOCUS_DUR := 1.1
 # JOB 2 — Beat-4 resume ease: the conductor eases the camera from the cinematic
 # pose to iso's RESTING pose before releasing, killing the jump-cut hand-off.
-const ARRIVAL_CINE_RESUME_DUR := 1.1
+const ARRIVAL_CINE_RESUME_DUR := 1.4  # slightly longer for the calm exit. The camera is ALREADY at the iso yaw when the conversation closes (the settle landed there), so the resume is just a gentle zoom/lift from the two-shot to the iso resting size/pose — a tiny move, NO spin.
 # --- Close-camera enhancements (3 asks) ---
 # ASK 1 — over-the-shoulder WALK-IN (Beat 1/2): much closer, lower, offset to one
 # side so we look PAST the character's shoulder as he walks toward the elevator.
@@ -549,18 +558,20 @@ const ARRIVAL_CINE_OTS_LOOK_LIFT := 0.7  # height of the OTS look-at target (che
 # ASK 2 — close orbit on the PAIR once Cody settles. Tighter than EMERGE_SIZE.
 const ARRIVAL_CINE_PAIR_SIZE := 9.5      # close framing for the player↔Cody pair (both read + breathing room)
 const ARRIVAL_CINE_PAIR_LIFT := 0.7      # raise the orbit focus to torso height so both bodies sit in the upper frame
-# ASK 3 — leisurely orbit around the pair while the conversation runs. Bounded to a
-# gentle ping-pong on the character side of the core (full circle would swing the
-# elevator core between camera and the pair).
-const ARRIVAL_CINE_CONVO_ORBIT_RATE := 16.0  # deg/sec phase rate (leisurely turn; ~22s per full ping-pong)
-const ARRIVAL_CINE_CONVO_ORBIT_AMP := 55.0  # arc swept off the settle yaw toward the front (keeps the pair framed in front of the core)
-const ARRIVAL_CINE_CONVO_SEED_DEG := 30.0   # one-time starting offset off the settle yaw so the FIRST conversation frame is already a clean two-shot (Cody sits behind the player at the bare settle yaw); the smooth (1−cos) orbit proceeds from this seeded angle
+# CALM REDESIGN: the conversation is a STILL HOLD — no orbit, no ping-pong, no
+# reversal. The camera just sits at the iso yaw + the two-shot pair size + the
+# pair-midpoint focus while the dialogue runs. These knobs are kept at 0 only so any
+# stale reference resolves; the ping-pong driver (_update_conversation_orbit) no longer
+# uses them.
+const ARRIVAL_CINE_CONVO_ORBIT_RATE := 0.0  # (neutralized — conversation is a still hold)
+const ARRIVAL_CINE_CONVO_ORBIT_AMP := 0.0   # (neutralized — no ping-pong arc)
+const ARRIVAL_CINE_CONVO_SEED_DEG := 0.0    # (neutralized — no seed offset; the hold sits at the iso yaw)
 # Frame-rate-aware exponential smoothing rate for the persistent _cam_* members that
 # glide across beat boundaries (f = 1 − exp(−rate·delta)). Higher = snappier/tighter
 # follow; lower = floatier. ~7/s is responsive but smooths every per-beat target change
 # (shoulder→0 entering the orbit, the convo seed, size/focus shifts) into a continuous
 # glide so no beat boundary snaps.
-const ARRIVAL_CINE_CAM_EASE_RATE := 7.0
+const ARRIVAL_CINE_CAM_EASE_RATE := 3.0  # LOWERED for the calm redesign: a slow, floaty follow so the single yaw settle + size widen read as one barely-perceptible motion, nothing snaps. (Was 7 — too tight/snappy for a calm continuous move.)
 
 # FIX 1 (see-through): the cinematic camera sits BEHIND the player (back/lift), which
 # at the south doorway (z≈-13) pushes it past the Garden's south edge (z=-FLOOR_3D_SIZE/2
@@ -580,7 +591,7 @@ const ARRIVAL_CINE_EDGE_PITCH_DROP := 5.0
 # FIX 2 (intro ease): seconds to ease the camera FROM wherever the prior mode left it
 # (exterior-walk or iso resting pose) INTO the over-the-shoulder follow as the player
 # starts walking in. Quick but smooth (smoothstep s-curve) — no snap to behind-the-back.
-const ARRIVAL_CINE_INTRO_DUR := 0.7
+const ARRIVAL_CINE_INTRO_DUR := 1.0  # the entry must flow CONTINUOUSLY into the walk follow — no distinct swoop+pause. The _cam_* members are now seeded AT the walk-follow OTS pose (not a higher/farther opening pose), so this blend just glides the live camera from wherever the prior mode left it into the already-correct follow — one motion, no swoop, no pause.
 
 # FIX 3 (re-entry ease): seconds to ease the camera from the exterior-walk follow pose to
 # iso's resting pose when the player walks BACK in through the doorway (no hard cut). The
