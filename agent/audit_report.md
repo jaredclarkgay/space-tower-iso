@@ -29,9 +29,20 @@ the player in the Garden with all flags cleared).
 
 ---
 
+## Resolved after the audit
+- **O1 (dead constants)** — deleted in `d66cfaa`.
+- **O2 (stale constant-name families)** — renamed `FLOOR_1_*`→`UTILITY_*`,
+  `FLOOR_4_*`→`CANOPY_*`, `TREE_FLOOR_4_VISIBLE_THRESHOLD`→`TREE_CANOPY_VISIBLE_THRESHOLD`
+  in `d66cfaa` (smoke-clean).
+- **D1 (`floor_design_system.md`)** — full rewrite for the stacked world in `bcc6d8c`.
+
+Still open: **O3** (comment-vs-code "3 m" story-height drift) and **D2** (Cody lore).
+
+---
+
 ## Open — low severity (tech debt; no behavioural bug)
 
-### O1 · [Low] Dead constants — safe to delete
+### O1 · [Low] Dead constants — safe to delete  ✅ DONE (d66cfaa)
 - `Constants.GARDEN_FLOOR_INDEX := 2` — **0 readers.** Value (2) and old "Floor 3"
   label both predate the locked numbering (the Garden is Floor 1).
 - `Constants.PLAYER_FALL_RESPAWN_Y := -3.0` — **0 readers.** The real fall backstop
@@ -40,7 +51,7 @@ the player in the Garden with all flags cleared).
   the value is never read, so it can't misfire.)*
 - **Recommendation:** delete both. Trivial, but a code change — left for review.
 
-### O2 · [Low] Stale constant-NAME families (mechanical cross-file rename)
+### O2 · [Low] Stale constant-NAME families (mechanical cross-file rename)  ✅ DONE (d66cfaa)
 Identifiers embed old floor numbers; renaming touches every reader, so the doc
 sweep left them and annotated the comments instead:
 - `FLOOR_1_*` (camera, ambient mults, emergency lights, breaker spot, spine-pipe
@@ -67,7 +78,7 @@ base offset ~-5.8 m), not the old `5.5 m` / `~28°` / `~-2.8 m`. Spots:
 
 ## Docs / lore notes
 
-### D1 · `docs/floor_design_system.md` needs a full rewrite
+### D1 · `docs/floor_design_system.md` needs a full rewrite  ✅ DONE (bcc6d8c)
 Stale at the architecture level (per-floor `.tscn`, scene-swap elevator + spiral
 staircase, deleted `floor_4.gd`/`spiral_staircase.gd`, `GameState.floor_1/floor_3`
 keys, old 1-indexed numbers). Banner-flagged in `bc61b24` pointing to current
