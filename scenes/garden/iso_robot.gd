@@ -347,16 +347,17 @@ func _begin_arrival() -> void:
 
 func _finish_arrival() -> void:
 	_state = State.AWAITING_ACTIVATION
-	# Cinematic path: the conductor opens the real conversation straight away, so
-	# skip the redundant "Activate me with [E]" arrival panel (and its camera hold).
+	# Cinematic path: the conductor (tower_controller) issues the opening beat at its
+	# hand-off, so don't issue it again here.
 	if _cinematic_into_dialogue:
 		return
-	# Dialogue panel appears once Cody has settled in his parking spot.
-	_spawn_arrival_dialogue()
-	# Hold the camera on Cody a beat longer so the player reads the moment, then
-	# release it back to following the player.
-	var t := get_tree().create_timer(1.4)
-	t.timeout.connect(func(): _gs.set("camera_focus_active", false))
+	# Non-cinematic first entry (dev boot / jump-to-Garden): route the opening
+	# through the Director channel — Cody delivers the same power_utilities beat.
+	# This IS the single first-entry greeting; there is no separate legacy panel.
+	_gs.set("camera_focus_active", false)   # the beat's dialogue close-up takes the frame
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_method("issue_directive"):
+		gd.call("issue_directive", "power_utilities")
 
 
 # --- Cinematic emergence from the elevator (Step 3) ------------------------
@@ -788,90 +789,11 @@ func _spawn_robot_harvest_feedback(plant_name: String, _value: int) -> void:
 	tween.finished.connect(label.queue_free)
 
 
-# Slippy-style intro dialogue panel: bottom-left of the screen, with a
-# programmatic Cody portrait on the left and an introduction on the right.
-# Persists during AWAITING_ACTIVATION; dismissed by _dismiss_arrival_dialogue
-# when the player activates Cody.
-func _spawn_arrival_dialogue() -> void:
-	if _hud == null:
-		return
-
-	var dialogue := PanelContainer.new()
-	dialogue.name = "ArrivalDialogue"
-	dialogue.anchor_left = 0.0
-	dialogue.anchor_right = 0.0
-	dialogue.anchor_top = 1.0
-	dialogue.anchor_bottom = 1.0
-	dialogue.offset_left = 24.0
-	dialogue.offset_top = -180.0
-	dialogue.offset_right = 620.0
-	dialogue.offset_bottom = -24.0
-	dialogue.modulate.a = 0.0
-	dialogue.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.10, 0.16, 0.92)
-	style.border_color = Color(0.30, 0.68, 0.78, 0.70)
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_right = 10
-	style.corner_radius_bottom_left = 10
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
-	style.shadow_size = 12
-	style.shadow_offset = Vector2(0, 4)
-	dialogue.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 14)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 14)
-	dialogue.add_child(margin)
-
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 16)
-	margin.add_child(hbox)
-
-	# 3D Cody preview matching the chat / schematic windows.
-	var portrait := _CODY_3D_VIEW.new()
-	portrait.custom_minimum_size = Vector2(140, 140)
-	portrait.rotatable = false
-	portrait.auto_spin = true
-	portrait.auto_spin_rate = 0.55
-	hbox.add_child(portrait)
-
-	var vbox := VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 8)
-	hbox.add_child(vbox)
-
-	var name_label := Label.new()
-	name_label.text = "CODY GX-5"
-	name_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
-	name_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
-	name_label.add_theme_constant_override("outline_size", 4)
-	name_label.add_theme_font_size_override("font_size", 24)
-	vbox.add_child(name_label)
-
-	var dialogue_label := Label.new()
-	dialogue_label.text = "Cody GX-5 here, ready to help!\nActivate me with E to start harvesting.\nI'll signal when my hopper is full."
-	dialogue_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
-	dialogue_label.add_theme_font_size_override("font_size", 18)
-	dialogue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(dialogue_label)
-
-	_hud.add_child(dialogue)
-	_arrival_dialogue = dialogue
-
-	var tween := create_tween()
-	tween.tween_property(dialogue, "modulate:a", 1.0, 0.5).set_delay(0.6)
-
-
+# (The legacy "Cody GX-5 here… start harvesting" arrival panel was removed: the
+# single first-entry greeting is now the Director's power_utilities beat, issued
+# through the channel by _finish_arrival / the cinematic hand-off and rendered by
+# Cody. _dismiss_arrival_dialogue is kept as a harmless no-op for any caller —
+# _arrival_dialogue is never spawned now, so it just early-returns.)
 func _dismiss_arrival_dialogue() -> void:
 	if _arrival_dialogue == null:
 		return

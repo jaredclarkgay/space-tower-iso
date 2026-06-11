@@ -271,6 +271,15 @@ func _spawn_in_garden() -> void:
 	_player.global_position = Vector3(0.0, spawn_y, -6.0)
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
+	# First-entry greeter for the NON-cinematic path (dev boot / jump-to-Garden /
+	# cinematic-disabled). greet_on_entry self-guards on Cody's OFFLINE state, so
+	# re-spawns + later entries are no-ops; his arrival ends by issuing the
+	# power_utilities beat through the Director channel — the same single greeting
+	# the cinematic hand-off issues. (The cinematic path runs _begin_arrival_cinematic,
+	# not this, so there's no double-greet.)
+	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	if robot and robot.has_method("greet_on_entry"):
+		robot.call("greet_on_entry")
 
 
 # Garden arrival gate. The FIRST time the player enters the Garden (and the
