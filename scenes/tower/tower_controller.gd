@@ -323,17 +323,26 @@ func _begin_arrival_cinematic() -> void:
 	_cam_size_tgt = _cam_size
 	_cam_lookahead_tgt = _cam_lookahead
 	_cam_looklift_tgt = _cam_looklift
-	# FIX 2 — do NOT snap the camera behind the player. Capture the LIVE pose the prior
-	# mode left (exterior-walk follow or iso resting) and ease FROM it INTO the OTS follow
-	# over ARRIVAL_CINE_INTRO_DUR (smoothstep), while Beat 1's walk already runs — so the
-	# camera GLIDES in behind the walking player. _update_intro_ease (called from
-	# _update_arrival_cinematic) blends the applied pose; here we just snapshot the start.
+	# FIX 2 — the entry is a slow vertical DESCEND. The OLD code snapshotted the LIVE prior
+	# camera (yaw differs from the new behind yaw 0), so blending FROM it ROTATED (the flip).
+		# Instead we synthesize the HIGH-behind start pose below; yaw stays 0 the whole
+		# descend (no flip), and the blend eases DOWN from it into the OTS follow over
+		# ARRIVAL_CINE_INTRO_DUR (a lowering 'zoom to over his shoulder' motion).
 	if _pivot and _camera:
 		_intro_active = true
 		_intro_t = 0.0
-		_intro_from_cam_world = _camera.global_position
-		_intro_from_cam_basis = _camera.global_transform.basis
-		_intro_from_size = _camera.size
+		# FIX 2 (rework): synthesize the intro START pose as HIGH above-and-directly-behind the
+		# player at yaw 0 (big lift, pulled-in back, looking DOWN at him); the blend then eases
+		# DOWN from it into the settled OTS follow. Yaw stays 0 the whole descend, so there is
+		# NO sideways flip — just a lowering "zoom to over his shoulder." Computed in WORLD space
+		# (same pivot-local geometry the driver uses, but with the intro lift/back/size).
+		var start_basis := Basis.from_euler(Vector3(0.0, _walk_yaw(), 0.0))   # yaw 0 = directly behind
+		var start_local := Vector3(0.0, float(_c.ARRIVAL_CINE_INTRO_LIFT), -float(_c.ARRIVAL_CINE_INTRO_BACK))
+		var pivot_world := Transform3D(start_basis, _player.global_position)
+		_intro_from_cam_world = pivot_world * start_local
+		var look_at: Vector3 = _player.global_position + Vector3(0.0, float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT), 0.0)
+		_intro_from_cam_basis = _looking_at_basis(_intro_from_cam_world, look_at)
+		_intro_from_size = float(_c.ARRIVAL_CINE_INTRO_SIZE)
 	else:
 		_intro_active = false
 	_hud_level = -1   # refresh the floor header
@@ -993,11 +1002,23 @@ func _iso_yaw() -> float:
 	return deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))
 
 
-# The walk-follow pivot yaw (radians): the iso resting yaw plus a small one-direction
-# "behind" bias so the camera trails the walking player at a slight, calm offset. The
-# emergence eases this single bias back to exactly the iso yaw (the only notable rotation).
+# The walk-follow pivot yaw (radians): iso resting yaw (-135) + WALK_YAW_BIAS (135) = 0 =
+# directly BEHIND the player (camera due south, -Z), seeing his back as he walks NORTH (+Z)
+# = true over-the-shoulder. The settle then sweeps this 0 -> iso (-135), one direction, after
+# he settles (the single deliberate rotation; lerp_angle 0->-135 goes negative, framing Cody).
 func _walk_yaw() -> float:
 	return _iso_yaw() + deg_to_rad(float(_c.ARRIVAL_CINE_WALK_YAW_BIAS))
+
+
+# Build the world-space basis of a camera at `from` looking at `to` (Y-up), matching
+# Camera3D.look_at's convention (camera looks down its -Z). Used to synthesize the intro
+# descend's high-behind START orientation (looking DOWN at the player) so the blend can
+# slerp from it into the OTS follow without re-running look_at.
+func _looking_at_basis(from: Vector3, to: Vector3) -> Basis:
+	var fwd: Vector3 = to - from
+	if fwd.length() < 0.0001:
+		return Basis.IDENTITY
+	return Transform3D().looking_at(fwd, Vector3.UP).basis
 
 
 func _set_ots_walk_targets() -> void:

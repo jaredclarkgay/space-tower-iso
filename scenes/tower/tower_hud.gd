@@ -33,6 +33,12 @@ const KEYCAP := Color(0.96, 0.82, 0.46)
 const BACKPACK_FULL := Color(1.00, 0.42, 0.36)
 const CASH_COLOR := Color(0.78, 0.96, 0.55)
 const SCHEM_UNLOCK := 10
+# Vertical anchor (0=top, 1=bottom) for the big central prompt. The construction /
+# "tower complete" CTAs sit LOW (the rising tower fills the upper frame). The exterior
+# "STEP INSIDE" prompt sits HIGH instead — the player stands at the doorway at screen
+# centre-bottom there, and a low prompt covered them; the upper band keeps them clear.
+const CENTRAL_PROMPT_V_LOW := 0.84
+const CENTRAL_PROMPT_V_HIGH := 0.22
 
 # Per-floor wayfinding: the verbs that matter where you're standing. The
 # global movement keys live on their own line above these.
@@ -155,7 +161,9 @@ func set_construction(built: int, top: int) -> void:
 		_utility_group.visible = false
 	if _res_panel:
 		_res_panel.visible = false
-	# Central CTA — the thing the playtest was missing.
+	# Central CTA — the thing the playtest was missing. Stays in the LOW band (the rising
+	# tower fills the upper frame; the builder stands back, not under it).
+	_set_central_prompt_anchor(CENTRAL_PROMPT_V_LOW)
 	if built < top:
 		_set_central_prompt("[B]", "PRESS  B  TO RAISE YOUR TOWER", "Floor %d of %d" % [mini(built + 1, top), top])
 	else:
@@ -181,6 +189,7 @@ func set_explore() -> void:
 		_utility_group.visible = false
 	if _res_panel:
 		_res_panel.visible = false
+	_set_central_prompt_anchor(CENTRAL_PROMPT_V_HIGH)   # upper band — never cover the player at the doorway
 	_set_central_prompt("", "STEP INSIDE", "walk through any doorway to enter")
 	_last_built = -1
 
@@ -211,8 +220,8 @@ func _build_central_prompt() -> void:
 	panel.add_theme_stylebox_override("panel", ps)
 	panel.anchor_left = 0.5
 	panel.anchor_right = 0.5
-	panel.anchor_top = 0.84
-	panel.anchor_bottom = 0.84
+	panel.anchor_top = CENTRAL_PROMPT_V_LOW
+	panel.anchor_bottom = CENTRAL_PROMPT_V_LOW
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -251,6 +260,15 @@ func _build_central_prompt() -> void:
 	_build_prompt_sub.add_theme_constant_override("outline_size", 4)
 	_build_prompt_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(_build_prompt_sub)
+
+
+# Moves the central-prompt banner to a vertical anchor (0=top … 1=bottom). The explore
+# "STEP INSIDE" prompt uses the HIGH band so it never covers the player at the doorway.
+func _set_central_prompt_anchor(v: float) -> void:
+	if _build_prompt_box == null:
+		return
+	_build_prompt_box.anchor_top = v
+	_build_prompt_box.anchor_bottom = v
 
 
 # `key` is an optional [KEY] token rendered as a big tinted keycap before the line.

@@ -524,8 +524,8 @@ const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
 # MONOTONICALLY by that small bias down to exactly the iso yaw — the only notable
 # rotation in the piece (≤ the bias, one direction). The widening size + the focus
 # shift to the pair midpoint reveal Cody; no orbit needed.
-const ARRIVAL_CINE_WALK_YAW_BIAS := 24.0  # degrees the walk-follow yaw sits OFF the iso resting yaw (one direction); the emergence eases this single small bias back to 0 (a gentle settle, the only notable rotation)
-const ARRIVAL_CINE_SETTLE_DUR := 3.0  # seconds the emergence eases the small yaw bias → iso yaw + widens the size + shifts focus to the pair midpoint (slow + barely-perceptible; covers the whole roll-out so Cody emerges within the single settle)
+const ARRIVAL_CINE_WALK_YAW_BIAS := 135.0  # degrees the walk-follow yaw sits OFF the iso resting yaw. iso(-135) + 135 = 0 = the pivot at zero rotation, camera directly SOUTH (-Z) of and behind the player as he walks NORTH (+Z) = TRUE over-the-shoulder (his back to camera). The settle then sweeps this 0 → iso(-135), one direction, slowly, AFTER he settles.
+const ARRIVAL_CINE_SETTLE_DUR := 5.5  # seconds the settle sweeps the walk yaw (0, behind) → iso yaw (-135), one direction (lerp_angle goes negative ≈135°), SLOWLY ("slooowly"), spanning Cody's emergence into the start of the conversation, then holds at iso. Also widens the size + shifts focus to the pair midpoint.
 # Cody-emerges-from-the-elevator sub-phasing (Step 3), driven concurrently with the
 # Beat-3 orbit by the conductor. Budget ≈ lead+rise+doors+rollout.
 const ARRIVAL_CINE_EMERGE_LEAD := 0.35   # orbit begins; car waits at the basement, doors shut
@@ -591,7 +591,10 @@ const ARRIVAL_CINE_EDGE_PITCH_DROP := 5.0
 # FIX 2 (intro ease): seconds to ease the camera FROM wherever the prior mode left it
 # (exterior-walk or iso resting pose) INTO the over-the-shoulder follow as the player
 # starts walking in. Quick but smooth (smoothstep s-curve) — no snap to behind-the-back.
-const ARRIVAL_CINE_INTRO_DUR := 1.0  # the entry must flow CONTINUOUSLY into the walk follow — no distinct swoop+pause. The _cam_* members are now seeded AT the walk-follow OTS pose (not a higher/farther opening pose), so this blend just glides the live camera from wherever the prior mode left it into the already-correct follow — one motion, no swoop, no pause.
+const ARRIVAL_CINE_INTRO_DUR := 2.0  # the entry is a slow vertical DESCEND: the camera starts HIGH above-and-directly-behind the player (yaw 0, big lift, looking down) and eases (smoothstep) straight DOWN into the settled OTS follow pose. Yaw stays 0 the whole descend, so there is NO sideways flip — just a "zoom down to over his shoulder." Longer so the lowering reads leisurely; flows continuously into the walk follow (no pause).
+const ARRIVAL_CINE_INTRO_LIFT := 16.0   # the descend's START height above the player (camera lift) — well above the settled OTS lift so the motion reads as a clear downward descend onto his shoulder.
+const ARRIVAL_CINE_INTRO_BACK := 2.0    # the descend's START distance behind the player — pulled IN (less back than the OTS back) so the high start is near-directly-overhead-and-behind, looking down, then it eases back+down into the OTS follow.
+const ARRIVAL_CINE_INTRO_SIZE := 11.0   # the descend's START ortho size — a touch wider (pulled up / further out) so it tightens to the OTS size as it lowers in.
 
 # FIX 3 (re-entry ease): seconds to ease the camera from the exterior-walk follow pose to
 # iso's resting pose when the player walks BACK in through the doorway (no hard cut). The
