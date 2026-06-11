@@ -1,10 +1,39 @@
 # Opening Sequence — Cody as Director, Utilities-First Gate
 
-**Status:** build brief (design locked, not yet implemented). Authored 2026-06-10.
+**Status:** ★ LARGELY BUILT (2026-06-11). Authored 2026-06-10.
 **Track:** Make-it-playable. **Builds in:** Claude Code (needs the engine +
 screenshot harness to verify). **Source of grounding:** a code survey of the
 live repo (file/function refs below are real as of this date — re-confirm before
 editing).
+
+> **Build status — 2026-06-11 (verified against the code).** Most of this brief
+> has shipped to `main`; the steps below remain as the *design record*. What
+> landed:
+> - **Director→mouth channel — BUILT** (`b2e487c`). `GameDirector` owns a
+>   `DIRECTIVES` dict (lines + objective + telemetry_beat) and a routable channel:
+>   `register_mouth(node, priority)`, `issue_directive(id)`, signal
+>   `directive_issued`. **Cody is the primary mouth** (`deliver_directive()`,
+>   terse "director mode", separate from his chat tree); **HUD is a passive mouth**
+>   (mirrors the objective, renders toasts). This realizes `docs/vision.md` §1–2.
+> - **Step 1 (barren Garden + Cody greeter) — BUILT.** Starter garden skipped;
+>   Cody off harvest-count.
+> - **Steps 2/3/5 (gate + opening beat + payoff) — BUILT** (`4ab9306`).
+>   `GameState.interiors_unlocked` + `utilities_all_active()`; planting hard-gated
+>   with a HUD-toast reason; Garden dim until the 6th Utility source →
+>   `GameDirector.complete_utilities()` flips the gate, warms the Garden, issues
+>   the `garden_live` beat.
+> - **Step 4 (cinematic entry) — SUBSTANTIALLY BUILT** (`a5224d7`, `dfbd90b`,
+>   `606a092`): OTS descend/walk, profile two-shot, zoom-in, replayable.
+> - **One first-entry greeting — BUILT** (`2a0fcf7`): legacy "start harvesting"
+>   panel deleted; `_finish_arrival` + `greet_on_entry` route through the channel.
+>
+> **⚠️ Known divergence from the plan:** the lifted gate currently **unlocks
+> planting directly** (interim), NOT the floor-population lifecycle the hand-off
+> below describes. Replacing that interim is the open work in
+> `docs/floor_population_spec.md`.
+>
+> **Still open:** revamp Cody's chatty `DIALOGUE_TREE` (terser, less
+> conversational) so it matches his new director mode.
 
 ## The idea
 
