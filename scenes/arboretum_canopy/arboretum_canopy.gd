@@ -123,7 +123,7 @@ func _build_ceiling_ping() -> void:
 	_ceiling_ping.name = "CeilingPing"
 	# A flat quad carrying the radial-falloff shader (XZ plane, faces up toward the
 	# iso camera). Sized to the ping radius; the shader feathers within it.
-	var r: float = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	var r: float = float(_c.CANOPY_CEILING_PING_RADIUS)
 	var quad := PlaneMesh.new()
 	quad.size = Vector2(r * 2.0, r * 2.0)
 	_ceiling_ping.mesh = quad
@@ -131,7 +131,7 @@ func _build_ceiling_ping() -> void:
 	sh.code = CEILING_PING_SHADER
 	_ceiling_ping_mat = ShaderMaterial.new()
 	_ceiling_ping_mat.shader = sh
-	var glass: Color = _c.FLOOR_4_GLASS_COLOR
+	var glass: Color = _c.CANOPY_GLASS_COLOR
 	_ceiling_ping_mat.set_shader_parameter("glow_color", Vector3(glass.r, glass.g, glass.b))
 	_ceiling_ping_mat.set_shader_parameter("intensity", 0.0)
 	_ceiling_ping.material_override = _ceiling_ping_mat
@@ -183,17 +183,17 @@ func _build_tiled_slab_with_holes() -> void:
 	var plot: float = float(_c.GARDEN_PLOT_SIZE)
 	var half: float = grid * plot * 0.5
 	var slab_thickness: float = float(_c.FLOOR_3D_SLAB_THICKNESS)
-	var vis_t: float = float(_c.FLOOR_4_SLAB_VISUAL_THICKNESS)   # thin tile MESH so edges read thin
+	var vis_t: float = float(_c.CANOPY_SLAB_VISUAL_THICKNESS)   # thin tile MESH so edges read thin
 	var elev_radius_m: float = float(_c.ELEVATOR_RADIUS) * plot  # ±2 m
-	var stair_hw: float = float(_c.FLOOR_4_STAIRWELL_HALF_WIDTH)
-	var stair_zmin: float = float(_c.FLOOR_4_STAIRWELL_Z_MIN)
-	var stair_zmax: float = float(_c.FLOOR_4_STAIRWELL_Z_MAX)
-	var tree_hole_r: float = float(_c.FLOOR_4_TREE_HOLE_RADIUS)
-	var tile_inset: float = float(_c.FLOOR_4_TILE_INSET_GAP)
+	var stair_hw: float = float(_c.CANOPY_STAIRWELL_HALF_WIDTH)
+	var stair_zmin: float = float(_c.CANOPY_STAIRWELL_Z_MIN)
+	var stair_zmax: float = float(_c.CANOPY_STAIRWELL_Z_MAX)
+	var tree_hole_r: float = float(_c.CANOPY_TREE_HOLE_RADIUS)
+	var tile_inset: float = float(_c.CANOPY_TILE_INSET_GAP)
 
 	# Glass canopy slab — translucent; the tower drives the alpha. Starts
 	# invisible (it's a ceiling you only sense by bonking it / the rings).
-	var glass: Color = _c.FLOOR_4_GLASS_COLOR
+	var glass: Color = _c.CANOPY_GLASS_COLOR
 	_slab_mat = StandardMaterial3D.new()
 	_slab_mat.albedo_color = Color(glass.r, glass.g, glass.b, 0.0)
 	_slab_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -203,7 +203,7 @@ func _build_tiled_slab_with_holes() -> void:
 	# Aperture rings — faint glass, always visible so the player can aim jumps
 	# up through them from below.
 	var ring_mat := StandardMaterial3D.new()
-	ring_mat.albedo_color = Color(glass.r, glass.g, glass.b, float(_c.FLOOR_4_RING_ALPHA))
+	ring_mat.albedo_color = Color(glass.r, glass.g, glass.b, float(_c.CANOPY_RING_ALPHA))
 	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_mat.metallic = 0.0
 	ring_mat.roughness = 0.1

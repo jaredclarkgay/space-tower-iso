@@ -76,7 +76,7 @@ func _ready() -> void:
 	vbox.add_child(divider)
 
 	# One row per system, keyed by id.
-	for sys in _c.FLOOR_1_SYSTEMS:
+	for sys in _c.UTILITY_SYSTEMS:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE

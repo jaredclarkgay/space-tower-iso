@@ -435,13 +435,13 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 # emissive fill cylinder is drawn only when pipe_active[id] is true,
 # already at full height. No tweens, no per-frame state.
 static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevator_data: Dictionary) -> void:
-	var pipe_height: float = c.FLOOR_1_SPINE_PIPE_TOP_Y - c.FLOOR_1_SPINE_PIPE_BASE_Y
-	var pipe_mid_y: float = (c.FLOOR_1_SPINE_PIPE_BASE_Y + c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
+	var pipe_height: float = c.UTILITY_SPINE_PIPE_TOP_Y - c.UTILITY_SPINE_PIPE_BASE_Y
+	var pipe_mid_y: float = (c.UTILITY_SPINE_PIPE_BASE_Y + c.UTILITY_SPINE_PIPE_TOP_Y) * 0.5
 	var chamfer_width: float = c.ELEVATOR_CHAMFER * sqrt(2.0)
 	var slot_offset: float = chamfer_width * 0.22
 	var corners: Dictionary = elevator_data.get("corners", {})
-	for sys in c.FLOOR_1_SYSTEMS:
-		var corner_spec: Array = c.FLOOR_1_PIPE_CORNERS[sys.id]
+	for sys in c.UTILITY_SYSTEMS:
+		var corner_spec: Array = c.UTILITY_PIPE_CORNERS[sys.id]
 		var corner_name: String = corner_spec[0]
 		var slot: int = corner_spec[1]
 		var corner: Dictionary = corners.get(corner_name, {})
@@ -450,8 +450,8 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		var centre: Vector3 = corner.centre
 		var tangent: Vector3 = corner.tangent
 		var normal: Vector3 = corner.normal
-		var outboard: float = c.FLOOR_1_SPINE_PIPE_RADIUS + 0.06
-		var count: int = int(c.FLOOR_1_CORNER_COUNTS.get(corner_name, 1))
+		var outboard: float = c.UTILITY_SPINE_PIPE_RADIUS + 0.06
+		var count: int = int(c.UTILITY_CORNER_COUNTS.get(corner_name, 1))
 		var slot_pos: float = 0.0 if count == 1 else (slot_offset if slot == 1 else -slot_offset)
 		var pipe_pos: Vector3 = centre + tangent * slot_pos + normal * outboard
 		var base_col: Color = sys.base_color
@@ -460,12 +460,12 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		var cold := MeshInstance3D.new()
 		cold.name = "PassivePipe_" + sys.id
 		var cold_mesh := CylinderMesh.new()
-		cold_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS
-		cold_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.top_radius = c.UTILITY_SPINE_PIPE_RADIUS
+		cold_mesh.bottom_radius = c.UTILITY_SPINE_PIPE_RADIUS
 		cold_mesh.height = pipe_height
 		cold.mesh = cold_mesh
 		var cold_mat := StandardMaterial3D.new()
-		cold_mat.albedo_color = base_col * c.FLOOR_1_SOURCE_COLD_MULT
+		cold_mat.albedo_color = base_col * c.UTILITY_SOURCE_COLD_MULT
 		cold_mat.roughness = 0.5
 		cold_mat.metallic = 0.4
 		cold.material_override = cold_mat
@@ -483,8 +483,8 @@ static func build_passive_spine_pipes(parent: Node3D, c: Node, gs: Node, elevato
 		var fill := MeshInstance3D.new()
 		fill.name = "PassiveFill_" + sys.id
 		var fill_mesh := CylinderMesh.new()
-		fill_mesh.top_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
-		fill_mesh.bottom_radius = c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.top_radius = c.UTILITY_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.bottom_radius = c.UTILITY_SPINE_PIPE_RADIUS * 1.05
 		fill_mesh.height = pipe_height
 		fill.mesh = fill_mesh
 		var fill_mat := StandardMaterial3D.new()

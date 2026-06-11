@@ -63,8 +63,8 @@ const WALL_BASE_HEIGHT := 0.6
 const WALL_THICKNESS := 0.3
 const WALL_POST_SPACING := 4.0           # vertical-post stride along each wall
 
-# Player respawn fail-safe (bug F-005: avoid infinite fall if collision misses).
-const PLAYER_FALL_RESPAWN_Y := -3.0   # 3 m below the Garden grade (y=0); only fires if you clip out of the building entirely
+# (The fall fail-safe for bug F-005 lives in iso_player as a hardcoded y < -100
+# deep backstop; the old PLAYER_FALL_RESPAWN_Y const was dead and was removed.)
 # Edge-fall: how far you can plunge off an open edge before the game returns you
 # to where you jumped from. Operator wants a real fall — the full height of the
 # tower, up to 5 floors. Falls that land on a floor below first (e.g. through the
@@ -352,9 +352,6 @@ const PLANT_DURATION := 0.5
 const SPROUT_EMERGE_DURATION := 1.0
 const PLANT_KNEEL_SCALE_Y := 0.55          # mirrors HARVEST_KNEEL_SCALE_Y for visual parity
 
-# --- Slice scope ---
-const GARDEN_FLOOR_INDEX := 2  # STALE + UNUSED: value (2) and "Floor 3" label both predate the locked numbering (the Garden is Floor 1). No readers — safe to delete.
-
 # --- Player backpack ---
 # Cap on how many veggies (plant count, not value) the player can carry. The
 # backpack mesh on the player's torso scales with fill, and harvest is blocked
@@ -634,13 +631,13 @@ const ARRIVAL_CINE_REENTRY_DUR := 0.9
 # 6 lanes — water, power, atmosphere, data, waste, cargo — feed up the
 # central elevator/spine; the cargo lane is bidirectional (sells produce
 # down, delivers supplies up to Garden corner tubes). Tap-E throughout.
-const FLOOR_1_CAMERA_TILT_DEG := -30.0
-const FLOOR_1_CAMERA_YAW_DEG := -135.0
-const FLOOR_1_CAMERA_DISTANCE := 20.0
+const UTILITY_CAMERA_TILT_DEG := -30.0
+const UTILITY_CAMERA_YAW_DEG := -135.0
+const UTILITY_CAMERA_DISTANCE := 20.0
 # Match the Garden's default — operator: "1st floor also looks a lot smaller
 # than the second". Same scene size with the same ortho framing reads as
 # the same building.
-const FLOOR_1_CAMERA_ORTHO_SIZE := 40.0
+const UTILITY_CAMERA_ORTHO_SIZE := 40.0
 
 # Master breaker — south wall, inset from the corner. Position scaled from
 # the brief's (9.7, 14) on a 0..16 grid to fit the 30×30 floor centred at
@@ -649,21 +646,21 @@ const MASTER_BREAKER_POSITION := Vector3(3.2, 0.0, 11.25)
 const MASTER_BREAKER_INTERACT_RADIUS := 1.7
 const MASTER_BREAKER_PULL_DURATION := 0.5    # tap-E animation length
 const ROOM_LIGHT_FADE_DURATION := 0.7
-const FLOOR_1_DARK_AMBIENT_MULT := 0.32      # boosted from 0.18 — operator
+const UTILITY_DARK_AMBIENT_MULT := 0.32      # boosted from 0.18 — operator
                                               # said the room was unreadable
                                               # at full-dark; this still feels
                                               # "before lights on" but the
                                               # walls + character are visible.
-const FLOOR_1_LIT_AMBIENT_MULT := 1.0
+const UTILITY_LIT_AMBIENT_MULT := 1.0
 
 # Emergency lighting that's always on, even before the master breaker is
 # pulled, so the room reads as "low-light maintenance lighting" rather than
 # "void". One overhead OmniLight3D at the room centre, plus soft warm
 # spotlights on the player and the breaker for legibility.
-const FLOOR_1_EMERGENCY_OMNI_ENERGY := 0.55
-const FLOOR_1_EMERGENCY_OMNI_RANGE := 18.0
-const FLOOR_1_PLAYER_SPOT_ENERGY := 1.4
-const FLOOR_1_BREAKER_SPOT_ENERGY := 2.4
+const UTILITY_EMERGENCY_OMNI_ENERGY := 0.55
+const UTILITY_EMERGENCY_OMNI_RANGE := 18.0
+const UTILITY_PLAYER_SPOT_ENERGY := 1.4
+const UTILITY_BREAKER_SPOT_ENERGY := 2.4
 
 # Floor 0 utility systems. Six lanes feed the central elevator/spine —
 # water/power/atmosphere/data/waste are utility upflow, cargo is bidirectional
@@ -671,7 +668,7 @@ const FLOOR_1_BREAKER_SPOT_ENERGY := 2.4
 # Positions scaled from the brief's 0..16 grid to the 30×30 floor centred at
 # the origin: world_pos = (brief_pos × 30 / 16) − (15, 15). Cargo placed
 # south-of-centre, mirroring waste north-of-centre.
-const FLOOR_1_SYSTEMS := [
+const UTILITY_SYSTEMS := [
 	{
 		"id": "water",
 		"name": "Water",
@@ -784,7 +781,7 @@ const FLOOR_PIPE_HEIGHT := 0.18          # vertical thickness of pipe boxes
 # six pipes distribute as 1-2-1-2 across them. Each entry is [corner, slot]
 # where corner ∈ {NW, NE, SE, SW} and slot is the index within that corner
 # (0 if alone, 0 or 1 if shared with a sibling).
-const FLOOR_1_PIPE_CORNERS := {
+const UTILITY_PIPE_CORNERS := {
 	"water":      ["NW", 0],
 	"power":      ["NE", 0],
 	"waste":      ["NE", 1],
@@ -793,7 +790,7 @@ const FLOOR_1_PIPE_CORNERS := {
 	"cargo":      ["SW", 1],
 }
 # Counts per corner (computed implicitly above, restated for the builder).
-const FLOOR_1_CORNER_COUNTS := {"NW": 1, "NE": 2, "SE": 1, "SW": 2}
+const UTILITY_CORNER_COUNTS := {"NW": 1, "NE": 2, "SE": 1, "SW": 2}
 # Brightness multipliers per source state on the source body and the
 # floor pipe albedo. Cold dim, primed mid-pulse, active full bright.
 const SOURCE_PRIMED_MULT := 0.78
@@ -802,17 +799,17 @@ const FLOOR_PIPE_COLD_MULT := 0.42
 const FLOOR_PIPE_BRIGHT_MULT := 1.05
 
 # Source body bounding box (brief: 0.7 × 0.7 × 1.0).
-const FLOOR_1_SOURCE_SIZE := Vector3(0.7, 1.0, 0.7)
+const UTILITY_SOURCE_SIZE := Vector3(0.7, 1.0, 0.7)
 # Cold (pre-connect) brightness multiplier on each source's base color.
-const FLOOR_1_SOURCE_COLD_MULT := 0.42
+const UTILITY_SOURCE_COLD_MULT := 0.42
 # Spine pipe geometry — six vertical pipes attached to the south face of the
 # central elevator/spine column.
-const FLOOR_1_SPINE_PIPE_RADIUS := 0.10
+const UTILITY_SPINE_PIPE_RADIUS := 0.10
 # Run the spine pipes the FULL height of the elevator core (one story) so they
 # read as continuous risers and tile floor-to-floor up the shaft, instead of
 # stopping partway up the column.
-const FLOOR_1_SPINE_PIPE_BASE_Y := 0.0
-const FLOOR_1_SPINE_PIPE_TOP_Y := FLOOR_3D_STORY_HEIGHT
+const UTILITY_SPINE_PIPE_BASE_Y := 0.0
+const UTILITY_SPINE_PIPE_TOP_Y := FLOOR_3D_STORY_HEIGHT
 
 # --- Garden visual signature (drives iso_floor.gd in Phase 3) ---
 # Sources: docs/space-tower-project-knowledge-v3.md,
@@ -869,8 +866,8 @@ const ARBORETUM_EDGE_INSET := 2                              # cells inside the 
 const ARBORETUM_PLOT_STRIDE := 3                             # every third cell — room for crowns to spread without overlapping
 const ARBORETUM_PLOT_TINT := Color(0.22, 0.30, 0.20)         # tilled green-brown
 const ARBORETUM_PLOT_HOLE_TINT := Color(0.08, 0.10, 0.08)    # rim around Floor 3 (Canopy) holes
-const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — (legacy) small rim radius, superseded by FLOOR_4_TREE_HOLE_RADIUS
-const FLOOR_4_TREE_HOLE_RADIUS := 1.5                        # m — open radius per tree so the whole crown clears the slab
+const ARBORETUM_PLOT_HOLE_RADIUS := 0.36                     # m — (legacy) small rim radius, superseded by CANOPY_TREE_HOLE_RADIUS
+const CANOPY_TREE_HOLE_RADIUS := 1.5                        # m — open radius per tree so the whole crown clears the slab
 
 # --- Straight stairs (Floor 2 ↔ Floor 3) -----------------------------------
 # Simple straight inclined ramp going south from the elevator's south face,
@@ -899,28 +896,28 @@ const STAIRCASE_TRIGGER_RADIUS := 1.2
 
 # Floor 3 slab rectangular hole where the straight staircase passes through.
 # Tiles whose centres fall inside (abs(x) <= W/2 + margin) AND
-# (FLOOR_4_STAIRWELL_Z_MIN <= z <= FLOOR_4_STAIRWELL_Z_MAX) are skipped so the
+# (CANOPY_STAIRWELL_Z_MIN <= z <= CANOPY_STAIRWELL_Z_MAX) are skipped so the
 # descending staircase is visible from Floor 3 as an open stairwell.
-const FLOOR_4_STAIRWELL_HALF_WIDTH := STAIRCASE_WIDTH * 0.5 + 0.1
-const FLOOR_4_STAIRWELL_Z_MIN := 3.2                          # just south of elevator
-const FLOOR_4_STAIRWELL_Z_MAX := STAIRCASE_BOTTOM_Z + STAIRCASE_RUN - 0.1  # cuts off before stair top so the player lands on solid slab
+const CANOPY_STAIRWELL_HALF_WIDTH := STAIRCASE_WIDTH * 0.5 + 0.1
+const CANOPY_STAIRWELL_Z_MIN := 3.2                          # just south of elevator
+const CANOPY_STAIRWELL_Z_MAX := STAIRCASE_BOTTOM_Z + STAIRCASE_RUN - 0.1  # cuts off before stair top so the player lands on solid slab
 
 # --- Canopy (Floor 3) slab tiling ------------------------------------------
 # Floor 3's slab is built tile-by-tile (vs. Floor 2's single BoxMesh) so the
 # tree holes + staircase annulus + central elevator footprint can all be
 # punched out. Tile is the GARDEN_PLOT_SIZE grid.
-const FLOOR_4_TILE_INSET_GAP := 0.006                        # m — thin gaps so the glass-floor grid is subtle, not distracting
-const FLOOR_4_SLAB_VISUAL_THICKNESS := 0.20                  # m — tile MESH depth (restored; the thin GAP, not thin tiles, keeps the grid subtle)
+const CANOPY_TILE_INSET_GAP := 0.006                        # m — thin gaps so the glass-floor grid is subtle, not distracting
+const CANOPY_SLAB_VISUAL_THICKNESS := 0.20                  # m — tile MESH depth (restored; the thin GAP, not thin tiles, keeps the grid subtle)
 
 # Canopy glass — the Floor 3 slab + aperture rings read as glass so the player
 # can (a) see the rings from below to aim jumps through them, and (b) get a
 # translucent "ceiling pulse" when they bonk their head on the slab from below.
-const FLOOR_4_GLASS_COLOR := Color(0.80, 0.86, 0.92)         # white-with-a-little-grey
-const FLOOR_4_RING_ALPHA := 0.28                             # rings always faintly visible from below (aim targets)
-const FLOOR_4_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 3 (Canopy)
-const FLOOR_4_CEILING_PULSE_ALPHA := 0.45                    # peak slab glass when you hit the ceiling from below
-const FLOOR_4_CEILING_PULSE_DECAY := 2.5                     # per-second fade of the bonk pulse
-const FLOOR_4_CEILING_PING_RADIUS := 1.95                    # m — radius of the localized glass glow where you bonk the ceiling (0.75× the old 2.6; feathered radial falloff)
+const CANOPY_GLASS_COLOR := Color(0.80, 0.86, 0.92)         # white-with-a-little-grey
+const CANOPY_RING_ALPHA := 0.28                             # rings always faintly visible from below (aim targets)
+const CANOPY_SLAB_ON_ALPHA := 0.70                          # glass-floor opacity while standing ON Floor 3 (Canopy)
+const CANOPY_CEILING_PULSE_ALPHA := 0.45                    # peak slab glass when you hit the ceiling from below
+const CANOPY_CEILING_PULSE_DECAY := 2.5                     # per-second fade of the bonk pulse
+const CANOPY_CEILING_PING_RADIUS := 1.95                    # m — radius of the localized glass glow where you bonk the ceiling (0.75× the old 2.6; feathered radial falloff)
 
 # --- Arboretum trees -------------------------------------------------------
 # Trees plant on Floor 2 edge plots and grow continuously over
@@ -931,7 +928,7 @@ const FLOOR_4_CEILING_PING_RADIUS := 1.95                    # m — radius of t
 # Phase 2B will add the water + sunlight gating that the user designed.
 const TREE_GROWTH_DURATION_MS := 120_000                     # 120 s, plant → mature (sim clock)
 const TREE_PLANT_INTERACT_RADIUS := 1.1                      # m — player → edge-plot distance
-const TREE_FLOOR_4_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F3 (Canopy)
+const TREE_CANOPY_VISIBLE_THRESHOLD := 0.55                 # growth_t at which canopy starts to read on F3 (Canopy)
 
 # Developmental growth (Phase B). The reveal shader eases each vertex from its
 # baked growth-origin over `span` once `growth` passes the vertex's birth time.

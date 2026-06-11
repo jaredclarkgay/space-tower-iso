@@ -62,13 +62,13 @@ func _draw() -> void:
 		return  # don't show source arrows when nothing is energised
 
 	# Per-source CONNECT / ACTIVATE arrows.
-	for sys in _c.FLOOR_1_SYSTEMS:
+	for sys in _c.UTILITY_SYSTEMS:
 		var id: String = String(sys.id)
 		var connected: bool = bool(_gs.utility.connected.get(id, false))
 		var active: bool = bool(_gs.utility.pipe_active.get(id, false))
 		if active:
 			continue
-		var pos: Vector3 = _floor.to_global(sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.55, 0))
+		var pos: Vector3 = _floor.to_global(sys.position + Vector3(0, _c.UTILITY_SOURCE_SIZE.y + 0.55, 0))
 		if _player_in_range(sys.position, _c.SOURCE_INTERACT_RADIUS):
 			continue
 		var label: String = "ACTIVATE" if connected else "CONNECT"

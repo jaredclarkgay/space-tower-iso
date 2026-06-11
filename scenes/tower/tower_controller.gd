@@ -498,7 +498,7 @@ func _update_constructing(snap: bool) -> void:
 			slab.collision_layer = 0          # external view — no walking, no collision
 		if node.has_method("set_structure_visible"):
 			node.set_structure_visible(built)
-			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if built else 0.0)
+			node.set_slab_alpha(float(_c.CANOPY_SLAB_ON_ALPHA) if built else 0.0)
 			if node.has_method("set_apertures_visible"):
 				node.set_apertures_visible(built)
 		else:
@@ -613,7 +613,7 @@ func _update_exterior_walk(snap: bool) -> void:
 			slab.collision_layer = 0   # the player walks on the site ground (y=0); the Garden is at grade, basement below
 		if node.has_method("set_structure_visible"):
 			node.set_structure_visible(built)
-			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if built else 0.0)
+			node.set_slab_alpha(float(_c.CANOPY_SLAB_ON_ALPHA) if built else 0.0)
 			if node.has_method("set_apertures_visible"):
 				node.set_apertures_visible(built)
 		else:
@@ -1289,7 +1289,7 @@ func _process(delta: float) -> void:
 		_ceiling_pulse = 1.0
 		_bonk_pos = _player.global_position
 	else:
-		_ceiling_pulse = maxf(_ceiling_pulse - delta * float(_c.FLOOR_4_CEILING_PULSE_DECAY), 0.0)
+		_ceiling_pulse = maxf(_ceiling_pulse - delta * float(_c.CANOPY_CEILING_PULSE_DECAY), 0.0)
 	# Wall bump: flash a glow ONLY when the player jumps ABOVE the visible wall and
 	# shoves into the invisible seal trying to leave — not for ordinary wall
 	# contact down at floor level. Gate on the player's height above their floor.
@@ -1302,7 +1302,7 @@ func _process(delta: float) -> void:
 		_wall_bump_pos = _player.global_position
 		_wall_bump_normal = (_player as CharacterBody3D).get_wall_normal()
 	else:
-		_wall_pulse = maxf(_wall_pulse - delta * float(_c.FLOOR_4_CEILING_PULSE_DECAY), 0.0)
+		_wall_pulse = maxf(_wall_pulse - delta * float(_c.CANOPY_CEILING_PULSE_DECAY), 0.0)
 	_update(false)
 	_update_extension_grids()
 	_update_wall_bump()
@@ -1394,7 +1394,7 @@ func _update(snap: bool) -> void:
 			# from the floor below, and bonking the glass ceiling (you can't jump
 			# through it — it's the one solid ceiling) lights a localized glow.
 			node.set_structure_visible(at_or_below)
-			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA) if at_or_below else 0.0)
+			node.set_slab_alpha(float(_c.CANOPY_SLAB_ON_ALPHA) if at_or_below else 0.0)
 			# Aperture rings only from the floor directly below or on it (and built).
 			if node.has_method("set_apertures_visible"):
 				node.set_apertures_visible(built and _current_level >= int(f.level) - 1)
@@ -1577,7 +1577,7 @@ func _update_roof_fall(snap: bool) -> void:
 			slab.collision_layer = 0
 		if node.has_method("set_structure_visible"):
 			node.set_structure_visible(true)
-			node.set_slab_alpha(float(_c.FLOOR_4_SLAB_ON_ALPHA))
+			node.set_slab_alpha(float(_c.CANOPY_SLAB_ON_ALPHA))
 			if node.has_method("set_apertures_visible"):
 				node.set_apertures_visible(true)
 		else:
@@ -1634,7 +1634,7 @@ func _update_wall_bump() -> void:
 func _build_wall_glow() -> void:
 	_wall_glow = MeshInstance3D.new()
 	_wall_glow.name = "WallBumpGlow"
-	var r: float = float(_c.FLOOR_4_CEILING_PING_RADIUS)
+	var r: float = float(_c.CANOPY_CEILING_PING_RADIUS)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(r * 2.0, r * 2.0)
 	_wall_glow.mesh = quad
@@ -1642,7 +1642,7 @@ func _build_wall_glow() -> void:
 	sh.code = _WALL_BUMP_SHADER
 	_wall_glow_mat = ShaderMaterial.new()
 	_wall_glow_mat.shader = sh
-	var g: Color = _c.FLOOR_4_GLASS_COLOR
+	var g: Color = _c.CANOPY_GLASS_COLOR
 	_wall_glow_mat.set_shader_parameter("glow_color", Vector3(g.r, g.g, g.b))
 	_wall_glow_mat.set_shader_parameter("intensity", 0.0)
 	_wall_glow.material_override = _wall_glow_mat

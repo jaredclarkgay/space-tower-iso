@@ -235,7 +235,7 @@ var utility := {
 #                       entry missing the new keys.
 #                       Both Floor 2 and Floor 3 controllers read this dict
 #                       and render their slice (full tree on F2; canopy on F3
-#                       once growth_t > TREE_FLOOR_4_VISIBLE_THRESHOLD).
+#                       once growth_t > TREE_CANOPY_VISIBLE_THRESHOLD).
 #   next_variety:       0 or 1 — alternated on each plant so the mix reads
 #                       as deliberately varied, not random.
 var arboretum := {

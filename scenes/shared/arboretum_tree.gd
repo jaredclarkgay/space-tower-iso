@@ -249,7 +249,7 @@ static func build(parent: Node3D, c: Node, tree: Dictionary, world_position: Vec
 	# slab "band" (only the trunk passes through, within the hole) so nothing
 	# clips the canopy floor — branches live below it (Floor 2) or above (Floor 3).
 	var slab_y: float = float(c.FLOOR_3D_STORY_HEIGHT) - world_position.y
-	var hole_r: float = float(c.FLOOR_4_TREE_HOLE_RADIUS)
+	var hole_r: float = float(c.CANOPY_TREE_HOLE_RADIUS)
 	var band: float = 0.55
 	if String(arch.crown_shape) == "sphere":
 		_gen_deciduous(branch_st, fol_st, c, g, rng, asym_dir, slab_y, band, hole_r)

@@ -55,7 +55,7 @@ var _breaker_prompt_label: Label3D
 #   activate_t — 0..1 progress of the activate animation
 #   connected  — has the lay-pipe animation completed
 #   active     — has the activate animation completed
-#   sys        — Constants.FLOOR_1_SYSTEMS entry (cached for quick access)
+#   sys        — Constants.UTILITY_SYSTEMS entry (cached for quick access)
 #   body_mat   — StandardMaterial3D on the source chassis (for state colour)
 #   spine_cold_mat / spine_fill_mat — two materials on the elevator face
 #   spine_fill — the "fill" mesh whose y-scale lerps 0..1 over PIPE_FILL_TIME
@@ -182,8 +182,8 @@ func _build_spine_pipes() -> void:
 	# Each pipe is a "cold" cylinder (always-present dim base) plus a
 	# "fill" cylinder bottom-anchored so y-scale 0→1 lerps upward fill
 	# on activate. Wavefront band sits at the fill's leading edge.
-	var pipe_height: float = _c.FLOOR_1_SPINE_PIPE_TOP_Y - _c.FLOOR_1_SPINE_PIPE_BASE_Y
-	var pipe_mid_y: float = (_c.FLOOR_1_SPINE_PIPE_BASE_Y + _c.FLOOR_1_SPINE_PIPE_TOP_Y) * 0.5
+	var pipe_height: float = _c.UTILITY_SPINE_PIPE_TOP_Y - _c.UTILITY_SPINE_PIPE_BASE_Y
+	var pipe_mid_y: float = (_c.UTILITY_SPINE_PIPE_BASE_Y + _c.UTILITY_SPINE_PIPE_TOP_Y) * 0.5
 	# Two-pipe corners: side-offset so each pipe sits half-way between the
 	# centre and its end of the chamfer face. Chamfer width = chamfer*sqrt(2).
 	var chamfer_width: float = _c.ELEVATOR_CHAMFER * sqrt(2.0)
@@ -191,8 +191,8 @@ func _build_spine_pipes() -> void:
 
 	var corners: Dictionary = _elevator_data.get("corners", {})
 
-	for sys in _c.FLOOR_1_SYSTEMS:
-		var corner_spec: Array = _c.FLOOR_1_PIPE_CORNERS[sys.id]
+	for sys in _c.UTILITY_SYSTEMS:
+		var corner_spec: Array = _c.UTILITY_PIPE_CORNERS[sys.id]
 		var corner_name: String = corner_spec[0]
 		var slot: int = corner_spec[1]
 		var corner: Dictionary = corners.get(corner_name, {})
@@ -203,8 +203,8 @@ func _build_spine_pipes() -> void:
 		var normal: Vector3 = corner.normal
 		# Push the pipe slightly outboard from the chamfer face so it doesn't
 		# z-fight with the panel.
-		var outboard: float = _c.FLOOR_1_SPINE_PIPE_RADIUS + 0.06
-		var count: int = int(_c.FLOOR_1_CORNER_COUNTS.get(corner_name, 1))
+		var outboard: float = _c.UTILITY_SPINE_PIPE_RADIUS + 0.06
+		var count: int = int(_c.UTILITY_CORNER_COUNTS.get(corner_name, 1))
 		var slot_pos: float = 0.0 if count == 1 else (slot_offset if slot == 1 else -slot_offset)
 		var pipe_pos: Vector3 = (
 			centre
@@ -218,12 +218,12 @@ func _build_spine_pipes() -> void:
 		var cold := MeshInstance3D.new()
 		cold.name = "SpinePipe_" + sys.id
 		var cold_mesh := CylinderMesh.new()
-		cold_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
-		cold_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS
+		cold_mesh.top_radius = _c.UTILITY_SPINE_PIPE_RADIUS
+		cold_mesh.bottom_radius = _c.UTILITY_SPINE_PIPE_RADIUS
 		cold_mesh.height = pipe_height
 		cold.mesh = cold_mesh
 		var cold_mat := StandardMaterial3D.new()
-		cold_mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
+		cold_mat.albedo_color = base_col * _c.UTILITY_SOURCE_COLD_MULT
 		cold_mat.roughness = 0.5
 		cold_mat.metallic = 0.4
 		cold.material_override = cold_mat
@@ -233,14 +233,14 @@ func _build_spine_pipes() -> void:
 		# Fill pivot at the pipe's base.
 		var fill_pivot := Node3D.new()
 		fill_pivot.name = "SpineFillPivot_" + sys.id
-		fill_pivot.position = pipe_pos + Vector3(0, _c.FLOOR_1_SPINE_PIPE_BASE_Y, 0) + normal * 0.005
+		fill_pivot.position = pipe_pos + Vector3(0, _c.UTILITY_SPINE_PIPE_BASE_Y, 0) + normal * 0.005
 		fill_pivot.scale = Vector3(1, 0.001, 1)
 		add_child(fill_pivot)
 		var fill := MeshInstance3D.new()
 		fill.name = "Fill"
 		var fill_mesh := CylinderMesh.new()
-		fill_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
-		fill_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.top_radius = _c.UTILITY_SPINE_PIPE_RADIUS * 1.05
+		fill_mesh.bottom_radius = _c.UTILITY_SPINE_PIPE_RADIUS * 1.05
 		fill_mesh.height = pipe_height
 		fill.mesh = fill_mesh
 		var fill_mat := StandardMaterial3D.new()
@@ -256,8 +256,8 @@ func _build_spine_pipes() -> void:
 		var wave := MeshInstance3D.new()
 		wave.name = "Wavefront"
 		var wave_mesh := CylinderMesh.new()
-		wave_mesh.top_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.18
-		wave_mesh.bottom_radius = _c.FLOOR_1_SPINE_PIPE_RADIUS * 1.18
+		wave_mesh.top_radius = _c.UTILITY_SPINE_PIPE_RADIUS * 1.18
+		wave_mesh.bottom_radius = _c.UTILITY_SPINE_PIPE_RADIUS * 1.18
 		wave_mesh.height = 0.06
 		wave.mesh = wave_mesh
 		var wave_mat := StandardMaterial3D.new()
@@ -282,13 +282,13 @@ func _build_sources() -> void:
 	# One source object per system. Cold visual + collision; per-source
 	# state (chassis mat, mechanical detail refs) cached into
 	# _source_state for the connect / activate flows to mutate.
-	for sys in _c.FLOOR_1_SYSTEMS:
+	for sys in _c.UTILITY_SYSTEMS:
 		var root := Node3D.new()
 		root.name = "Source_" + sys.id
 		root.position = sys.position
 		add_child(root)
 
-		var size: Vector3 = _c.FLOOR_1_SOURCE_SIZE
+		var size: Vector3 = _c.UTILITY_SOURCE_SIZE
 		var body := StaticBody3D.new()
 		body.name = "Body"
 		root.add_child(body)
@@ -300,7 +300,7 @@ func _build_sources() -> void:
 		mesh.mesh = box
 		var mat := StandardMaterial3D.new()
 		var base_col: Color = sys.base_color
-		mat.albedo_color = base_col * _c.FLOOR_1_SOURCE_COLD_MULT
+		mat.albedo_color = base_col * _c.UTILITY_SOURCE_COLD_MULT
 		mat.roughness = 0.7
 		mesh.material_override = mat
 		mesh.position = Vector3(0, size.y * 0.5, 0)
@@ -486,7 +486,7 @@ func _build_floor_pipes() -> void:
 	# All segments start invisible (visible = false) and a shared material
 	# starts at FLOOR_PIPE_COLD_MULT alpha. Connect tween reveals segments
 	# in order; activate tween brightens the material.
-	for sys in _c.FLOOR_1_SYSTEMS:
+	for sys in _c.UTILITY_SYSTEMS:
 		var route: Array = sys.route
 		if route.size() < 2:
 			continue
@@ -586,8 +586,8 @@ func _build_emergency_omni() -> void:
 	_emergency_omni = OmniLight3D.new()
 	_emergency_omni.name = "EmergencyOmni"
 	_emergency_omni.light_color = Color(1.0, 0.78, 0.45)   # warm amber
-	_emergency_omni.light_energy = _c.FLOOR_1_EMERGENCY_OMNI_ENERGY
-	_emergency_omni.omni_range = _c.FLOOR_1_EMERGENCY_OMNI_RANGE
+	_emergency_omni.light_energy = _c.UTILITY_EMERGENCY_OMNI_ENERGY
+	_emergency_omni.omni_range = _c.UTILITY_EMERGENCY_OMNI_RANGE
 	_emergency_omni.omni_attenuation = 1.5
 	_emergency_omni.position = Vector3(0, _c.WALL_HEIGHT - 0.4, 0)
 	add_child(_emergency_omni)
@@ -762,7 +762,7 @@ func _build_breaker_spot() -> void:
 	_breaker_spot = SpotLight3D.new()
 	_breaker_spot.name = "BreakerSpot"
 	_breaker_spot.light_color = Color(1.0, 0.92, 0.78)
-	_breaker_spot.light_energy = _c.FLOOR_1_BREAKER_SPOT_ENERGY
+	_breaker_spot.light_energy = _c.UTILITY_BREAKER_SPOT_ENERGY
 	_breaker_spot.spot_range = 4.5
 	_breaker_spot.spot_angle = 32.0
 	_breaker_spot.spot_attenuation = 0.7
@@ -887,8 +887,8 @@ func _apply_brightness_to_lighting() -> void:
 	# levels. Both the directional light and the WorldEnvironment ambient
 	# energy ride this scalar.
 	var mult: float = lerpf(
-		_c.FLOOR_1_DARK_AMBIENT_MULT,
-		_c.FLOOR_1_LIT_AMBIENT_MULT,
+		_c.UTILITY_DARK_AMBIENT_MULT,
+		_c.UTILITY_LIT_AMBIENT_MULT,
 		_room_brightness,
 	)
 	if _directional_light:
@@ -901,8 +901,8 @@ func _apply_brightness_to_lighting() -> void:
 	# returnable interactable.
 	if _breaker_spot:
 		_breaker_spot.light_energy = lerpf(
-			_c.FLOOR_1_BREAKER_SPOT_ENERGY,
-			_c.FLOOR_1_BREAKER_SPOT_ENERGY * 0.3,
+			_c.UTILITY_BREAKER_SPOT_ENERGY,
+			_c.UTILITY_BREAKER_SPOT_ENERGY * 0.3,
 			_room_brightness,
 		)
 
@@ -990,7 +990,7 @@ func _update_source_prompt() -> void:
 	var verb: String = sys.connect_verb if not st.get("connected", false) else sys.activate_verb
 	var label_text: String = "%s — %s" % [String(sys.name), verb.capitalize()]
 	_source_prompt_label.text = label_text
-	_source_prompt_root.position = sys.position + Vector3(0, _c.FLOOR_1_SOURCE_SIZE.y + 0.85, 0)
+	_source_prompt_root.position = sys.position + Vector3(0, _c.UTILITY_SOURCE_SIZE.y + 0.85, 0)
 	_source_prompt_root.visible = true
 
 
@@ -1073,7 +1073,7 @@ func _update_source_visuals(_delta: float) -> void:
 				var breath: float = 0.86 + sin(_detail_phase * 5.7) * 0.12
 				body_mult = _c.SOURCE_PRIMED_MULT * breath
 			else:
-				body_mult = _c.FLOOR_1_SOURCE_COLD_MULT
+				body_mult = _c.UTILITY_SOURCE_COLD_MULT
 			body_mat.albedo_color = base_col * body_mult
 
 		# 2) Floor pipe segment reveal — segments appear in route order as
@@ -1136,7 +1136,7 @@ func _update_detail_anim(st: Dictionary, at: float, active: bool) -> void:
 				# Button presses down by ~0.04 over activate_t.
 				btn.position.y = lerpf(btn.position.y, btn.position.y, 0.0)  # noop placeholder so parser stays happy
 				# We only need to set it once — drive from at directly:
-				btn.position.y = (_c.FLOOR_1_SOURCE_SIZE.y + 0.04) + 0.06 - at * 0.04
+				btn.position.y = (_c.UTILITY_SOURCE_SIZE.y + 0.04) + 0.06 - at * 0.04
 			var fan: MeshInstance3D = detail.get("fan")
 			if fan and active:
 				fan.rotation.y = _detail_phase * 11.0
