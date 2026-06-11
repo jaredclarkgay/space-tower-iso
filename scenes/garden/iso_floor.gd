@@ -1,6 +1,6 @@
 extends Node3D
 
-# Renders one Garden floor (Floor 3) procedurally. Phase 3 of the iso slice,
+# Renders one Garden floor (Floor 1) procedurally. Phase 3 of the iso slice,
 # post-iteration: a square 30×30 m room with a 4×4 elevator shaft at center,
 # perimeter walls framed by vertical posts and translucent window panels,
 # and four spotlights outside the walls aiming inward to read as "sunlight
