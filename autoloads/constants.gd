@@ -310,6 +310,20 @@ const EMPTY_PLOT_FURROW_COUNT := 3
 const EMPTY_PLOT_FURROW_THICKNESS := 0.025
 const EMPTY_PLOT_FURROW_DEPTH := 0.012     # how deep each furrow line cuts visually
 
+# --- Floor population lifecycle (docs/floor_population_spec.md) --------------
+# The Garden boots BARREN: every plot is DORMANT bare ground (not plantable).
+# The player places PLANTER BEDS (grid-snapped, tap-E); each bed activates a
+# square ZONE of the existing plot grid (dormant → tilled/plantable) and advances
+# `GameState.garden.populated`. Place GARDEN_ALIVE_BED_COUNT beds → the Garden
+# crosses ALIVE → provisional bloom + planting unlocks. First increment is the
+# "thinner life layer" — keep the grid, start it dormant (request_queue D-004).
+const PLANTER_BED_ZONE_RADIUS := 1         # cells out from the anchor → 3×3 zone activated
+const GARDEN_ALIVE_BED_COUNT := 3          # beds to place before the Garden flips ALIVE
+const PLANTER_BED_REACH := 1.8             # how close the player stands to a slot to place
+const DORMANT_PLOT_COLOR := Color(0.13, 0.12, 0.115)  # inert bare ground — flatter + darker than tilled
+const PLANTER_BED_RIM_COLOR := Color(0.42, 0.30, 0.18) # warm wood rim of a placed bed
+const PLANTER_BED_SOIL_COLOR := Color(0.26, 0.17, 0.11) # fresh dark soil inside the bed
+
 # Seed type order — the canonical mapping for number-key selection 1..6 and
 # for any code that iterates seed types in display order.
 const SEED_TYPE_ORDER: Array = [

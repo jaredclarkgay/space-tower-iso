@@ -35,6 +35,13 @@ var _grow_lights: Array[OmniLight3D] = []
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 
+# Floor-population bloom: the grow-lights' energy is scaled by `_life` (0 = barren,
+# dark field; 1 = alive, warm). It sits at 0 until the Garden crosses ALIVE, then
+# _go_alive() tweens it to 1 — the provisional bloom (floor_population_spec Step 3).
+var _life := 0.0
+# Translucent placement ghost (the snapped bed footprint preview). Lazily built.
+var _bed_ghost: MeshInstance3D = null
+
 # Plot state. Each plot is a Dictionary tracking its current growth stage,
 # elapsed time in that stage, and references to the meshes that visualise it.
 # `stage` semantics:
@@ -64,8 +71,9 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	# Slow pulse so the Garden reads as alive without being noisy.
-	var pulse := 0.85 + 0.15 * sin(_time * TAU / 2.5)
+	# Slow pulse so the Garden reads as alive without being noisy. Scaled by `_life`
+	# so the field is dark while barren and warms in on the ALIVE bloom.
+	var pulse := (0.85 + 0.15 * sin(_time * TAU / 2.5)) * _life
 	for light in _grow_lights:
 		light.light_energy = pulse
 	# Advance growth lifecycle for every plot.
@@ -128,6 +136,10 @@ func find_nearest_empty_plot_near(world_pos: Vector3, radius: float) -> Variant:
 	var best_dist_sq: float = radius * radius
 	for plot in _plots:
 		if plot.plant_type != null:
+			continue
+		# DORMANT plots are bare ground until a planter bed activates their zone —
+		# not yet plantable, so they never satisfy the empty-plot (P) lookup.
+		if plot.get("dormant", false):
 			continue
 		var d_sq: float = (plot.world_pos - local_pos).length_squared()
 		if d_sq < best_dist_sq:
@@ -464,13 +476,19 @@ func _build_plot(x: float, z: float, plant_type: Variant, coord: Vector2i) -> Di
 		"stage": -1,
 		"time_in_stage": 0.0,
 		"plant_type": null,
+		"dormant": false,
 		"soil": null,
 		"plant": null,
 		"fruits": [] as Array,
 		"furrows": [] as Array,
 	}
 	if plant_type == null:
-		_attach_empty_plot_visuals(plot)
+		# floor_population_spec: a barren Garden boots with DORMANT plots — bare
+		# ground, not the tilled/plantable state. A placed planter bed activates a
+		# zone (dormant → tilled) via _activate_plot_zone. (Pre-population this was
+		# tilled-empty directly; the dormant layer is the "before" of before/after.)
+		plot.dormant = true
+		_attach_dormant_plot_visuals(plot)
 		return plot
 	plot.plant_type = plant_type
 	_attach_planted_plot_visuals(plot)
@@ -517,6 +535,204 @@ func _attach_empty_plot_visuals(plot: Dictionary) -> void:
 		add_child(furrow)
 		furrows.append(furrow)
 	plot.furrows = furrows
+
+
+# Dormant-plot visuals: a flat, dark, inert ground pad — no furrows, sitting a
+# touch lower than tilled soil so a barren floor reads as bare earth waiting to be
+# worked. Placing a planter bed over its zone converts it to the tilled state.
+func _attach_dormant_plot_visuals(plot: Dictionary) -> void:
+	var x: float = plot.world_pos.x
+	var z: float = plot.world_pos.z
+	var pad := MeshInstance3D.new()
+	pad.name = "DormantSoil"
+	var pad_mesh := BoxMesh.new()
+	pad_mesh.size = Vector3(0.92, 0.12, 0.92)   # slightly wider + flatter than tilled soil
+	pad.mesh = pad_mesh
+	pad.material_override = _make_material(_c.DORMANT_PLOT_COLOR)
+	pad.position = Vector3(x, 0.06 - _c.EMPTY_PLOT_RECESS, z)
+	add_child(pad)
+	plot.soil = pad
+
+
+# --- Component placement (floor_population_spec) ----------------------------
+# A planter bed is placed via grid-snapped tap-E: the player stands on the grid,
+# the nearest cell is offered as the bed ANCHOR (centre of a square zone), and E
+# places it. Placing activates the zone's dormant plots and advances `populated`.
+
+# World-space (LOCAL-frame) centre of the bed zone anchored at grid `coord`.
+func bed_slot_world_pos(coord: Vector2i) -> Vector3:
+	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
+	var x: float = origin + float(coord.x) * _c.GARDEN_PLOT_SIZE
+	var z: float = origin + float(coord.y) * _c.GARDEN_PLOT_SIZE
+	return Vector3(x, 0.0, z)
+
+
+# Is `anchor` a legal bed anchor? Every cell in its square zone must exist in the
+# grid AND still be dormant — so beds can't straddle the elevator/dispenser holes,
+# run off the grid edge, or overlap an already-placed bed's activated zone.
+func _is_valid_bed_anchor(anchor: Vector2i) -> bool:
+	var r: int = int(_c.PLANTER_BED_ZONE_RADIUS)
+	for di in range(-r, r + 1):
+		for dj in range(-r, r + 1):
+			var plot: Variant = _plot_grid.get(Vector2i(anchor.x + di, anchor.y + dj), null)
+			if plot == null or not bool(plot.get("dormant", false)):
+				return false
+	return true
+
+
+# Snap the player's position to the nearest grid cell and offer it as a bed slot
+# if that cell is a legal anchor and within reach. Grid-snapped, never free-form:
+# the slot IS a cell. Returns the anchor Vector2i, or null when no legal slot.
+func find_nearest_bed_slot_near(world_pos: Vector3, radius: float) -> Variant:
+	if not bool(_gs.interiors_unlocked) or bool(_gs.garden_alive()):
+		return null
+	var local_pos: Vector3 = to_local(world_pos)
+	var origin: float = -_c.FLOOR_3D_SIZE * 0.5 + _c.GARDEN_PLOT_SIZE * 0.5
+	var ci: int = int(round((local_pos.x - origin) / _c.GARDEN_PLOT_SIZE))
+	var cj: int = int(round((local_pos.z - origin) / _c.GARDEN_PLOT_SIZE))
+	var anchor := Vector2i(ci, cj)
+	if not _is_valid_bed_anchor(anchor):
+		return null
+	var center: Vector3 = bed_slot_world_pos(anchor)
+	if (center - local_pos).length() > radius:
+		return null
+	return anchor
+
+
+# Show / move (or hide) the translucent placement ghost at a candidate anchor.
+# The player drives this each frame with the slot it computed (null = hide).
+func update_bed_ghost(anchor_or_null) -> void:
+	if anchor_or_null == null:
+		if _bed_ghost != null:
+			_bed_ghost.visible = false
+		return
+	if _bed_ghost == null:
+		_bed_ghost = MeshInstance3D.new()
+		_bed_ghost.name = "BedGhost"
+		var gm := BoxMesh.new()
+		var span: float = float(2 * int(_c.PLANTER_BED_ZONE_RADIUS) + 1) * _c.GARDEN_PLOT_SIZE - 0.1
+		gm.size = Vector3(span, 0.06, span)
+		_bed_ghost.mesh = gm
+		var gmat := StandardMaterial3D.new()
+		gmat.albedo_color = Color(0.45, 0.95, 0.55, 0.32)
+		gmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_bed_ghost.material_override = gmat
+		add_child(_bed_ghost)
+	var c: Vector3 = bed_slot_world_pos(anchor_or_null)
+	_bed_ghost.position = Vector3(c.x, 0.22, c.z)
+	_bed_ghost.visible = true
+
+
+# Place a planter bed anchored at grid `coord`. Public so a future Builder-Cody can
+# call it exactly like the player. Spawns the bed, activates its zone, advances the
+# lifecycle, and crosses into ALIVE if this is the threshold bed. Returns success.
+func place_planter_bed(coord: Vector2i) -> bool:
+	if not bool(_gs.interiors_unlocked) or bool(_gs.garden_alive()):
+		return false
+	if not _is_valid_bed_anchor(coord):
+		return false
+	_spawn_planter_bed(coord)
+	_activate_plot_zone(coord)
+	_gs.garden.populated = int(_gs.garden.populated) + 1
+	(_gs.garden.placed as Array).append({"type": "planter_bed", "coord": coord})
+	_spawn_plant_dirt_poof(bed_slot_world_pos(coord))
+	if _tel:
+		_tel.record("component_placed", {
+			"floor": "garden",
+			"type": "planter_bed",
+			"placed": int(_gs.garden.populated),
+		})
+	if int(_gs.garden.populated) >= int(_c.GARDEN_ALIVE_BED_COUNT) and not bool(_gs.garden_alive()):
+		_go_alive()
+	return true
+
+
+# Activate every dormant plot in the bed's square zone: tear down the inert pad and
+# attach the tilled-empty visuals, flipping the cell plantable.
+func _activate_plot_zone(anchor: Vector2i) -> void:
+	var r: int = int(_c.PLANTER_BED_ZONE_RADIUS)
+	for di in range(-r, r + 1):
+		for dj in range(-r, r + 1):
+			var plot: Variant = _plot_grid.get(Vector2i(anchor.x + di, anchor.y + dj), null)
+			if plot == null or not bool(plot.get("dormant", false)):
+				continue
+			if plot.soil != null:
+				plot.soil.queue_free()
+				plot.soil = null
+			plot.dormant = false
+			_attach_empty_plot_visuals(plot)
+
+
+# The planter bed mesh: a raised dark-soil bed ringed by a warm wood rim, spanning
+# the activated zone so the placement reads as a clear, solid object on the grid.
+func _spawn_planter_bed(anchor: Vector2i) -> void:
+	var center: Vector3 = bed_slot_world_pos(anchor)
+	var span: float = float(2 * int(_c.PLANTER_BED_ZONE_RADIUS) + 1) * _c.GARDEN_PLOT_SIZE - 0.12
+	var bed := Node3D.new()
+	bed.name = "PlanterBed_%d_%d" % [anchor.x, anchor.y]
+	bed.position = center
+	add_child(bed)
+
+	# Fresh dark soil infill, raised proud of the surrounding tilled cells.
+	var soil := MeshInstance3D.new()
+	var soil_mesh := BoxMesh.new()
+	soil_mesh.size = Vector3(span, 0.22, span)
+	soil.mesh = soil_mesh
+	soil.material_override = _make_material(_c.PLANTER_BED_SOIL_COLOR)
+	soil.position = Vector3(0, 0.13, 0)
+	bed.add_child(soil)
+
+	# Four wood rim rails around the perimeter, taller than the soil so the bed
+	# reads as a built frame, not a patch of dirt.
+	var rim_h: float = 0.30
+	var rim_t: float = 0.14
+	var half: float = span * 0.5
+	var rim_mat := _make_material(_c.PLANTER_BED_RIM_COLOR)
+	for spec in [
+		{"size": Vector3(span + rim_t, rim_h, rim_t), "pos": Vector3(0, rim_h * 0.5, half)},
+		{"size": Vector3(span + rim_t, rim_h, rim_t), "pos": Vector3(0, rim_h * 0.5, -half)},
+		{"size": Vector3(rim_t, rim_h, span + rim_t), "pos": Vector3(half, rim_h * 0.5, 0)},
+		{"size": Vector3(rim_t, rim_h, span + rim_t), "pos": Vector3(-half, rim_h * 0.5, 0)},
+	]:
+		var rail := MeshInstance3D.new()
+		var rm := BoxMesh.new()
+		rm.size = spec.size
+		rail.mesh = rm
+		rail.material_override = rim_mat
+		rail.position = spec.pos
+		bed.add_child(rail)
+
+	# A small "it's taking shape" pop — the bed scales up from flat on placement.
+	bed.scale = Vector3(1.0, 0.01, 1.0)
+	var tween := create_tween()
+	tween.tween_property(bed, ^"scale", Vector3.ONE, 0.35) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# Cross into ALIVE: the (provisional) bloom. Grow-lights warm in (the felt moment),
+# the lifecycle flips, Cody acknowledges through the mouth channel, and planting
+# opens (iso_player gates the P verb on garden_alive). One-shot — caller guards.
+# NOTE (scope): the bloom is deliberately minimal for this slice — just the lights
+# warming. Ambience/lighting polish + grow-light/water components are the next slice.
+func _go_alive() -> void:
+	_gs.garden.alive = true
+	if _tel:
+		_tel.record("floor_alive", {
+			"floor": "garden",
+			"populated": int(_gs.garden.populated),
+		})
+	# Warm the grow-lights in over ~1.6s (the _life factor scales their energy in
+	# _process; it sits at 0 while barren so the field is dark before this).
+	var tween := create_tween()
+	tween.tween_method(_set_life, _life, 1.0, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_method("confirm_garden_alive"):
+		gd.call("confirm_garden_alive")
+
+
+func _set_life(v: float) -> void:
+	_life = v
 
 
 # Planted-plot visuals — the original soil + plant + fruits triple. Always

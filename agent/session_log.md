@@ -1600,3 +1600,47 @@ Specs reconciled: opening_sequence_spec LARGELY BUILT, floor_population_spec NOT
 floor-population slice (the post-gate "now what?" — slot-based grid-snapped placement,
 one component [planter bed], Cody introduces it); C-001 true shell/interior split +
 build economy still stand.
+
+---
+
+## 2026-06-11 — Floor-population slice: barren → place planter beds → ALIVE → plant
+
+Built the minimal END-TO-END floor lifecycle (docs/floor_population_spec.md Steps 1–3),
+replacing the interim gate→plant directly. No parallel path.
+
+**Lifecycle state (GameState).** New `garden = {populated, alive, placed}` (mirrors
+`utility`) + `garden_alive()` helper. `interiors_unlocked` re-purposed: it now gates
+PLACEMENT, not planting; planting gates on `garden_alive()`.
+
+**Gate reroute.** `GameDirector.complete_utilities()` still lifts `interiors_unlocked`
+but its `garden_live` directive is now the placement invite ("Now let's build it out —
+drop your first planter bed", objective "Place planter beds to bring the Garden alive").
+New `garden_alive` directive + `confirm_garden_alive()` fire on the bloom ("There it is —
+that's a garden now", objective "Plant your first crop"). New `plant_locked_barren` toast
+for the powered-but-barren P press. iso_player plant gate: `interiors_unlocked` → `garden_alive()`.
+
+**Placement (thinner life layer — request_queue D-004).** Plots boot DORMANT (bare dark
+ground, `_attach_dormant_plot_visuals`); `find_nearest_empty_plot_near` skips dormant so
+planting can't touch them. Grid-snapped tap-E: `find_nearest_bed_slot_near` snaps the
+player to the nearest cell and validates a 3×3 zone is all-dormant (no free-form, no
+straddling holes/edges/other beds). `place_planter_bed` spawns a wood-rimmed bed (scale-pop),
+activates the zone (dormant→tilled via `_activate_plot_zone`), advances `populated`, dirt-poof,
+emits `component_placed`. Translucent ghost preview (`update_bed_ghost`) follows the slot.
+
+**Alive bloom (provisional).** `GARDEN_ALIVE_BED_COUNT = 3` → `_go_alive()`: `alive=true`,
+grow-lights warm in via a `_life` 0→1 tween (they sit dark while barren), emit `floor_alive`,
+Cody's confirm beat. Bloom is deliberately minimal — lights only; ambience/grow-light/water
+are the NEXT slice (Steps 4–5).
+
+**HUD.** New `floor_tools_hud.gd` (bottom-centre palette slot, mirrors the seed selector):
+one "Planter Bed" tool + "N / 3 placed" count, faded in only during the placement phase.
+
+**Verified** (`_floorpop_harness`, windowed): barren dark field → place bed 1 (bed + activated
+zone + palette HUD) → 3 beds → ALIVE bloom (warm lights + Cody beat + objective→plant + HUD
+fade). State prints: populated 0→1→3, alive false→false→true, garden_alive() flips at 3.
+Telemetry: 3× component_placed, floor_alive (populated:3), director_beat garden_alive.
+session_summary OPENING FUNNEL shows "floor alive 3.0s". Smoke clean, run error-clean.
+
+**STOP held** before bloom polish + grow-light/water components (next slice). Files:
+constants.gd, game_state.gd, game_director.gd, iso_floor.gd, iso_player.gd,
+scenes/garden/floor_tools_hud.gd (+ tower.tscn wiring). D-004 logged in request_queue.

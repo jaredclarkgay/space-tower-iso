@@ -77,6 +77,16 @@
       "detail": "BUILD_STRUCTURE shipped as whole-floor reveal in an external dollhouse view, then occupy the Garden (stages A-D; GameState.built_level gate, _constructing camera mode in tower_controller, build_floor [B] action + rise ceremony, transit clamped to built floors, CONSTRUCT_FROM_EMPTY flag). Deferred follow-ups: (a) TRUE SHELL/INTERIOR SPLIT — make BUILD_INTERIORS a real beat by raising bare shells in BUILD_STRUCTURE and fitting out content separately (currently floors rise with their full interior payload). (b) BUILD COST / economy gate per floor. (c) CRANE-DRIVEN placement (the Roof crane is cosmetic; could become the build tool). (d) PARTNER FIGURE on-site during the build (the hired partner is currently a name only). (e) FEEL PASS on the dollhouse camera framing (CONSTRUCT_CAM_* in constants) + the rise ceremony (add a dust/flash beat; tune CONSTRUCT_RISE_*). (f) SMOOTHER OCCUPY — the handoff from the wide dollhouse to the Garden is currently an abrupt camera cut; consider a tween. (g) START-FROM-TRULY-EMPTY — construction starts at the basement foundation (built_level 0); a 'break ground' beat from the lot could build floor 0 too. Walk-in occupy + exterior-walk camera shipped Session 13 (stages E-F + feel pass)."
     },
     {
+      "id": "D-004",
+      "type": "architecture_decision",
+      "priority": "high",
+      "title": "Floor-population first increment = thinner 'life layer' on the existing grid (not a full reframe)",
+      "raised": "2026-06-11",
+      "status": "resolved",
+      "resolution": "Took the floor_population_spec's own recommendation (the load-bearing sub-decision flagged 'don't guess blind in-engine'). The Garden's auto-built plot grid + dispenser STAY; placement adds a thinner life layer on top. Concretely: all 30x30 plots boot DORMANT (bare ground, not plantable); placing a planter bed activates a 3x3 ZONE of the existing grid (dormant -> tilled/plantable). Proves the placement->alive loop without gutting the crop economy or the dispenser wiring. Promote to the full player-placed-grid reframe once the loop feels right. Threshold: GARDEN_ALIVE_BED_COUNT=3 beds -> ALIVE. Chain is now enter(barren) -> Cody power_utilities -> power 6 sources -> gate lifts to PLACEMENT (Cody 'let's build it out, drop your first planter bed') -> place 3 beds -> Garden crosses ALIVE (provisional bloom: grow-lights warm in) -> Cody 'go ahead and plant' -> planting unlocks. interiors_unlocked now gates PLACEMENT; new GameState.garden.alive gates PLANTING.",
+      "detail": "Resolved during the Step 1-3 build (floor_population_spec build sequence). Deferred to the NEXT slice per the spec's STOP line: grow-light + water-feature palette entries, real zone-scoped grow/water gating, bloom polish (ambience/lights feel pass), and factoring the lifecycle so a second floor declares its own palette (spec Steps 4-5)."
+    },
+    {
       "id": "U-001",
       "type": "aesthetic_calibration",
       "priority": "high",

@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://scenes/tower/tower_controller.gd" id="1_tower"]
 [ext_resource type="Script" uid="uid://dm46xqtctsonh" path="res://scenes/garden/iso_player.gd" id="2_player"]
@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://dl4i8260hpu4r" path="res://scenes/garden/iso_tubes.gd" id="12_tubes"]
 [ext_resource type="Script" path="res://scenes/tower/tower_hud.gd" id="13_hud"]
 [ext_resource type="Script" uid="uid://7ynjuwavqx76" path="res://scenes/garden/seed_hud.gd" id="14_seed"]
+[ext_resource type="Script" path="res://scenes/garden/floor_tools_hud.gd" id="28_tools"]
 [ext_resource type="Script" uid="uid://3pwgdeqy808o" path="res://scenes/garden/cody_schematic.gd" id="15_schem"]
 [ext_resource type="Script" uid="uid://dinx4b5p71ta5" path="res://scenes/utility/utility_systems_hud.gd" id="16_sys"]
 [ext_resource type="Script" uid="uid://bt7efp2pboajq" path="res://scenes/utility/utility_arrows_hud.gd" id="17_arrows"]
@@ -93,6 +94,10 @@ mouse_filter = 1
 [node name="SeedHud" type="Control" parent="HUD/GardenGroup"]
 mouse_filter = 1
 script = ExtResource("14_seed")
+
+[node name="FloorToolsHud" type="Control" parent="HUD/GardenGroup"]
+mouse_filter = 1
+script = ExtResource("28_tools")
 
 [node name="CodySchematic" type="Control" parent="HUD/GardenGroup"]
 visible = false

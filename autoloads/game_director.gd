@@ -57,21 +57,46 @@ const DIRECTIVES := {
 		"objective": "Go to the Utility floor — bring all six sources online.",
 		"telemetry_beat": "director_beat",
 	},
+	# Gate-lift payoff (floor_population_spec Step 3): power's on, so the Garden can
+	# now be BUILT OUT. This invites PLACEMENT, not planting — planting opens later,
+	# when the floor crosses ALIVE. Closes the ~15s "now what?" gap after the gate.
 	"garden_live": {
 		"id": "garden_live",
 		"speaker": "cody",
 		"lines": [
 			"Power confirmed — all six. The Garden's live.",
-			"Now we build it out.",
+			"Now let's build it out — drop your first planter bed.",
 		],
-		"objective": "Build out the Garden.",
+		"objective": "Place planter beds to bring the Garden alive.",
 		"telemetry_beat": "director_beat",
 	},
+	# Threshold crossed (floor_population_spec Step 3): the Garden bloomed. Cody
+	# acknowledges the moment and hands off to the crop loop — planting is now open.
+	"garden_alive": {
+		"id": "garden_alive",
+		"speaker": "cody",
+		"lines": [
+			"There it is — that's a garden now.",
+			"Go ahead and plant.",
+		],
+		"objective": "Plant your first crop.",
+		"telemetry_beat": "director_beat",
+	},
+	# P pressed before the floor can take a plant — a quick toast naming the reason.
+	# Two reasons depending on how far the player is: unpowered (gate not lifted) vs.
+	# powered-but-barren (no bed placed yet). The site picks which id to issue.
 	"plant_locked": {
 		"id": "plant_locked",
 		"speaker": "hud",        # a quick toast, not a full Cody beat
 		"transient": true,
 		"lines": ["Unpowered. Roots need the grid. Utility floor."],
+		"telemetry_beat": "director_beat",
+	},
+	"plant_locked_barren": {
+		"id": "plant_locked_barren",
+		"speaker": "hud",
+		"transient": true,
+		"lines": ["No soil yet. Place planter beds to wake the Garden."],
 		"telemetry_beat": "director_beat",
 	},
 }
@@ -122,7 +147,8 @@ func issue_directive(directive_or_id) -> void:
 
 
 # Called when the sixth Utility source goes active (opening_sequence_spec Step 5).
-# Lifts the interiors gate — the felt payoff — and issues Cody's confirming beat.
+# Lifts the interiors gate — the felt payoff — which now unlocks PLACEMENT (the
+# floor-population mechanic), and issues Cody's "let's build it out" invite.
 # One-shot; safe to call repeatedly.
 func complete_utilities() -> void:
 	if bool(_gs.interiors_unlocked):
@@ -133,6 +159,13 @@ func complete_utilities() -> void:
 		tel.call("record", "utilities_complete", {})
 		tel.call("record", "gate_lifted", {})
 	issue_directive("garden_live")
+
+
+# Called by the Garden when population crosses the ALIVE threshold (the bloom).
+# Cody acknowledges it through the mouth channel — the same routing as the opener,
+# not bespoke dialogue. One-shot; the floor guards on garden.alive so this fires once.
+func confirm_garden_alive() -> void:
+	issue_directive("garden_alive")
 
 func _ready() -> void:
 	_mirror()   # publish the initial phase into GameState for pollers

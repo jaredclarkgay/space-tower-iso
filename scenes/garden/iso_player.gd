@@ -151,6 +151,9 @@ var _is_planting := false
 var _plant_progress := 0.0
 var _plant_target: Variant = null
 var _nearest_empty_plot: Variant = null
+# Nearest legal planter-bed slot (a grid anchor Vector2i) during the PLACEMENT phase
+# — gate lifted, Garden not yet alive. tap-E places a bed here. null otherwise.
+var _nearest_bed_slot: Variant = null
 
 # Prompt above the head when a harvestable plot is in range. Two stacked
 # Label3Ds: a tiny "E" key label, and a slightly larger "Harvest <PlantName>"
@@ -441,6 +444,21 @@ func _physics_process(delta: float) -> void:
 	else:
 		_nearest_empty_plot = null
 
+	# Placement phase (floor_population_spec): once the gate's lifted but the Garden
+	# isn't alive yet, offer the nearest grid-snapped planter-bed slot — unless an
+	# E-target (dispenser/robot/tube) already owns the verb this frame. The floor
+	# returns null outside the placement phase, so this is self-gating. Drive the
+	# translucent ghost preview to the candidate slot (null hides it).
+	if _iso_floor and _iso_floor.has_method("find_nearest_bed_slot_near") \
+			and not dispenser_interactable and not robot_interactable and not tube_interactable:
+		_nearest_bed_slot = _iso_floor.find_nearest_bed_slot_near(
+			global_position, _c.PLANTER_BED_REACH
+		)
+	else:
+		_nearest_bed_slot = null
+	if _iso_floor and _iso_floor.has_method("update_bed_ghost"):
+		_iso_floor.update_bed_ghost(_nearest_bed_slot)
+
 	if _is_harvesting:
 		var move_canceled: bool = input.length_squared() > 0.001
 		var released: bool = not Input.is_action_pressed(&"interact")
@@ -483,6 +501,14 @@ func _physics_process(delta: float) -> void:
 			_iso_robot.try_interact()
 		elif tube_interactable:
 			_iso_tubes.try_interact()
+		elif _nearest_bed_slot != null:
+			# Place a planter bed on the snapped slot. Face it first so the
+			# placement reads as a deliberate act, then commit through the floor.
+			var to_slot: Vector3 = _iso_floor.bed_slot_world_pos(_nearest_bed_slot) \
+					+ _iso_floor.global_position - global_position
+			if Vector2(to_slot.x, to_slot.z).length_squared() > 0.001:
+				_facing_yaw = atan2(to_slot.x, to_slot.z)
+			_iso_floor.place_planter_bed(_nearest_bed_slot)
 		elif _nearest_plot != null:
 			# Snap the body to face the plot the player tried to grab —
 			# whether or not we end up actually harvesting it.
@@ -502,13 +528,17 @@ func _physics_process(delta: float) -> void:
 			and is_on_floor() \
 			and input.length_squared() < 0.001 \
 			and not arrival_cine:
-		# Hard gate (opening_sequence_spec Step 2): planting is dead until the
-		# building's utilities are powered. When locked, surface the reason through
-		# the Director (a HUD toast) instead of silently doing nothing.
-		if _gs and not bool(_gs.get("interiors_unlocked")):
+		# Hard gate (floor_population_spec): planting is dead until the Garden is
+		# ALIVE — which requires power FIRST (placement unlocks) and then enough
+		# planter beds placed to cross the threshold. When locked, surface the
+		# reason through the Director (a HUD toast) instead of silently doing nothing:
+		# unpowered → "go power the grid"; powered-but-barren → "place beds first".
+		if _gs and not bool(_gs.call("garden_alive")):
 			var gd: Node = get_node_or_null("/root/GameDirector")
 			if gd and gd.has_method("issue_directive"):
-				gd.call("issue_directive", "plant_locked")
+				var reason: String = "plant_locked" if not bool(_gs.get("interiors_unlocked")) \
+					else "plant_locked_barren"
+				gd.call("issue_directive", reason)
 		else:
 			# Only start the plant action if there's an empty plot in range AND
 			# the player has at least one of the selected seed in their pouch.
@@ -740,6 +770,11 @@ func _physics_process(delta: float) -> void:
 		elif tube_interactable:
 			prompt_action_key = "E"
 			prompt_subtext = tube_label
+		elif _nearest_bed_slot != null:
+			# Placement phase: tap-E to drop a planter bed on the snapped slot.
+			prompt_action_key = "E"
+			var placed: int = int(_gs.garden.get("populated", 0))
+			prompt_subtext = "Place planter bed  (%d / %d)" % [placed, int(_c.GARDEN_ALIVE_BED_COUNT)]
 		elif _nearest_plot != null:
 			prompt_action_key = "E"
 			prompt_subtext = "Harvest %s" % _nearest_plot.plant_type.name

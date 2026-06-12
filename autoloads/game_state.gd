@@ -220,10 +220,34 @@ var utility := {
 
 
 # Opening-sequence gate (opening_sequence_spec Step 2). Interior development —
-# planting / floor population — stays disabled until the building's utilities are
-# powered. GameDirector flips this true when all six sources go active (the
-# payoff), and gameplay gates on the flag, NOT on a new arc phase.
+# specifically PLACEMENT (the floor-population mechanic) — stays disabled until the
+# building's utilities are powered. GameDirector flips this true when all six sources
+# go active (the payoff), and PLACEMENT gates on the flag, NOT on a new arc phase.
+# NOTE: this used to gate planting directly (the interim). It now gates the step
+# BEFORE planting — placement. Planting gates one step later, on `garden.alive`
+# (floor_population_spec: the lifted gate unlocks population → ALIVE → planting).
 var interiors_unlocked := false
+
+
+# Floor 1 (Garden) population lifecycle (floor_population_spec). A floor moves
+# BLANK → POPULATING → ALIVE by the player PLACING the components that belong to
+# it. Mirrors the shape of `utility`. Distinct from `built_level` — that's
+# visibility; this is content/life.
+#   populated: count of components (planter beds, for now) the player has placed.
+#   alive:     has population crossed the floor's "alive" threshold (the bloom).
+#   placed:    list of {type, coord} — what was placed and where (grid coords).
+var garden := {
+	"populated": 0,
+	"alive": false,
+	"placed": [] as Array,
+}
+
+
+# "Is this floor alive" — the single call gates elsewhere read so they don't poke
+# into the dict shape. Per-floor for now (only the Garden carries the lifecycle);
+# generalizes to a floor-keyed lookup when a second floor adopts it.
+func garden_alive() -> bool:
+	return bool(garden.get("alive", false))
 
 
 # True once all six Utility sources are active — the "utilities on" gate condition.
