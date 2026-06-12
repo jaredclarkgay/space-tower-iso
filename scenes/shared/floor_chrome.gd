@@ -366,6 +366,12 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 	wall_mat.albedo_color = Color(0.33, 0.35, 0.41)
 	wall_mat.metallic = 0.45
 	wall_mat.roughness = 0.5
+	# Landing-door material — opaque metal (reads as a closed elevator door),
+	# a touch lighter than the shaft frame so the door is legible against it.
+	var landing_mat := StandardMaterial3D.new()
+	landing_mat.albedo_color = Color(0.38, 0.42, 0.49)
+	landing_mat.metallic = 0.55
+	landing_mat.roughness = 0.32
 	var door_h: float = minf(2.8, height - 0.4)
 	var door_w: float = side_length * 0.72
 	var jamb_w: float = (side_length - door_w) * 0.5
@@ -386,6 +392,33 @@ static func build_elevator_core(parent: Node3D, c: Node) -> Dictionary:
 		# Lintel above the opening.
 		var lintel_h: float = height - door_h
 		_add_shaft_panel(body, wall_mat, ctr, tang, norm, door_w, wall_thk, door_h + lintel_h * 0.5, lintel_h)
+
+		# --- LANDING DOOR filling the opening. Before this, the cardinal opening was a
+		# clear gap: any floor the car wasn't parked at showed the open shaft straight
+		# down the glass to the cabin below (the operator's "floor disappearing / car
+		# below" report). The car's own doors travel WITH the car, so they can't cover a
+		# floor it has left. This per-floor door is OPAQUE + CLOSED by default (occludes
+		# the shaft + the drop); the elevator slides it open ONLY for the floor the car
+		# rests at (group "elevator_landing", driven in _apply_landing_doors). Visual-only,
+		# like the shaft walls — boarding + the car transform are untouched; the ShaftGrate
+		# still catches falls.
+		var land := Node3D.new()
+		land.name = "LandingDoor"
+		land.position = ctr                      # face centre, AT the floor origin y (car-match anchor)
+		land.set_meta("door_h", door_h)
+		land.add_to_group("elevator_landing")
+		body.add_child(land)
+		var leaf := MeshInstance3D.new()
+		leaf.name = "Leaf"
+		var leaf_mesh := BoxMesh.new()
+		# Wide along the face tangent, tall = door_h, thin along the face normal.
+		leaf_mesh.size = Vector3(door_w, door_h, wall_thk * 0.9) if absf(tang.x) > 0.5 \
+			else Vector3(wall_thk * 0.9, door_h, door_w)
+		leaf.mesh = leaf_mesh
+		leaf.material_override = landing_mat
+		# Just proud of the face plane; closed spans 0..door_h above the floor origin.
+		leaf.position = norm * (wall_thk * 0.5 + 0.02) + Vector3(0, door_h * 0.5, 0)
+		land.add_child(leaf)
 
 	# --- Geometry-data dict. Cardinal faces (N/S/E/W) — kept for any future
 	# caller that builds against the open doorways; unused by the car today.

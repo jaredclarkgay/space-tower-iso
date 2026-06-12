@@ -1644,3 +1644,22 @@ session_summary OPENING FUNNEL shows "floor alive 3.0s". Smoke clean, run error-
 **STOP held** before bloom polish + grow-light/water components (next slice). Files:
 constants.gd, game_state.gd, game_director.gd, iso_floor.gd, iso_player.gd,
 scenes/garden/floor_tools_hud.gd (+ tower.tscn wiring). D-004 logged in request_queue.
+
+### Fix — elevator: per-floor LANDING DOORS (open shaft no longer shows the car below)
+Operator hit: walking up to a shaft showed an open doorway straight down the glass to
+the cabin parked on another floor ("the floor disappearing / car below"). Root cause:
+the shaft's cardinal doorways were clear gaps, and the only doors belong to the CAR
+(they travel with it), so a floor the car had left had nothing covering its opening.
+Fix: `FloorChrome.build_elevator_core` now builds an opaque LANDING DOOR (group
+"elevator_landing", meta door_h) filling each cardinal opening, closed by default.
+`elevator_platform._apply_landing_doors()` slides a landing open by `_door_open_t`
+ONLY for the floor the car rests at (matched by world y: |_car_y − landing.global y|
+< story/2); every other floor stays shut. Also gated the CAR doors to open only when
+the car is at the player's floor (`near_car or (near_shaft and car_here)`), so a
+distant car's doors don't flap. Visual-only (no collision) — boarding, the car
+transform, and the ShaftGrate fall-catch are untouched. Verified (`_shaftvis_harness`):
+car below → leaf_y=+1.40 (closed, shaft solid, no view down); car at Garden + player at
+mouth → door_open_t=1.0, leaf_y=−1.40 (open, boardable). Arrival cinematic: car rises
+in transit behind the closed landing (cabin still shows through the glass column), doors
++ landing open together on arrival so Cody emerges. Smoke clean. Files: floor_chrome.gd,
+elevator_platform.gd.

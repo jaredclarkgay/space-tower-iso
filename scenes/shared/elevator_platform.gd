@@ -57,6 +57,7 @@ func _ready() -> void:
 	_car_y = _floor_y(1)           # start at the Garden (the spawn floor)
 	_apply_car_y()
 	_apply_doors()
+	_apply_landing_doors()
 	_apply_glow()
 
 
@@ -78,6 +79,7 @@ func _physics_process(delta: float) -> void:
 		_show_chooser(false)
 		_apply_car_y()
 		_apply_doors()
+		_apply_landing_doors()
 		_apply_glow()
 		return
 	# Float the prompt stack a fixed height above the player (works whether the
@@ -95,6 +97,7 @@ func _physics_process(delta: float) -> void:
 			_update_choosing(delta)
 	_apply_car_y()
 	_apply_doors()
+	_apply_landing_doors()
 	_apply_glow()
 
 
@@ -107,7 +110,12 @@ func _process(_delta: float) -> void:
 func _update_idle(delta: float) -> void:
 	var near_car: bool = _player_on_car()
 	var near_shaft: bool = _player_near_shaft()
-	_door_open_t = move_toward(_door_open_t, 1.0 if (near_car or near_shaft) else 0.0, delta * 3.0)
+	# Doors open only when the car is actually AT the player's floor — boarding, or the
+	# car just arrived. Standing at a shaft whose car is elsewhere keeps doors shut (the
+	# prompt reads "Call elevator"); the matching landing door also stays shut, so you
+	# never see an open shaft drop to the cabin below.
+	var car_here: bool = absf(_car_y - _floor_y(_player_floor_level())) < _story() * 0.5
+	_door_open_t = move_toward(_door_open_t, 1.0 if (near_car or (near_shaft and car_here)) else 0.0, delta * 3.0)
 	_glow_t = move_toward(_glow_t, 0.0, delta * 2.0)
 	# Prompt.
 	_prompt_root.visible = near_shaft
@@ -249,6 +257,25 @@ func _apply_doors() -> void:
 		d.pivot.position.y = float(d.base_y) - _door_open_t * DOOR_HEIGHT
 		d.col.disabled = not solid
 
+
+# Drive the per-floor landing doors (group "elevator_landing", built by
+# FloorChrome.build_elevator_core). A landing slides open by _door_open_t ONLY when
+# the car is resting at THAT floor — matched by the landing's world y (built at the
+# floor origin) against _car_y (which is itself a world y). Every other floor's
+# landing stays shut, so a shaft the car has left reads as a closed door, not an
+# open drop to the cabin below.
+func _apply_landing_doors() -> void:
+	var eps: float = _story() * 0.5
+	for land in get_tree().get_nodes_in_group("elevator_landing"):
+		if not is_instance_valid(land):
+			continue
+		var dh: float = float(land.get_meta("door_h", DOOR_HEIGHT))
+		var here: bool = absf(_car_y - (land as Node3D).global_position.y) < eps
+		var t: float = _door_open_t if here else 0.0
+		var leaf: Node3D = land.get_node_or_null("Leaf")
+		if leaf:
+			leaf.position.y = dh * 0.5 - t * dh
+
 func _apply_glow() -> void:
 	if _glow_mat == null:
 		return
@@ -271,6 +298,7 @@ func cinematic_begin() -> void:
 	_state = State.IDLE
 	_apply_car_y()
 	_apply_doors()
+	_apply_landing_doors()
 	_apply_glow()
 
 func cinematic_set_car_y(y: float) -> void:
@@ -307,6 +335,7 @@ func cinematic_reset() -> void:
 	_state = State.IDLE
 	_apply_car_y()
 	_apply_doors()
+	_apply_landing_doors()
 	_apply_glow()
 
 
