@@ -209,3 +209,78 @@ agentic build (a reusable floor lifecycle + state machine + Director-voiced
 beats) whose entire payoff is a make-it-playable result (a floor you watch come
 alive by your own hand). That convergence is the point (`docs/vision.md` §4).
 Surface sub-decisions to `agent/request_queue.json` rather than guessing.
+
+---
+
+# OVERNIGHT SLICE — generalize the lifecycle + light up a 2nd floor
+
+**Decided 2026-06-11. Mode: UNATTENDED overnight run.** The human is asleep — the
+screenshot-and-iterate *feel* loop is unavailable. Optimize for self-verifiable
+**structural** progress; defer anything that needs a human's eyes or taste.
+
+## Locked decisions
+
+- **Breadth, not depth.** Extract the Garden's lifecycle into a **reusable
+  module**, then apply it to **ONE blank floor**. (Not: deepening the Garden, not
+  polishing feel.)
+- **You pick the structurally simplest blank floor** (Residential or Sky Lounge)
+  and record which + *why* in the morning report.
+- **Placeholder content ONLY.** The 2nd floor's components are explicitly
+  placeholder programmatic geometry + names (e.g. "unit", "seat"). This proves
+  the *mechanic* generalizes — it is NOT the floor's real worldbuilding (who lives
+  in Residential, what the Sky Lounge is for). That is a separate live design
+  session. Mark placeholders unmistakably so no one mistakes them for final.
+- **Mechanic only, not narrative sequencing.** Whether/when/why the player is sent
+  to the floor, and what Cody says there, is **deferred**. For the proof, make the
+  floor enter POPULATING by the minimal *reversible* trigger (populatable on first
+  reach, OR gated behind `garden_alive()` — pick one, log it). Don't design the
+  narrative gate overnight.
+- **Grid-snapped, slot-based** placement throughout (`docs/vision.md` §5).
+
+## The generalization (shape, not prescription — you know the code best)
+
+A floor should *declare* `{component palette, valid slots, alive threshold,
+provisional bloom}`. The **shared** machinery: the lifecycle state
+(populated/alive/placed), the place verb, the Floor Tools HUD, the telemetry
+(`component_placed` / `floor_alive`, each **carrying the floor level**), and the
+ALIVE transition. **Refactor the Garden onto this shared path first — it must keep
+behaving identically (regression-check it) — then have the 2nd floor declare into
+it.** Mirror how `FloorChrome` is shared and only content differs.
+
+## Sequence — each step is its own commit, self-verified before the next
+
+1. **Extract + refactor the Garden** onto the reusable lifecycle. **VERIFY the
+   Garden is unchanged:** barren → place beds → ALIVE → plant still works (harness
+   screenshot + a telemetry run through `agent/analysis/session_summary.py`). This
+   is the riskiest step — do it carefully and prove no regression.
+2. **Pick the simplest blank floor;** declare its placeholder palette + slots +
+   threshold + provisional bloom via the module. Log the choice + reasoning.
+3. **Wire the minimal populating trigger** (per the locked decision). **VERIFY by
+   screenshot:** the floor reads barren → place components → crosses ALIVE.
+4. **Telemetry:** `component_placed` / `floor_alive` fire for the new floor and
+   carry its level. **VERIFY** a session file shows the 2nd floor's funnel.
+5. **Write the morning report** (below).
+
+## Guardrails (UNATTENDED — read these twice)
+
+- **Commit small + often; do NOT push.** The operator reviews and pushes.
+- **Self-verify every step** — compile, screenshot harness, telemetry run. Never
+  proceed on a failure; if stuck, **stop and report** rather than thrash.
+- **Do NOT touch the Garden's feel knobs** (bed count, 3×3 zone, bloom timing) —
+  those await a human playtest. Don't "improve" Garden feel.
+- **Stay in the engine lane.** Do NOT hand-edit `docs/` specs or
+  `agent/analysis/` — the design/analysis session owns those. `STATUS.md`
+  auto-regenerates via the capture hook.
+- **No content, no narrative design** — placeholders + a minimal trigger only.
+- **On any real design fork:** log it to `agent/request_queue.json`, pick the
+  minimal **reversible** option, keep going. Append failures to
+  `agent/failure_log.json` at the moment they happen.
+- **Stop when:** the 5 steps are done + verified, OR you hit a blocker you can't
+  clear safely. Either way leave the report and stop — **do not expand scope.**
+
+## Morning report (leave in the session output + an `agent/` note)
+
+Per-commit summary of what landed; **which floor you chose + why**; what's
+verified (screenshots, telemetry) vs what explicitly needs human eyes/feel; any
+decisions deferred + where logged. Flag anything that wanted a feel-judgment call
+so the human can take it first thing.
