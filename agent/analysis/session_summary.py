@@ -155,6 +155,8 @@ def summarize(path: Path) -> dict:
     utilities_complete = first_event(events, "utilities_complete")
     gate_lifted = first_event(events, "gate_lifted")
     floor_alive = first_event(events, "floor_alive")
+    placements = [e for e in events if e.get("event") == "component_placed"]
+    first_placement = placements[0] if placements else None
 
     # Time-to-X (from session start, which is t_ms≈0).
     hire = first_event(events, "partner_hired")
@@ -177,6 +179,7 @@ def summarize(path: Path) -> dict:
         "crops_harvested": len(harvested),
         "crops_harvested_by_player": harvested_by_player,
         "director_beats": director_beats,
+        "components_placed": len(placements),
         "reached_gate_lifted": gate_lifted is not None,
         "reached_floor_alive": floor_alive is not None,
         "time_to": {
@@ -184,6 +187,7 @@ def summarize(path: Path) -> dict:
             "first_floor_ms": int(first_interior["t_ms"]) if first_interior else None,
             "utilities_complete_ms": int(utilities_complete["t_ms"]) if utilities_complete else None,
             "gate_lifted_ms": int(gate_lifted["t_ms"]) if gate_lifted else None,
+            "first_placement_ms": int(first_placement["t_ms"]) if first_placement else None,
             "floor_alive_ms": int(floor_alive["t_ms"]) if floor_alive else None,
             "first_plant_ms": int(first_plant["t_ms"]) if first_plant else None,
             "first_harvest_ms": int(first_harvest["t_ms"]) if first_harvest else None,
@@ -220,6 +224,9 @@ def print_report(s: dict) -> None:
             print(f"    director beat ..... {b['id']:<16} {fmt_ms(b['t_ms'])}")
         print(f"    utilities complete  {fmt_ms(s['time_to']['utilities_complete_ms'])}")
         print(f"    gate lifted ....... {fmt_ms(s['time_to']['gate_lifted_ms'])}")
+        if s["components_placed"] or s["time_to"]["first_placement_ms"] is not None:
+            print(f"    1st component ..... {fmt_ms(s['time_to']['first_placement_ms'])}")
+            print(f"    components placed .. {s['components_placed']}")
         if s["reached_floor_alive"] or s["time_to"]["floor_alive_ms"] is not None:
             print(f"    floor alive ....... {fmt_ms(s['time_to']['floor_alive_ms'])}")
 

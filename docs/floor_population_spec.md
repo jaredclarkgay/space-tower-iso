@@ -1,6 +1,6 @@
 # Floor Lifecycle — Blank Shell → Lush, via Placement
 
-**Status:** NOT STARTED (2026-06-11) — this is the next major build. Authored 2026-06-10.
+**Status:** ★ FIRST SLICE BUILT (2026-06-11, `58b5bb2`). Authored 2026-06-10.
 **Track:** Make-it-agentic that serves make-it-playable (see `docs/vision.md` §4).
 **Builds in:** Claude Code (needs the engine + screenshot harness).
 **Grounding:** a code survey of the live floor system (refs below are real as of
@@ -8,21 +8,26 @@ this date — re-confirm before editing). Reads with `docs/floor_design_system.m
 (the universal floor grammar this must fit) and `docs/opening_sequence_spec.md`
 (the narrative beat that triggers the Garden's first population).
 
-> **Build status — 2026-06-11.** Not started, BUT the opening sequence already
-> shipped the seam this spec plugs into, so reconcile before building:
-> - The **gate already exists** — `GameState.interiors_unlocked` +
->   `utilities_all_active()` (`opening_sequence_spec.md`, BUILT). It currently
->   **unlocks planting directly** (the interim). This spec's whole job is to make
->   that lifted gate unlock **population → ALIVE → planting** instead — i.e.
->   *replace* the interim, not add a parallel path.
-> - The **Director→mouth channel exists** (`GameDirector.issue_directive` /
->   `register_mouth`). The "floor is alive" beat should be a **directive through
->   that channel** (Cody's mouth), not bespoke dialogue — Step 3 below.
-> - Telemetry already emits `director_beat` / `utilities_complete` / `gate_lifted`,
->   and `agent/analysis/session_summary.py` now reads an OPENING FUNNEL. Add the
->   spec's `component_placed` / `floor_alive` events into that same funnel.
-> - Still **net-new:** the per-floor `populated`/`alive` state, the placement verb
->   + palette, the bloom on the threshold, and rerouting the gate payoff to it.
+> **Build status — 2026-06-11 (verified against the code).** The first slice
+> shipped to `main` (`58b5bb2`). What landed:
+> - **Lifecycle state — BUILT.** `GameState.garden = {populated, alive, placed}`
+>   + `garden_alive()` helper. The lifted utilities gate now unlocks
+>   **placement**, not planting; planting gates on `alive`. (Replaces the old
+>   plant-direct interim — the opener's divergence note is now resolved.)
+> - **Placement — BUILT.** Plots boot **dormant** (bare ground). Slot-based,
+>   **grid-snapped** tap-E drops a **planter bed** that activates a **3×3 zone**.
+>   New **bottom-centre Floor Tools** palette HUD. Telemetry: `component_placed`.
+> - **Alive threshold + provisional bloom — BUILT.** Place **3 beds** → `alive`
+>   flips, grow-lights warm in (provisional), Cody issues the "that's a garden
+>   now" directive through the channel, objective → "Plant your first crop."
+>   Telemetry: `floor_alive`. (Bed count `3` + the bloom are tune-by-feel knobs.)
+>
+> **Deferred to the next slice** (logged `D-004` in `agent/request_queue.json`):
+> grow-light + water-feature palette components, real zone-scoped grow/water
+> gating, **bloom polish**, and **generalizing the lifecycle** so a second floor
+> (Residential / Sky Lounge) can declare its own palette.
+>
+> The build sequence + design rationale below remain the design record.
 
 ## The idea
 

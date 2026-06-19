@@ -27,10 +27,10 @@ editing).
 > - **One first-entry greeting — BUILT** (`2a0fcf7`): legacy "start harvesting"
 >   panel deleted; `_finish_arrival` + `greet_on_entry` route through the channel.
 >
-> **⚠️ Known divergence from the plan:** the lifted gate currently **unlocks
-> planting directly** (interim), NOT the floor-population lifecycle the hand-off
-> below describes. Replacing that interim is the open work in
-> `docs/floor_population_spec.md`.
+> **✓ Resolved (2026-06-11, `58b5bb2`):** the lifted gate no longer unlocks
+> planting directly. It now unlocks **placement** → the Garden's floor-population
+> lifecycle (place planter beds → ALIVE → plant), per
+> `docs/floor_population_spec.md`. The interim is gone.
 >
 > **Still open:** revamp Cody's chatty `DIALOGUE_TREE` (terser, less
 > conversational) so it matches his new director mode.
