@@ -229,25 +229,54 @@ var utility := {
 var interiors_unlocked := false
 
 
-# Floor 1 (Garden) population lifecycle (floor_population_spec). A floor moves
-# BLANK → POPULATING → ALIVE by the player PLACING the components that belong to
-# it. Mirrors the shape of `utility`. Distinct from `built_level` — that's
-# visibility; this is content/life.
-#   populated: count of components (planter beds, for now) the player has placed.
+# Floor population lifecycle (floor_population_spec). A floor moves BLANK →
+# POPULATING → ALIVE by the player PLACING the components that belong to it.
+# Mirrors the shape of `utility`. Distinct from `built_level` — that's visibility;
+# this is content/life.
+#   populated: count of components the player has placed on the floor.
 #   alive:     has population crossed the floor's "alive" threshold (the bloom).
 #   placed:    list of {type, coord} — what was placed and where (grid coords).
+#
+# The Garden's dict is kept as the original `garden` member (every existing
+# reference — iso_floor, the floor-tools HUD, the harness — still reads `garden`
+# verbatim, zero behaviour change). `floor_state(id)` is the generalized accessor
+# any populatable floor reaches through; "garden" routes back to this same dict, so
+# the two views never diverge. Other floors get their own dict in `floor_life`.
 var garden := {
 	"populated": 0,
 	"alive": false,
 	"placed": [] as Array,
 }
 
+# floor_id → lifecycle state dict, for floors OTHER than the Garden (the Garden's
+# state stays in `garden` above; floor_state("garden") returns it). Lazily filled.
+var floor_life := {}
+
+
+# Generalized lifecycle accessor — every populatable floor reads/writes its state
+# through here so the shape stays uniform (mirrors how FloorChrome is shared).
+# "garden" routes to the original `garden` dict for full back-compat.
+func floor_state(id: String) -> Dictionary:
+	if id == "garden":
+		return garden
+	if not floor_life.has(id):
+		floor_life[id] = {
+			"populated": 0,
+			"alive": false,
+			"placed": [] as Array,
+		}
+	return floor_life[id]
+
 
 # "Is this floor alive" — the single call gates elsewhere read so they don't poke
-# into the dict shape. Per-floor for now (only the Garden carries the lifecycle);
-# generalizes to a floor-keyed lookup when a second floor adopts it.
+# into the dict shape. Generalized: pass the floor id.
+func floor_alive(id: String) -> bool:
+	return bool(floor_state(id).get("alive", false))
+
+
+# Back-compat shorthand for the Garden (callers predate the floor-keyed lookup).
 func garden_alive() -> bool:
-	return bool(garden.get("alive", false))
+	return floor_alive("garden")
 
 
 # True once all six Utility sources are active — the "utilities on" gate condition.
