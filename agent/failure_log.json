@@ -421,6 +421,20 @@
         "scenes/shared/elevator_platform.gd",
         "scenes/shared/vacuum_lift.gd"
       ]
+    },
+    {
+      "id": "F-031",
+      "phase": "iteration",
+      "date": "2026-06-19",
+      "category": "stacked_world_tower",
+      "summary": "Walking up to an elevator shaft on a floor the car had LEFT showed an open doorway straight down the glass column to the cabin parked elsewhere ('the floor disappearing / car below'). Root cause: the shaft's cardinal openings were clear gaps, and the only doors in the design belong to the CAR — they travel with it. So any floor the car wasn't currently resting at had an uncovered hole into the shared shaft.",
+      "trigger": "Operator screenshot: an open doorway with the elevator cabin visible below on another floor. Surfaced once the car became a single physical body shared across a continuous shaft (Session 15+), not a per-floor prop.",
+      "fix": "Give each LANDING its own opaque door, not just the car. FloorChrome.build_elevator_core now builds a landing-door leaf (group 'elevator_landing', meta door_h) filling each cardinal opening, CLOSED by default. elevator_platform._apply_landing_doors() slides open ONLY the landing whose world-y matches the car's rest y (|car_y - landing.global_y| < story/2); every other floor stays shut. Car doors also gated to open only when the car is at the player's floor so a distant car's doors don't flap. Visual-only (no collision); boarding + the ShaftGrate fall-catch untouched.",
+      "rule_added": "none (folded into competency stacked_world_tower: shared cross-floor openings need per-LANDING coverage, not per-car)",
+      "files_touched": [
+        "scenes/shared/floor_chrome.gd",
+        "scenes/shared/elevator_platform.gd"
+      ]
     }
   ]
 }

@@ -1663,3 +1663,31 @@ mouth → door_open_t=1.0, leaf_y=−1.40 (open, boardable). Arrival cinematic: 
 in transit behind the closed landing (cabin still shows through the glass column), doors
 + landing open together on arrival so Cody emerges. Smoke clean. Files: floor_chrome.gd,
 elevator_platform.gd.
+
+---
+
+## 2026-06-19 — Capture: floor-pop slice landed + docs sync + OVERNIGHT brief
+
+Bookkeeping pass over the work committed `58b5bb2 → a182b9a` (not pushed). The
+floor-population slice and the elevator landing-door fix are already written up
+above; this entry records what wasn't yet in the agent files.
+
+- **F-031 logged** (retroactive) for the elevator landing-door bug: in the shared
+  continuous shaft, doors that travel with the CAR leave every floor the car left
+  as an open hole into the shaft. Fix = a closed-by-default door at each LANDING,
+  opened only for the floor matching the car's rest y. Folded into the
+  `stacked_world_tower` competency as a cross-floor-opening rule.
+- **Competency v1.9:** new `floor_population_lifecycle` domain (barren→place→ALIVE→
+  plant; dormant-cell gating; grid-snapped slot placement; gate-channel reuse).
+- **Docs sync (`df79b3a`):** floor_population_spec marked FIRST SLICE BUILT with real
+  specifics; opening-spec interim-divergence note resolved; session_summary.py now
+  teaches the `component_placed` event (OPENING FUNNEL shows 1st-component time +
+  placement count).
+- **OVERNIGHT SLICE brief (`a182b9a`)** — operator direction for an unattended run:
+  extract the Garden lifecycle into a REUSABLE module and apply it to one
+  build-chosen blank floor (Residential or Sky Lounge) with placeholder content.
+  Locked: breadth-first, placeholder-only, mechanic-not-narrative, grid-snapped.
+  Heavy guardrails for unattended work — commit small / no push, self-verify each
+  step via the windowed harness, don't touch Garden feel knobs, stay in the engine
+  lane, log forks, leave a morning report. This is the next build's brief, not yet
+  started.

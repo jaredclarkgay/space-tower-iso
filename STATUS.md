@@ -8,7 +8,7 @@
 > the present tense.** Use it to brief a fresh agent (or yourself) and to
 > generate prompts that are synced to a real baseline.
 >
-> **Last refreshed:** 2026-06-11 — end of Session 17 (`cccf38b`). **Nothing
+> **Last refreshed:** 2026-06-19 — end of Session 18 (`a182b9a`). **Nothing
 > pushed yet.**
 
 ## One-liner
@@ -54,7 +54,7 @@ live direction.
 | # | Floor | State |
 |---|---|---|
 | 0 | Utility / Basement | Real mechanic: pull breaker, connect + activate 6 systems; spine pipes glow up the stack. Now below grade. |
-| 1 | Garden | The richest floor + the ground-floor entrance: 30×30 plot grid, seed planting, harvest, Cody GX-5 helper robot, food economy, 3 camera modes. |
+| 1 | Garden | The richest floor + the ground-floor entrance: 30×30 plot grid, seed planting, harvest, Cody GX-5 helper robot, food economy, 3 camera modes. Now has a **floor lifecycle**: boots barren → place 3 planter beds (grid-snapped) → blooms ALIVE → planting unlocks. |
 | 2 | Arboretum (ground) | Plant saplings; genome-driven trees with a growth shader; stairs up. |
 | 3 | Canopy | Glass-floored upper deck; renders crowns of trees grown below. No elevator stop. |
 | 4 | Residential | Blank shell — fully wired, no residents yet. |
@@ -77,8 +77,28 @@ Three traversal methods: multi-destination **elevator** (serves 0, 1, 2, 4, 5),
   are placeholder transitions, not real mechanics. The hire is a name only (no
   mechanical consequence). Save/load + audio are no-ops.
 
-## What just shipped (Session 17 — local only, not pushed)
+## What just shipped (Session 18 — local only, not pushed)
 
+**The floor-population lifecycle — barren → place → ALIVE → plant.** The Garden now
+boots as a dark, empty field and the player builds it to life before farming it, on
+top of the Session-17 gate. `GameState.garden = {populated, alive, placed}` mirrors the
+utility pattern; `interiors_unlocked` was re-purposed to gate PLACEMENT (planting now
+gates on `garden_alive()`). Plots boot DORMANT (planting skips them); a grid-snapped
+tap-E snaps the player to the nearest cell, validates a clean 3×3 all-dormant zone (no
+free-form, no straddling holes/edges), and `place_planter_bed` activates the zone with a
+scale-pop + dirt-poof + a translucent ghost preview. At `GARDEN_ALIVE_BED_COUNT = 3` the
+floor blooms ALIVE — grow-lights warm in via a `_life` tween (dark while barren) and Cody
+confirms through the Director channel. New `floor_tools_hud.gd` placement palette (mirrors
+the seed selector), faded in only during placement. Bloom is deliberately minimal
+(lights only) — ambience/water are the next slice. Also: **per-floor elevator landing
+doors (F-031)** — in the shared continuous shaft, doors that travel with the car left
+every other floor as an open hole down the glass to the cabin below; each landing now has
+its own closed-by-default door, opened only for the floor the car rests at. Plus a docs
+sync (floor_population_spec marked FIRST SLICE BUILT; `session_summary.py` learns the
+`component_placed` event) and an **OVERNIGHT SLICE brief** — operator direction to extract
+this lifecycle into a reusable module and apply it to one blank floor unattended.
+
+**Earlier (Session 17 — local only).**
 **The Director→mouth channel + the first real gate (the opening sequence ships).**
 The keystone from `docs/vision.md`: `GameDirector` now owns a `DIRECTIVES` library
 (mouth-agnostic content — lines + objective + telemetry id) and a routable channel.
@@ -159,11 +179,13 @@ placement, partner on-site (`C-001`).
 
 *Each "Make it playable" session opens here, picks one, ships it small.*
 
-- **Floor-population slice** (the planned next build, `docs/floor_population_spec.md`):
-  close the post-gate "now what?" gap. Replace the interim gate→plant with
-  gate→populate→ALIVE→plant — slot-based grid-snapped placement of one component
-  (a planter bed) on bare ground, with Cody introducing the verb through the
-  Director channel. Reuses the gate + directive channel that just shipped.
+- **Generalize the floor lifecycle** (the OVERNIGHT brief, `docs/floor_population_spec.md`):
+  extract the Garden's barren→place→ALIVE→plant lifecycle (now shipped) into a reusable
+  module and apply it to one blank floor (Residential or Sky Lounge) with placeholder
+  content — breadth-first, grid-snapped, mechanic-not-narrative.
+- **Deepen the Garden bloom** (Steps 4–5): the ALIVE moment is lights-only right now;
+  add ambience / grow-light / water components so bringing the floor to life is richer
+  than a brightness tween.
 - Give the **hire** a single mechanical consequence (one stat or one unlocked
   verb that differs across the 5 partners) so the choice stops being cosmetic.
 - Add **water / sunlight gating** to one tree variety so growth is earned, not
