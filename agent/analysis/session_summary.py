@@ -158,6 +158,28 @@ def summarize(path: Path) -> dict:
     placements = [e for e in events if e.get("event") == "component_placed"]
     first_placement = placements[0] if placements else None
 
+    # Per-floor lifecycle (component_placed + floor_alive carry floor + level).
+    _fl: dict = {}
+    for e in events:
+        ev = e.get("event")
+        if ev not in ("component_placed", "floor_alive"):
+            continue
+        key = str(e.get("floor", e.get("level", "?")))
+        f = _fl.setdefault(key, {
+            "floor": e.get("floor", key), "level": e.get("level"),
+            "placed": 0, "first_placement_ms": None, "alive_ms": None,
+        })
+        if ev == "component_placed":
+            f["placed"] += 1
+            if f["first_placement_ms"] is None:
+                f["first_placement_ms"] = int(e.get("t_ms", 0))
+        elif ev == "floor_alive" and f["alive_ms"] is None:
+            f["alive_ms"] = int(e.get("t_ms", 0))
+    floor_lifecycles = sorted(
+        _fl.values(),
+        key=lambda f: (f["first_placement_ms"] if f["first_placement_ms"] is not None else (f["alive_ms"] or 0)),
+    )
+
     # Time-to-X (from session start, which is t_ms≈0).
     hire = first_event(events, "partner_hired")
     first_plant = planted[0] if planted else None
@@ -180,6 +202,8 @@ def summarize(path: Path) -> dict:
         "crops_harvested_by_player": harvested_by_player,
         "director_beats": director_beats,
         "components_placed": len(placements),
+        "floor_lifecycles": floor_lifecycles,
+        "floors_alive": sum(1 for f in floor_lifecycles if f["alive_ms"] is not None),
         "reached_gate_lifted": gate_lifted is not None,
         "reached_floor_alive": floor_alive is not None,
         "time_to": {
@@ -224,11 +248,19 @@ def print_report(s: dict) -> None:
             print(f"    director beat ..... {b['id']:<16} {fmt_ms(b['t_ms'])}")
         print(f"    utilities complete  {fmt_ms(s['time_to']['utilities_complete_ms'])}")
         print(f"    gate lifted ....... {fmt_ms(s['time_to']['gate_lifted_ms'])}")
-        if s["components_placed"] or s["time_to"]["first_placement_ms"] is not None:
-            print(f"    1st component ..... {fmt_ms(s['time_to']['first_placement_ms'])}")
-            print(f"    components placed .. {s['components_placed']}")
-        if s["reached_floor_alive"] or s["time_to"]["floor_alive_ms"] is not None:
-            print(f"    floor alive ....... {fmt_ms(s['time_to']['floor_alive_ms'])}")
+
+    # Per-floor lifecycle — each floor brought from barren → alive.
+    if s["floor_lifecycles"]:
+        print("  " + "─" * 56)
+        print(f"  FLOOR LIFECYCLES  ({s['floors_alive']} brought to life)")
+        for f in s["floor_lifecycles"]:
+            name = str(f["floor"]).upper()
+            lvl = f" F{f['level']}" if f["level"] is not None else ""
+            if f["alive_ms"] is not None:
+                tail = f"placed {f['placed']}, 1st {fmt_ms(f['first_placement_ms'])} → ALIVE {fmt_ms(f['alive_ms'])}"
+            else:
+                tail = f"placed {f['placed']}, 1st {fmt_ms(f['first_placement_ms'])} → not yet alive"
+            print(f"    {name+lvl:<18} {tail}")
 
     tt = s["time_to"]
     print("  " + "─" * 56)
