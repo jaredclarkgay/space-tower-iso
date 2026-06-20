@@ -67,10 +67,13 @@ proof doesn't need. Residential lets the generalization stand on its own. Logged
 
 ### Screenshot / telemetry / assertion VERIFIED (no taste call)
 
-- **Garden unchanged (regression).** `_floorpop_harness` state trace identical to a
-  pre-change baseline (barren → bed → ALIVE; populated 0→1→3; alive flips at 3);
-  screenshots read identically; telemetry funnel identical (now with `level=1`).
-  Re-ran after every step — still identical.
+- **Garden unchanged (regression).** `_floorpop_harness` **state trace and telemetry
+  identical** to a pre-change baseline (barren → bed → ALIVE; populated 0→1→3; alive
+  flips at 3; funnel identical, now with `level=1`), re-run after every step.
+  Screenshots are **visually indistinguishable** — note this is an eyeball + state
+  match, NOT a pixel diff: the bloom pulse + bed scale-pop are time-based, so frames
+  never match byte-for-byte even between two baseline runs (PIL wasn't available for
+  a tolerance diff).
 - **Residential lifecycle works end-to-end.** `_resident_harness` + `_step3_harness`:
   empty shell → place units → crosses ALIVE (populated 0→3, alive at 3). Screenshots
   read clearly barren → 3 magenta placeholder units + bloom.
@@ -89,6 +92,11 @@ proof doesn't need. Residential lets the generalization stand on its own. Logged
 - **No regressions at boot.** Clean parse smoke + clean windowed real-boot (no script
   errors); HUD `_process` walks the tree + resolves the floor every frame across
   hundreds of harness frames with no errors.
+- **Reparented HUD self-gates correctly** (`_hudstate_harness`, post-run audit): hidden
+  in construction, on a no-palette floor (Arboretum 2), and once a floor blooms ALIVE;
+  shown only on a populatable floor (Residential not-alive, Garden gate-lifted). One
+  known cosmetic edge: the Residential HUD could flash on for a frame while *riding the
+  elevator through* Floor 4 (transient `current_level==4`) — minor, not chased.
 
 ### NEEDS HUMAN EYES / FEEL (left for you — I did not tune these)
 
