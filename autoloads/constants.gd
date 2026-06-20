@@ -324,6 +324,22 @@ const DORMANT_PLOT_COLOR := Color(0.13, 0.12, 0.115)  # inert bare ground — fl
 const PLANTER_BED_RIM_COLOR := Color(0.42, 0.30, 0.18) # warm wood rim of a placed bed
 const PLANTER_BED_SOIL_COLOR := Color(0.26, 0.17, 0.11) # fresh dark soil inside the bed
 
+# --- Residential placeholder lifecycle (OVERNIGHT SLICE: 2nd floor proof) -----
+# Residential is the 2nd floor to carry the reusable lifecycle. Its components are
+# explicitly PLACEHOLDER programmatic geometry ("unit") to prove the MECHANIC
+# generalizes — NOT the floor's real worldbuilding (who lives here). Marked
+# unmistakably (vivid magenta + "PLACEHOLDER" labels). A coarse 3×3 unit grid
+# (centre = elevator shaft, skipped) snaps unit drops; place RESIDENTIAL_ALIVE_UNIT_
+# COUNT → ALIVE → a provisional placeholder bloom. These are throwaway knobs, not
+# tuned feel — the real Residential design is a separate live session.
+const RESIDENTIAL_UNIT_PITCH := 7.0          # metres between unit anchors on the placeholder grid
+const RESIDENTIAL_UNIT_HALF_SPAN := 1        # anchors run -N..N on each axis → (2N+1)² grid
+const RESIDENTIAL_ALIVE_UNIT_COUNT := 3      # placeholder units to place before ALIVE
+const RESIDENTIAL_UNIT_REACH := 3.0          # how close the player stands to a slot to place
+const RESIDENTIAL_UNIT_FOOTPRINT := 4.0      # placeholder unit box side (metres)
+const PLACEHOLDER_COLOR := Color(0.92, 0.16, 0.78)   # vivid magenta — screams "not final"
+const PLACEHOLDER_COLOR_DIM := Color(0.34, 0.10, 0.30) # the placeholder ghost / dim accents
+
 # Seed type order — the canonical mapping for number-key selection 1..6 and
 # for any code that iterates seed types in display order.
 const SEED_TYPE_ORDER: Array = [
