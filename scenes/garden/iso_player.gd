@@ -151,9 +151,16 @@ var _is_planting := false
 var _plant_progress := 0.0
 var _plant_target: Variant = null
 var _nearest_empty_plot: Variant = null
-# Nearest legal planter-bed slot (a grid anchor Vector2i) during the PLACEMENT phase
-# — gate lifted, Garden not yet alive. tap-E places a bed here. null otherwise.
+# Nearest legal placement slot (a grid anchor Vector2i) during the PLACEMENT phase
+# — the floor the player is on is populatable. tap-E places a component here. null
+# otherwise.
 var _nearest_bed_slot: Variant = null
+# The floor node currently driving the place verb (the one the player stands on, if
+# it carries the lifecycle + is populatable). Resolved each frame; null off-phase.
+var _populatable_floor: Node = null
+# The tower controller (the Player's parent) — resolves the current floor node so the
+# place verb is floor-agnostic. Set in _ready().
+var _tower_ctrl: Node = null
 
 # Prompt above the head when a harvestable plot is in range. Two stacked
 # Label3Ds: a tiny "E" key label, and a slightly larger "Harvest <PlantName>"
@@ -254,6 +261,11 @@ func _ready() -> void:
 		_camera_pivot = get_node(camera_pivot_path)
 	if iso_floor_path:
 		_iso_floor = get_node(iso_floor_path)
+	# The Player is a child of the tower controller; it resolves the current floor
+	# node so the place verb works on whatever floor the player is standing on.
+	var p: Node = get_parent()
+	if p and p.has_method("current_floor_node"):
+		_tower_ctrl = p
 	if iso_robot_path:
 		_iso_robot = get_node(iso_robot_path)
 	if iso_dispenser_path:
@@ -444,20 +456,22 @@ func _physics_process(delta: float) -> void:
 	else:
 		_nearest_empty_plot = null
 
-	# Placement phase (floor_population_spec): once the gate's lifted but the Garden
-	# isn't alive yet, offer the nearest grid-snapped planter-bed slot — unless an
-	# E-target (dispenser/robot/tube) already owns the verb this frame. The floor
-	# returns null outside the placement phase, so this is self-gating. Drive the
-	# translucent ghost preview to the candidate slot (null hides it).
-	if _iso_floor and _iso_floor.has_method("find_nearest_bed_slot_near") \
+	# Placement phase (floor_population_spec): offer the nearest grid-snapped slot on
+	# whatever floor the player is standing on, IF that floor carries the lifecycle
+	# and is currently populatable — unless an E-target (dispenser/robot/tube) already
+	# owns the verb this frame. The floor returns null outside its placement phase, so
+	# this is self-gating. On the Garden this resolves to the Garden floor (identical
+	# to before); on Residential, to Residential. Drive the ghost (null hides it).
+	_populatable_floor = _current_populatable_floor()
+	if _populatable_floor \
 			and not dispenser_interactable and not robot_interactable and not tube_interactable:
-		_nearest_bed_slot = _iso_floor.find_nearest_bed_slot_near(
-			global_position, _c.PLANTER_BED_REACH
+		_nearest_bed_slot = _populatable_floor.populate_find_slot(
+			global_position, _populatable_floor.populate_reach()
 		)
 	else:
 		_nearest_bed_slot = null
-	if _iso_floor and _iso_floor.has_method("update_bed_ghost"):
-		_iso_floor.update_bed_ghost(_nearest_bed_slot)
+	if _populatable_floor:
+		_populatable_floor.populate_update_ghost(_nearest_bed_slot)
 
 	if _is_harvesting:
 		var move_canceled: bool = input.length_squared() > 0.001
@@ -501,14 +515,14 @@ func _physics_process(delta: float) -> void:
 			_iso_robot.try_interact()
 		elif tube_interactable:
 			_iso_tubes.try_interact()
-		elif _nearest_bed_slot != null:
-			# Place a planter bed on the snapped slot. Face it first so the
+		elif _nearest_bed_slot != null and _populatable_floor:
+			# Place a component on the snapped slot. Face it first so the
 			# placement reads as a deliberate act, then commit through the floor.
-			var to_slot: Vector3 = _iso_floor.bed_slot_world_pos(_nearest_bed_slot) \
-					+ _iso_floor.global_position - global_position
+			var to_slot: Vector3 = _populatable_floor.populate_slot_local_pos(_nearest_bed_slot) \
+					+ _populatable_floor.global_position - global_position
 			if Vector2(to_slot.x, to_slot.z).length_squared() > 0.001:
 				_facing_yaw = atan2(to_slot.x, to_slot.z)
-			_iso_floor.place_planter_bed(_nearest_bed_slot)
+			_populatable_floor.populate_place(_nearest_bed_slot)
 		elif _nearest_plot != null:
 			# Snap the body to face the plot the player tried to grab —
 			# whether or not we end up actually harvesting it.
@@ -1238,6 +1252,19 @@ func _facing_from_input(input: Vector2) -> int:
 # Called when _plant_progress crosses 1.0. The pouch may have been drained
 # between the press and the completion (e.g. the dispenser ran dry and someone
 # poked the GameState directly), so re-check before paying the seed.
+# The floor the place verb should drive this frame: the floor the player is standing
+# on, if it carries the lifecycle interface. Returns null otherwise (the populate_*
+# calls are themselves self-gating on the floor's populatable state). On the Garden
+# this is the Garden node — identical to the old hardwired _iso_floor path.
+func _current_populatable_floor() -> Node:
+	if _tower_ctrl == null:
+		return null
+	var f: Node = _tower_ctrl.current_floor_node()
+	if f and f.has_method("populate_find_slot"):
+		return f
+	return null
+
+
 func _complete_plant_action() -> void:
 	if _plant_target == null or _iso_floor == null:
 		return

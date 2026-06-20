@@ -95,7 +95,7 @@ mouse_filter = 1
 mouse_filter = 1
 script = ExtResource("14_seed")
 
-[node name="FloorToolsHud" type="Control" parent="HUD/GardenGroup"]
+[node name="FloorToolsHud" type="Control" parent="HUD"]
 mouse_filter = 1
 script = ExtResource("28_tools")
 

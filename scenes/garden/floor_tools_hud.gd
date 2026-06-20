@@ -1,14 +1,16 @@
 extends Control
 
 # Floor-tools palette — the bottom-centre HUD slot for the floor-population
-# PLACEMENT verb (floor_design_system §6; floor_population_spec). For this first
-# slice it carries ONE tool: the planter bed. It appears only during the PLACEMENT
-# phase (gate lifted, Garden not yet alive) and shows the placement progress toward
-# the ALIVE threshold (N / GARDEN_ALIVE_BED_COUNT). Mirrors the seed selector's
-# shape; the palette grows (grow-light, water) in the next slice.
+# PLACEMENT verb (floor_design_system §6; floor_population_spec). Floor-agnostic:
+# it shows the palette of WHATEVER floor the player is currently on (the Garden's
+# planter bed, Residential's placeholder unit, …), reading that floor's
+# populate_palette() descriptor. Shown only while the current floor is populatable
+# (its gate lifted, not yet ALIVE); hidden otherwise. Mirrors the seed selector's
+# shape; the palette grows (more components) in later slices.
 #
-# Reveal/hide is state-driven: shown while `interiors_unlocked && !garden_alive()`,
-# hidden otherwise (barren-unpowered, or once the floor blooms ALIVE).
+# OVERNIGHT SLICE: generalized off the Garden — this used to read GameState.garden
+# directly and gate on interiors_unlocked && !garden_alive(); now it asks the
+# current floor for its palette so a second floor's tools surface the same way.
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -19,7 +21,12 @@ const _HEADER_H := 22.0
 const _BOTTOM_MARGIN := 132.0   # sits just above the seed-selector band
 
 var _count_label: Label
+var _name_label: Label
+var _swatch: ColorRect
 var _shown := false
+# The tower controller — resolves the current floor so the palette tracks whatever
+# floor the player is on (Garden, Residential, …). Walked up the tree in _ready.
+var _tower_ctrl: Node = null
 
 
 func _ready() -> void:
@@ -67,23 +74,23 @@ func _ready() -> void:
 	row.add_theme_constant_override("separation", 10)
 	cell.add_child(row)
 
-	var swatch := ColorRect.new()
-	swatch.color = _c.PLANTER_BED_RIM_COLOR
-	swatch.custom_minimum_size = Vector2(26, 26)
-	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(swatch)
+	_swatch = ColorRect.new()
+	_swatch.color = _c.PLANTER_BED_RIM_COLOR
+	_swatch.custom_minimum_size = Vector2(26, 26)
+	_swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_swatch)
 
 	var text_col := VBoxContainer.new()
 	text_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(text_col)
 
-	var name_label := Label.new()
-	name_label.text = "[E]  Planter Bed"
-	name_label.add_theme_font_size_override("font_size", 16)
-	name_label.add_theme_color_override("font_color", Color(0.92, 0.97, 0.90))
-	name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	name_label.add_theme_constant_override("outline_size", 3)
-	text_col.add_child(name_label)
+	_name_label = Label.new()
+	_name_label.text = "[E]  Planter Bed"
+	_name_label.add_theme_font_size_override("font_size", 16)
+	_name_label.add_theme_color_override("font_color", Color(0.92, 0.97, 0.90))
+	_name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_name_label.add_theme_constant_override("outline_size", 3)
+	text_col.add_child(_name_label)
 
 	_count_label = Label.new()
 	_count_label.add_theme_font_size_override("font_size", 13)
@@ -93,9 +100,27 @@ func _ready() -> void:
 	modulate = Color(1, 1, 1, 0)   # start hidden; faded in on the placement phase
 	visible = false
 
+	# Resolve the tower controller (an ancestor that knows the current floor).
+	var n: Node = get_parent()
+	while n != null and not n.has_method("current_floor_node"):
+		n = n.get_parent()
+	_tower_ctrl = n
+
+
+# The current floor's palette descriptor, or {} if the player isn't on a populatable
+# floor this frame.
+func _current_palette() -> Dictionary:
+	if _tower_ctrl == null:
+		return {}
+	var f: Node = _tower_ctrl.current_floor_node()
+	if f != null and f.has_method("populate_palette"):
+		return f.populate_palette()
+	return {}
+
 
 func _process(_delta: float) -> void:
-	var should_show: bool = bool(_gs.get("interiors_unlocked")) and not bool(_gs.call("garden_alive"))
+	var palette: Dictionary = _current_palette()
+	var should_show: bool = not palette.is_empty() and bool(palette.get("populatable", false))
 	if should_show != _shown:
 		_shown = should_show
 		visible = true
@@ -103,7 +128,10 @@ func _process(_delta: float) -> void:
 		tween.tween_property(self, ^"modulate:a", 1.0 if should_show else 0.0, 0.3)
 		if not should_show:
 			tween.tween_callback(func(): visible = false)
-	if should_show and _count_label:
-		var placed: int = int(_gs.garden.get("populated", 0))
-		var need: int = int(_c.GARDEN_ALIVE_BED_COUNT)
-		_count_label.text = "%d / %d placed — bring the Garden alive" % [placed, need]
+	if should_show:
+		_swatch.color = palette.get("swatch", _c.PLANTER_BED_RIM_COLOR)
+		_name_label.text = "[E]  %s" % String(palette.get("label", ""))
+		var placed: int = int(palette.get("populated", 0))
+		var need: int = int(palette.get("threshold", 0))
+		var prompt: String = String(palette.get("prompt", ""))
+		_count_label.text = "%d / %d placed — %s" % [placed, need, prompt]

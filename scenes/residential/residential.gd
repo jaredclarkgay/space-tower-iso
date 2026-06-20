@@ -109,6 +109,10 @@ func populate_reach() -> float:
 	return float(_c.RESIDENTIAL_UNIT_REACH)
 
 
+func populate_slot_local_pos(anchor: Vector2i) -> Vector3:
+	return _slot_local_pos(anchor)
+
+
 # Palette descriptor for the bottom-centre Floor Tools HUD.
 func populate_palette() -> Dictionary:
 	var st: Dictionary = _gs.floor_state("residential")

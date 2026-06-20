@@ -1891,3 +1891,13 @@ func _name_for_level(level: int) -> String:
 		if int(f.level) == level:
 			return String(f.name)
 	return ""
+
+
+# The floor node the player is currently on (matches _current_level), or null.
+# Public so the floor-agnostic placement verb (iso_player) + the Floor Tools HUD
+# can drive the lifecycle on whatever floor the player is standing on.
+func current_floor_node() -> Node3D:
+	for f in _floors:
+		if int(f.level) == _current_level:
+			return f.node
+	return null

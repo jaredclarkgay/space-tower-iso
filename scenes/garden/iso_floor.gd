@@ -621,6 +621,48 @@ func place_planter_bed(coord: Vector2i) -> bool:
 	return _lifecycle.place(coord)
 
 
+# --- Generic lifecycle interface (the floor-agnostic place verb + HUD) --------
+# Every populatable floor exposes these mirror names, so iso_player drives the place
+# verb on whatever floor the player is standing on. The Garden's old bed_* names stay
+# for the _floorpop_harness; both hit the same _lifecycle instance.
+func populate_find_slot(world_pos: Vector3, reach: float) -> Variant:
+	return _lifecycle.find_slot(world_pos, reach)
+
+
+func populate_update_ghost(anchor_or_null) -> void:
+	_lifecycle.update_ghost(anchor_or_null)
+
+
+func populate_place(anchor: Vector2i) -> bool:
+	return _lifecycle.place(anchor)
+
+
+func populate_is_alive() -> bool:
+	return _lifecycle.is_alive()
+
+
+func populate_reach() -> float:
+	return float(_c.PLANTER_BED_REACH)
+
+
+func populate_slot_local_pos(anchor: Vector2i) -> Vector3:
+	return bed_slot_world_pos(anchor)
+
+
+# Palette descriptor for the bottom-centre Floor Tools HUD. Mirrors the values the
+# HUD showed when it was Garden-only, so the Garden HUD reads identically.
+func populate_palette() -> Dictionary:
+	return {
+		"floor_id": "garden",
+		"label": "Planter Bed",
+		"swatch": _c.PLANTER_BED_RIM_COLOR,
+		"populated": int(_gs.floor_state("garden").get("populated", 0)),
+		"threshold": int(_c.GARDEN_ALIVE_BED_COUNT),
+		"populatable": _garden_is_populatable(),
+		"prompt": "bring the Garden alive",
+	}
+
+
 # --- Garden's content declaration (the per-floor half of the lifecycle) -----
 
 # The Garden's populating gate: power lifts placement (interiors_unlocked), and the
