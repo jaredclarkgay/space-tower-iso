@@ -38,3 +38,9 @@ export.cfg
 # anytime; not part of the game.
 /_*_harness.*
 /_shots/
+
+# graphify code-graph output. Regenerable for free with `graphify update .`
+# (no API cost) and goes stale as code changes. Keep the human-readable
+# report; ignore the bulky/churny graph data, interactive HTML, and cache.
+/graphify-out/*
+!/graphify-out/GRAPH_REPORT.md
