@@ -16,6 +16,7 @@ USAGE
     python3 agent/analysis/session_summary.py --list      # list available sessions
     python3 agent/analysis/session_summary.py --json      # machine-readable summary
     python3 agent/analysis/session_summary.py --all        # aggregate across all sessions
+    python3 agent/analysis/session_summary.py --agent      # Builder Agent self-knowledge readout
 
 Where the data lives (resolved automatically): Godot's user:// for this project,
 i.e. on macOS
@@ -324,6 +325,84 @@ def print_aggregate(files: list[Path]) -> None:
     print()
 
 
+# ----------------------------------------------------- agent advancement -----
+
+AGENT_DIR = REPO_ROOT / "agent"
+
+
+def _load_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def agent_advancement() -> dict:
+    """Snapshot of the Builder Agent's self-knowledge — the 'is it advancing?' lens.
+
+    A pure reader over agent/ state. It invents no score: durable learnings are
+    counted as rules/ files, progress is the confidence spread across competency
+    domains, and the human-attention cost is how many asks are still open. This
+    is the honest stand-in for the never-implemented 'transfer value' metric —
+    everything here is derived from files that already exist.
+    """
+    # Durable, high-transfer learnings = the rules/ files (the de-facto
+    # transfer-value triage: a pattern worth generalizing earns a rule).
+    rules_dir = AGENT_DIR / "rules"
+    rules = sorted(rules_dir.glob("*.md")) if rules_dir.is_dir() else []
+
+    # Competency: confidence band per domain.
+    comp = _load_json(AGENT_DIR / "competency_map.json") or {}
+    domains = comp.get("domains", {}) if isinstance(comp, dict) else {}
+    conf: dict[str, int] = {}
+    for v in domains.values():
+        if isinstance(v, dict):
+            band = v.get("confidence", "?")
+            conf[band] = conf.get(band, 0) + 1
+
+    # Failures logged (append-only — the "don't re-solve" memory).
+    flog = _load_json(AGENT_DIR / "failure_log.json") or {}
+    failures = len(flog.get("entries", [])) if isinstance(flog, dict) else 0
+
+    # Open human asks, and how many are high-priority (the attention bottleneck).
+    rq = _load_json(AGENT_DIR / "request_queue.json") or {}
+    queue = rq.get("queue", []) if isinstance(rq, dict) else []
+    open_statuses = {"queued", "parked"}
+    open_asks = [it for it in queue if it.get("status") in open_statuses]
+    open_high = sum(1 for it in open_asks if it.get("priority") == "high")
+    resolved = sum(1 for it in queue if it.get("status") == "resolved")
+
+    return {
+        "rules": len(rules),
+        "rule_files": [r.name for r in rules],
+        "competency_domains": len(domains),
+        "confidence": conf,
+        "failures_logged": failures,
+        "requests_total": len(queue),
+        "requests_open": len(open_asks),
+        "requests_open_high": open_high,
+        "requests_resolved": resolved,
+    }
+
+
+def print_agent(a: dict) -> None:
+    print("\n  AGENT ADVANCEMENT  (Builder Agent self-knowledge — snapshot)")
+    print("  " + "─" * 56)
+    # Confidence ordered high → low, showing only bands that exist.
+    order = ["high", "medium", "low"]
+    bands = [b for b in order if a["confidence"].get(b)]
+    bands += [b for b in a["confidence"] if b not in order]
+    conf_str = ", ".join(f"{a['confidence'][b]} {b}" for b in bands) or "—"
+    print(f"  Rules written ....... {a['rules']}  (durable, high-transfer learnings)")
+    print(f"  Competency .......... {a['competency_domains']} domains: {conf_str}")
+    print(f"  Failures logged ..... {a['failures_logged']}")
+    print(
+        f"  Open human asks ..... {a['requests_open']}  ({a['requests_open_high']} high-priority)"
+        f"    ·  {a['requests_resolved']} resolved"
+    )
+    print()
+
+
 # ------------------------------------------------------------------ main -----
 
 def main(argv: list[str] | None = None) -> int:
@@ -332,7 +411,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--list", action="store_true", help="list available sessions and exit")
     ap.add_argument("--json", action="store_true", help="emit the summary as JSON")
     ap.add_argument("--all", action="store_true", help="aggregate across all sessions")
+    ap.add_argument("--agent", action="store_true", help="show Builder Agent self-knowledge advancement (reads agent/ state)")
     args = ap.parse_args(argv)
+
+    # --agent reads agent/ state, not telemetry — handle before resolving sessions
+    # so it works even when no play session has been recorded yet.
+    if args.agent:
+        a = agent_advancement()
+        if args.json:
+            print(json.dumps(a, indent=2))
+        else:
+            print_agent(a)
+        return 0
 
     chosen, files = resolve_target(args.path)
 

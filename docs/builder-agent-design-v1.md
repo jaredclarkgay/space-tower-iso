@@ -193,7 +193,7 @@ Specific, categorized records of what went wrong and why. Not a bug tracker — 
 
 ### 4. Request Queue (`request_queue`)
 
-Structured asks to the human, prioritized by transfer value — how much future work each answer unblocks.
+Structured asks to the human, ordered by a coarse `priority` field (high / medium). The intent is leverage-first — an answer that unblocks many future tasks outranks a one-off — but in practice this is a hand-set label, not a computed score (see "Leverage, not a metric" below).
 
 ```json
 {
@@ -291,20 +291,26 @@ Structured asks to the human, prioritized by transfer value — how much future 
 └─────────────────────────────────────────────────────────┘
 ```
 
-### The Key Metric: Transfer Value
+### Leverage, not a metric
 
-Not all learning is equal. The agent prioritizes requests and learnings by **transfer value** — how many future tasks benefit from this one piece of knowledge.
+> **Status (2026-06):** Originally specced as a quantified "transfer value"
+> score. Never implemented — the example JSON blocks below still show a
+> `transfer_value` annotation field, but the real `agent/*.json` files never
+> adopted it, and the request queue uses a flat `priority: high|medium`. What's live, and does the real work,
+> is the habit below. Treat it as a heuristic, not a number. (`agent/analysis/session_summary.py --agent` prints the honest snapshot: rules written, competency-confidence spread, open asks.)
 
-High transfer value examples:
-- "How to structure Godot scene trees for the sim" → affects every floor, every module, every NPC
-- "What does the right movement feel like" → affects every physics interaction
-- "How many discrete color bands in the sky" → affects every altitude-aware visual
+Not all learning is equal. Prioritize requests and learnings by **leverage** — how many future tasks benefit from one piece of knowledge. The single litmus: *"If I learn this one thing, how many problems does it solve?"*
 
-Low transfer value examples:
-- "What color is the corner store sign" → affects one asset
+Its operational form already exists: **a learning that generalizes earns a `rules/` file; a one-off doesn't.** That triage *is* the idea, made concrete without a score.
+
+High leverage (→ write a rule / ask early):
+- "How to structure Godot scene trees for the sim" → every floor, every module, every NPC
+- "What does the right movement feel like" → every physics interaction
+- "How many discrete color bands in the sky" → every altitude-aware visual
+
+Low leverage (→ just fix it, log if it bites):
+- "What color is the corner store sign" → one asset
 - "Fix this specific GDScript error" → one-time fix
-
-The agent should always be asking: *"If I learn this one thing, how many problems does it solve?"*
 
 ---
 
@@ -490,7 +496,7 @@ The manual parts become automatic:
 **What stays the same:**
 - The state schema (project_knowledge, competency_map, failure_log, request_queue)
 - The approval gate on self-modification
-- The transfer value prioritization
+- The leverage-first triage (generalizes → rule; one-off → fix)
 - The JSON-serializable, human-readable format
 - The boundary between agent and RGB
 
