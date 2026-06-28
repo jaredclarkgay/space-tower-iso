@@ -286,16 +286,18 @@ func _spawn_in_garden() -> void:
 # cinematic is enabled) it plays the scripted walk-in; every later entry is the
 # plain spawn. Called from both enter_tower() and _enter_building() in place of the
 # bare _spawn_in_garden().
-func _arrive_in_garden() -> void:
+func _arrive_in_garden(walked_in: bool = false) -> void:
 	if bool(_c.ARRIVAL_CINE_ENABLED) and not _arrival_played:
-		_begin_arrival_cinematic()
+		_begin_arrival_cinematic(walked_in)
 	else:
 		_spawn_in_garden()
 
 
 # Beat 0-1 entry: place the player just inside the south doorway, snap the camera to
 # the behind-the-back framing, flip on the cinematic and kick off Beat 1 (the walk).
-func _begin_arrival_cinematic() -> void:
+# `walked_in` = the player physically crossed the threshold (vs. the hire/dev hand-off
+# that drops them on the lot): when true, keep their exact pose instead of relocating.
+func _begin_arrival_cinematic(walked_in: bool = false) -> void:
 	_arrival_played = true
 	_arrival_cine = true
 	_arrival_beat = 1
@@ -321,10 +323,18 @@ func _begin_arrival_cinematic() -> void:
 	if elevator0 and elevator0.has_method("cinematic_reset"):
 		elevator0.call("cinematic_reset")
 	_gs.set("arrival_cinematic", true)
+	# Only RELOCATE to the south-door spawn when the player arrives from OUTSIDE the footprint
+	# (the hire / debug hand-off drops them out on the lot). When they physically WALKED across
+	# the threshold they're already just inside a doorway — keep their EXACT position AND heading
+	# so there's no jump/turn at the door; the scripted walk below simply eases them on to the
+	# mark from wherever they crossed (the walk direction ≈ their entry heading, so no snap).
+	# Mirrors the re-entry no-teleport rule (FIX 3). The site ground is at grade with the Garden,
+	# so a walk-in's Y already matches the floor — no vertical pop from keeping it.
 	var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
-	_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
-	if _player is CharacterBody3D:
-		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	if not walked_in:
+		_player.global_position = Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_DOOR_Z))
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
 	if _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
 	# CALM REDESIGN: seed the persistent _cam_* members DIRECTLY AT the settled
@@ -693,7 +703,7 @@ func _enter_building() -> void:
 		if _player and _player.has_method("set_spawn_here"):
 			_player.set_spawn_here()
 	else:
-		_arrive_in_garden()
+		_arrive_in_garden(true)               # first-time, but they WALKED across the threshold: keep their pose
 	_hud_level = -1                           # force the floor header to push (iso_camera resumes)
 	_update(true)
 
@@ -1218,11 +1228,15 @@ func _blend_intro_pose() -> void:
 	var to_cam_basis: Basis = _camera.global_transform.basis
 	var to_size: float = _camera.size
 	var blended_world: Vector3 = _intro_from_cam_world.lerp(to_cam_world, e)
-	# FIX 1 also during the ease-in: clamp the blended camera WORLD XZ over the footprint so
-	# the glide (which may start from the far exterior-walk pose) never peers under the slab.
+	# Ease the footprint clamp IN by intro progress. At e=0 hold the EXACT captured live pose
+	# (the exterior-walk camera legitimately sits OUTSIDE the footprint and frames the at-grade
+	# site ground, not void) — a hard clamp here yanked that far start pose inward on frame 1,
+	# which was the entry "jump". By e=1 the pose is fully clamped so the close OTS end-framing
+	# still never peers under the slab. (to_cam_world is already clamped, so the destination is
+	# safe; only the START needed un-clamping.)
 	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5 - float(_c.ARRIVAL_CINE_CAM_FOOTPRINT_MARGIN)
-	blended_world.x = clampf(blended_world.x, -half, half)
-	blended_world.z = clampf(blended_world.z, -half, half)
+	var clamped := Vector3(clampf(blended_world.x, -half, half), blended_world.y, clampf(blended_world.z, -half, half))
+	blended_world = blended_world.lerp(clamped, e)
 	var blended_basis: Basis = _intro_from_cam_basis.slerp(to_cam_basis, e)
 	# Write the blended WORLD pose back (Godot derives the local transform under the pivot).
 	_camera.global_transform = Transform3D(blended_basis, blended_world)
@@ -1540,11 +1554,12 @@ func _drive_environment(snap: bool) -> void:
 	# Garden's interior identity toward the open-sky exterior the closer the player
 	# is to a perimeter doorway, so light floods in as you near the doors and fades
 	# as you go deep inside — stepping in/out is a gradient, not a hard switch.
+	var b: float = 0.0   # 0 = deep interior, 1 = at the wall/threshold; only meaningful on the ground floor
 	if _current_level == _SPAWN_LEVEL and _player:
 		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 		var pos: Vector3 = _player.global_position
 		var edge_dist: float = maxf(absf(pos.x), absf(pos.z))   # Chebyshev: distance to the nearest wall plane
-		var b: float = smoothstep(half * 0.5, half, edge_dist)  # 0 deep interior → 1 at the wall/threshold
+		b = smoothstep(half * 0.5, half, edge_dist)             # 0 deep interior → 1 at the wall/threshold
 		if b > 0.0:
 			p = _blend_preset(p, _preset_for(-1), b)
 	var env := _world_env.environment
@@ -1561,10 +1576,15 @@ func _drive_environment(snap: bool) -> void:
 	# dim + cool — until the utilities come on. When interiors_unlocked flips true,
 	# the per-frame ease below warms it back to full identity: the felt payoff.
 	if _current_level == _SPAWN_LEVEL and _gs and not bool(_gs.get("interiors_unlocked")):
-		energy *= 0.42
-		sun *= 0.30
-		amb = (amb as Color).lerp(Color(0.10, 0.12, 0.18), 0.5)
-		bg = (bg as Color).lerp(Color(0.03, 0.04, 0.06), 0.55)
+		# Fade the unpowered darkening by doorway distance (same `b` as the daylight
+		# blend above): 0 at the threshold → no darkening, so the exterior/ground reads
+		# the SAME daylight whether you're inside or out; 1 deep inside → full dim+cool.
+		# Entering is now a gradient, not a cut to night.
+		var d: float = 1.0 - b
+		energy *= lerpf(1.0, 0.42, d)
+		sun *= lerpf(1.0, 0.30, d)
+		amb = (amb as Color).lerp(Color(0.10, 0.12, 0.18), 0.5 * d)
+		bg = (bg as Color).lerp(Color(0.03, 0.04, 0.06), 0.55 * d)
 	var tod: Node = get_node_or_null("/root/TimeOfDay")
 	var running: bool = tod != null and bool(tod.running)
 	var s: Dictionary = _sky_state(float(_gs.time_of_day)) if running else {}
