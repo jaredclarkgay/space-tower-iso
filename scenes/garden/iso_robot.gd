@@ -857,10 +857,7 @@ func _render_director_line() -> void:
 	for child in _dialogue_choices_vbox.get_children():
 		child.queue_free()
 	var last: bool = _director_idx >= _director_lines.size() - 1
-	var btn := Button.new()
-	btn.text = "▸ On it" if last else "▸ Continue"
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.add_theme_font_size_override("font_size", 16)
+	var btn := _make_choice_button("▸ On it" if last else "▸ Continue")
 	btn.pressed.connect(_advance_director_line)
 	_dialogue_choices_vbox.add_child(btn)
 
@@ -890,83 +887,121 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
+# A conversation "reply chip": large copy, generous padding, a rounded fill with a
+# bright left accent strip, and a clear hover/press/focus glow so choosing a line
+# reads as a deliberate, inviting action (not a plain text button). Shared by the
+# choice list and the director-mode Continue/On-it button so they look identical.
+func _make_choice_button(label: String) -> Button:
+	var btn := Button.new()
+	btn.text = label
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_font_size_override("font_size", 23)
+	btn.add_theme_color_override("font_color", Color(0.86, 0.94, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.52))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.85, 0.30))
+	btn.add_theme_color_override("font_focus_color", Color(1.0, 0.92, 0.52))
+	# Rest / hover / press / keyboard-focus states.
+	btn.add_theme_stylebox_override("normal", _choice_stylebox(Color(0.10, 0.18, 0.27, 0.88), Color(0.30, 0.68, 0.78, 0.55)))
+	var lit := _choice_stylebox(Color(0.17, 0.30, 0.43, 0.96), Color(1.0, 0.85, 0.30, 0.95))
+	btn.add_theme_stylebox_override("hover", lit)
+	btn.add_theme_stylebox_override("focus", lit)
+	btn.add_theme_stylebox_override("pressed", _choice_stylebox(Color(0.08, 0.13, 0.20, 0.96), Color(1.0, 0.85, 0.30, 0.95)))
+	return btn
+
+
+# StyleBox for a reply chip: rounded, padded, with a thick bright strip on the left
+# edge as a visual "pick me" accent.
+func _choice_stylebox(bg: Color, border: Color) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.border_color = border
+	s.set_border_width_all(2)
+	s.border_width_left = 5   # bright accent strip down the left edge
+	s.set_corner_radius_all(9)
+	s.content_margin_left = 16
+	s.content_margin_right = 16
+	s.content_margin_top = 11
+	s.content_margin_bottom = 11
+	return s
+
+
 func _build_dialogue_panel() -> void:
 	if _hud == null:
 		return
 	var p := PanelContainer.new()
 	p.name = "CodyDialogue"
-	# Anchored to the bottom-left half of the screen so it doesn't span
-	# the full frame and crowd the right-side HUD.
+	# Pinned to the bottom-LEFT corner, sized to its CONTENT and growing UPWARD: the box is
+	# exactly as tall as the header + message + however many reply chips the node has, so it
+	# never clips an option off the bottom and never leaves dead space. Width is fixed; height
+	# follows content. (anchors collapse to the bottom-left point; grow dirs do the expanding.)
 	p.anchor_left = 0.0
-	p.anchor_right = 0.5
+	p.anchor_right = 0.0
 	p.anchor_top = 1.0
 	p.anchor_bottom = 1.0
-	p.offset_left = 24.0
-	p.offset_top = -300.0
-	p.offset_right = -12.0
-	p.offset_bottom = -24.0
+	p.grow_horizontal = Control.GROW_DIRECTION_END    # extend rightward from the left edge
+	p.grow_vertical = Control.GROW_DIRECTION_BEGIN     # grow upward from the bottom edge
+	p.offset_left = 28.0
+	p.offset_right = 28.0
+	p.offset_top = -28.0
+	p.offset_bottom = -28.0
+	p.custom_minimum_size = Vector2(580.0, 0.0)
 	p.mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.10, 0.16, 0.94)
+	style.bg_color = Color(0.06, 0.10, 0.16, 0.95)
 	style.border_color = Color(0.30, 0.68, 0.78, 0.70)
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	style.corner_radius_top_left = 12
-	style.corner_radius_top_right = 12
-	style.corner_radius_bottom_right = 12
-	style.corner_radius_bottom_left = 12
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(14)
 	style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
-	style.shadow_size = 14
-	style.shadow_offset = Vector2(0, 5)
+	style.shadow_size = 16
+	style.shadow_offset = Vector2(0, 6)
 	p.add_theme_stylebox_override("panel", style)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_bottom", 16)
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	p.add_child(margin)
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 18)
-	margin.add_child(hbox)
+	# One column: header (avatar + name) → message → reply chips.
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 14)
+	margin.add_child(col)
 
-	# 3D Cody preview (auto-spinning) — same component the Schematics modal
-	# uses, so the dialogue and the schematic show identical chassis.
+	# Header: a small auto-spinning Cody avatar beside the speaker name. Same component
+	# the Schematics modal uses, so the dialogue and the schematic show identical chassis.
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 14)
+	col.add_child(header)
+
 	var portrait := _CODY_3D_VIEW.new()
-	portrait.custom_minimum_size = Vector2(160, 160)
+	portrait.custom_minimum_size = Vector2(88, 88)
 	portrait.rotatable = false
 	portrait.auto_spin = true
 	portrait.auto_spin_rate = 0.55
-	hbox.add_child(portrait)
-
-	var vbox := VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 8)
-	hbox.add_child(vbox)
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(portrait)
 
 	_dialogue_name_label = Label.new()
 	_dialogue_name_label.text = "CODY GX-5"
 	_dialogue_name_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
 	_dialogue_name_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
 	_dialogue_name_label.add_theme_constant_override("outline_size", 4)
-	_dialogue_name_label.add_theme_font_size_override("font_size", 22)
-	vbox.add_child(_dialogue_name_label)
+	_dialogue_name_label.add_theme_font_size_override("font_size", 28)
+	_dialogue_name_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_dialogue_name_label)
 
 	_dialogue_text = Label.new()
 	_dialogue_text.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
-	_dialogue_text.add_theme_font_size_override("font_size", 17)
+	_dialogue_text.add_theme_font_size_override("font_size", 24)
+	_dialogue_text.add_theme_constant_override("line_spacing", 5)
 	_dialogue_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_dialogue_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(_dialogue_text)
+	col.add_child(_dialogue_text)
 
 	_dialogue_choices_vbox = VBoxContainer.new()
-	_dialogue_choices_vbox.add_theme_constant_override("separation", 4)
-	vbox.add_child(_dialogue_choices_vbox)
+	_dialogue_choices_vbox.add_theme_constant_override("separation", 9)
+	col.add_child(_dialogue_choices_vbox)
 
 	_hud.add_child(p)
 	_dialogue_panel = p
@@ -993,10 +1028,7 @@ func _show_dialogue_node(node_id: String) -> void:
 	for child in _dialogue_choices_vbox.get_children():
 		child.queue_free()
 	for i in range(choices.size()):
-		var btn := Button.new()
-		btn.text = "%d. %s" % [i + 1, choices[i].label]
-		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		btn.add_theme_font_size_override("font_size", 16)
+		var btn := _make_choice_button("%d. %s" % [i + 1, choices[i].label])
 		var idx := i
 		btn.pressed.connect(func(): _on_choice_selected(idx))
 		_dialogue_choices_vbox.add_child(btn)
