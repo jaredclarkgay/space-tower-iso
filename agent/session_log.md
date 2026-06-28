@@ -1691,3 +1691,59 @@ above; this entry records what wasn't yet in the agent files.
   step via the windowed harness, don't touch Garden feel knobs, stay in the engine
   lane, log forks, leave a morning report. This is the next build's brief, not yet
   started.
+
+---
+
+## 2026-06-28 — Capture: OVERNIGHT floor-lifecycle generalization landed + reader/docs follow-ups
+
+Bookkeeping over commits `691cf5b → 0ea2ed2` (not pushed). The unattended OVERNIGHT
+SLICE (briefed in `a182b9a`) ran and shipped; full detail lives in
+`agent/overnight_report_2026-06-19.md` (per-commit, floor-choice rationale,
+verified-vs-needs-eyes, deferred calls). This entry records what's new in the agent files.
+
+**The lifecycle is now a REUSABLE module, proven on a 2nd floor.**
+- `691cf5b` — NEW `scenes/shared/floor_lifecycle.gd`: an **instanced** (`RefCounted`,
+  stateful) helper owning the shared machinery — lifecycle state, the place verb
+  (find_slot/update_ghost/place), the grid-snap ghost, the ALIVE threshold transition,
+  and telemetry (`component_placed`/`floor_alive` now carry the floor **level**). A floor
+  `declare(...)`s its content via a config dict of scalars + Callables. `GameState`
+  generalized to `floor_state(id)`/`floor_alive(id)` with `"garden"` aliasing back to the
+  original dict; `garden_alive()` delegates. Garden kept its public method names as thin
+  delegators → `iso_player` + harness unchanged. **Garden verified identical** by
+  state-trace + telemetry (NOT pixel diff — bloom/scale-pop are time-based; eyeballed).
+- `ae13f30` — Residential (Floor 4, structurally simplest blank floor) DECLARES a
+  **PLACEHOLDER** palette: vivid-magenta "UNIT (placeholder)" boxes on a coarse 3×3 grid
+  (centre shaft skipped), placeholder warm-light bloom. Mechanic only, NOT worldbuilding
+  (Q-005). `RESIDENTIAL_*`/`PLACEHOLDER_*` throwaway constants kept separate from Garden
+  feel knobs. R-001 logs the two forks (floor=Residential; trigger=populatable-on-reach,
+  reversible to a `garden_alive()`-style gate).
+- `230a299` — floor-AGNOSTIC place verb + generalized HUD: `tower_controller.current_floor_node()`;
+  `iso_player` placement input resolves the current floor and drives its `populate_*`
+  interface (so the SAME input populates whatever floor you stand on); `floor_tools_hud`
+  reads the current floor's `populate_palette()`, reparented `HUD/GardenGroup → HUD` so
+  it's no longer Garden-gated. Verified via REAL `Input.action_press` on both floors.
+
+**Honesty + audit follow-ups** (`d462645`/`97fc02e`): morning report written; the
+"Garden reads identically" claim corrected to state+telemetry-identical / screenshots
+eyeballed; `_hudstate_harness` post-run audit confirms the reparented top-level HUD
+self-gates correctly (hidden in construction / no-palette floor / once ALIVE; shown only
+on a populatable floor) — one cosmetic edge: it can flash for a frame while riding the
+elevator *through* Floor 4.
+
+**Reader caught up** (`fcdbfbf`): `session_summary.py` now groups `component_placed` +
+`floor_alive` by floor into a FLOOR LIFECYCLES block (each floor's placed count, 1st-
+placement time, barren→ALIVE time), replacing the floor-merged line that hid 2nd-floor
+blooms. Verified on a long run: Garden ALIVE 1:27, Residential ALIVE 3:55. (The
+per-floor *OPENING FUNNEL* readout is still opening-shaped — flagged in R-001 as an
+analysis-lane follow-up.)
+
+**Project-map docs** (no code): `e273fca` adds `graphify-out/GRAPH_REPORT.md` (browsable
+map; bulky graph.json/html/cache gitignored, refresh via `graphify update .`); `0ea2ed2`
+adds `ARCHITECTURE_REPORT.md` (deep-dive).
+
+New rule `generalize_single_instance_via_declared_config.md` (generalize a hardwired
+single-instance system: declare-via-Callables, delegate-old-names, id-key the store,
+resolve-current-at-call-site; regression oracle = state-trace+telemetry, not pixel diff).
+Competency v2.0: `floor_population_lifecycle` → high. No failures shipped (the one bug —
+Residential missing `populate_slot_local_pos` — was caught by the input-driven harness
+and fixed within Step 3 before commit).

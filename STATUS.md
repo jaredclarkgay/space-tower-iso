@@ -8,7 +8,7 @@
 > the present tense.** Use it to brief a fresh agent (or yourself) and to
 > generate prompts that are synced to a real baseline.
 >
-> **Last refreshed:** 2026-06-19 — end of Session 18 (`a182b9a`). **Nothing
+> **Last refreshed:** 2026-06-28 — end of Session 19 (`0ea2ed2`). **Nothing
 > pushed yet.**
 
 ## One-liner
@@ -24,7 +24,7 @@ live direction.
 
 - Godot 4.x (4.6 targeted), GDScript only, GL Compatibility renderer (web export
   must stay possible). No C#, no GDExtension, no plugins.
-- ~14,000 lines of GDScript across 43 scripts. Programmatic placeholder art — no
+- ~17,000 lines of GDScript across 47 scripts. Programmatic placeholder art — no
   imported asset pipeline.
 - Repo: `~/Developer/Unwind/space-tower-iso`. Sibling `space-tower/` (original
   full game) is referenced for idioms only.
@@ -57,7 +57,7 @@ live direction.
 | 1 | Garden | The richest floor + the ground-floor entrance: 30×30 plot grid, seed planting, harvest, Cody GX-5 helper robot, food economy, 3 camera modes. Now has a **floor lifecycle**: boots barren → place 3 planter beds (grid-snapped) → blooms ALIVE → planting unlocks. |
 | 2 | Arboretum (ground) | Plant saplings; genome-driven trees with a growth shader; stairs up. |
 | 3 | Canopy | Glass-floored upper deck; renders crowns of trees grown below. No elevator stop. |
-| 4 | Residential | Blank shell — fully wired, no residents yet. |
+| 4 | Residential | Blank shell — fully wired. Now DECLARES the shared floor lifecycle with **placeholder** content: walk on → place 3 magenta "UNIT (placeholder)" boxes (grid-snapped) → blooms ALIVE. Proves the lifecycle generalizes past the Garden; the units are NOT real worldbuilding yet (Q-005). |
 | 5 | Sky Lounge | Blank shell — has a working "[E] look out the window" 3rd-person POV onto a placeholder cityscape. |
 | — | Roof / Vista | Open construction deck, cosmetic crane. |
 
@@ -77,8 +77,33 @@ Three traversal methods: multi-destination **elevator** (serves 0, 1, 2, 4, 5),
   are placeholder transitions, not real mechanics. The hire is a name only (no
   mechanical consequence). Save/load + audio are no-ops.
 
-## What just shipped (Session 18 — local only, not pushed)
+## What just shipped (Session 19 — local only, not pushed)
 
+**The floor lifecycle is now a REUSABLE module, proven on a 2nd floor** (the
+unattended OVERNIGHT slice; full per-commit report in
+`agent/overnight_report_2026-06-19.md`). The Garden's one-floor barren→place→ALIVE
+lifecycle was extracted into `scenes/shared/floor_lifecycle.gd` — an instanced helper
+owning the shared machinery (lifecycle state, the place verb + grid-snap ghost, the ALIVE
+threshold, telemetry now carrying the floor **level**); a floor `declare()`s its content
+via a config dict of scalars + Callables. `GameState` generalized to
+`floor_state(id)`/`floor_alive(id)` (`"garden"` aliases back, `garden_alive()` delegates);
+the Garden kept its public method names as thin delegators so `iso_player` + harness were
+untouched, and **was verified behaving identically** by state-trace + telemetry (not a
+pixel diff — bloom/scale-pop are time-based). The place verb + the **reparented,
+floor-agnostic Floor Tools HUD** now resolve *the current floor* at the call site
+(`tower_controller.current_floor_node()`), so the same input populates whatever floor
+you stand on. **Residential (Floor 4)** declares a deliberately PLACEHOLDER palette —
+magenta "UNIT (placeholder)" boxes on a 3×3 grid, placeholder warm-light bloom (mechanic
+only, not worldbuilding). Verified end-to-end via REAL `Input.action_press` on both
+floors. Also: `session_summary.py` learned a **per-floor FLOOR LIFECYCLES** breakdown
+(per-floor placed count + 1st-placement + barren→ALIVE time — Garden ALIVE 1:27,
+Residential 3:55 on a long run), and two browsable project-map docs landed
+(`graphify-out/GRAPH_REPORT.md`, `ARCHITECTURE_REPORT.md`; bulky graph artifacts
+gitignored). The one design fork left open is the **populating trigger** for non-Garden
+floors (R-001): Residential is populatable-on-reach with no narrative framing — a
+reversible placeholder awaiting a real gate decision.
+
+**Earlier (Session 18 — local only).**
 **The floor-population lifecycle — barren → place → ALIVE → plant.** The Garden now
 boots as a dark, empty field and the player builds it to life before farming it, on
 top of the Session-17 gate. `GameState.garden = {populated, alive, placed}` mirrors the
@@ -179,10 +204,10 @@ placement, partner on-site (`C-001`).
 
 *Each "Make it playable" session opens here, picks one, ships it small.*
 
-- **Generalize the floor lifecycle** (the OVERNIGHT brief, `docs/floor_population_spec.md`):
-  extract the Garden's barren→place→ALIVE→plant lifecycle (now shipped) into a reusable
-  module and apply it to one blank floor (Residential or Sky Lounge) with placeholder
-  content — breadth-first, grid-snapped, mechanic-not-narrative.
+- **Decide the populating trigger / gate** (`R-001`): Residential now blooms the moment
+  you can place on it, with zero narrative framing — the deliberate reversible placeholder.
+  Pick the real gate (reach? after the Garden? a Cody beat?) before Residential becomes a
+  real floor, then give it actual content (`Q-005`) instead of placeholder magenta units.
 - **Deepen the Garden bloom** (Steps 4–5): the ALIVE moment is lights-only right now;
   add ambience / grow-light / water components so bringing the floor to life is richer
   than a brightness tween.
@@ -204,8 +229,10 @@ placement, partner on-site (`C-001`).
   `GameDirector` so the phase spine matches the fiction.
 - Turn the 5 partners into **data-driven** definitions (one dict/resource) so a
   new partner is data, not code — the flexibility seam for the hire system.
-- Extend `agent/analysis/session_summary.py` (the telemetry lens, now reads the
-  opening funnel) toward an actual recommendation step that feeds Next-move lists.
+- Extend `agent/analysis/session_summary.py` (the telemetry lens — now reads the
+  opening funnel + a per-floor FLOOR LIFECYCLES breakdown) toward an actual
+  recommendation step that feeds Next-move lists; make the OPENING FUNNEL readout
+  per-floor so a non-Garden-only session still renders it (R-001 follow-up).
 - Move `SaveManager` / `AudioManager` off no-op stubs (even minimally) so the
   autoload contracts are real.
 

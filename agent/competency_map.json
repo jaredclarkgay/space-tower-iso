@@ -1,6 +1,6 @@
 {
-  "version": "1.9",
-  "last_updated": "2026-06-19",
+  "version": "2.0",
+  "last_updated": "2026-06-28",
   "domains": {
     "godot_isometric": {
       "confidence": "high",
@@ -247,8 +247,11 @@
       ]
     },
     "floor_population_lifecycle": {
-      "confidence": "medium",
+      "confidence": "high",
       "evidence": [
+        "Generalized the Garden's one-floor lifecycle into a REUSABLE shared module (scenes/shared/floor_lifecycle.gd) and proved it on a 2nd floor (Residential, placeholder content) end-to-end, unattended overnight (commits 691cf5b->230a299). The shared module is an INSTANCED RefCounted helper holding lifecycle state + the place verb + grid-snap ghost + ALIVE threshold + telemetry; a floor declare()s its content via a config dict of scalars + Callables (is_populatable/snap_anchor/is_valid_anchor/slot_local_pos/spawn_component/on_alive).",
+        "Invisible-swap technique verified: kept the Garden's original public method names (find_nearest_bed_slot_near/place_planter_bed) as thin delegators so iso_player + harness compiled unchanged; id-keyed the store (GameState.floor_state(id)/floor_alive(id)) with 'garden' aliasing back to the original dict; resolved 'the current floor' at the call site (tower_controller.current_floor_node()) so the same input + the same HUD populate whichever floor the player stands on; stamped level into component_placed/floor_alive telemetry.",
+        "Regression oracle for an identical-behaviour refactor is a STATE TRACE + TELEMETRY diff, NOT a screenshot pixel diff -- bloom pulses + scale-pops are time-based so even two baseline runs never byte-match. Drive the regression through the REAL input path (Input.action_press), not just the public API, or a missing delegate only the input path exercises slips through (caught populate_slot_local_pos pre-commit this way).",
         "Built the first end-to-end floor lifecycle on the Garden (barren -> place planter beds -> ALIVE -> plant), docs/floor_population_spec.md Steps 1-3. Replaced the interim gate->plant directly (no parallel path).",
         "Lifecycle state mirrors the utility pattern: GameState.garden = {populated, alive, placed} + garden_alive() helper. interiors_unlocked was re-purposed to gate PLACEMENT; planting now gates on garden_alive().",
         "Grid-snapped slot placement: plots boot DORMANT (find_nearest_empty_plot_near skips them so planting can't touch them); tap-E snaps to the nearest cell and validates a 3x3 zone is all-dormant (no free-form, no straddling holes/edges/other beds), then place_planter_bed activates the zone (dormant->tilled) + scale-pop + dirt-poof + emits component_placed. A translucent ghost preview follows the slot.",
@@ -258,10 +261,12 @@
       "rules_learned": [
         "A floor lifecycle reuses the gate+directive channel: the gate's payoff directive becomes the placement INVITE, a count threshold flips alive and fires the confirm beat. Each phase change is a felt Director beat, not a silent state flip.",
         "Boot life-bearing cells DORMANT and make the downstream verb (planting) skip dormant cells, so the two phases (place vs plant) can't bleed into each other before the floor is alive.",
-        "Grid-snapped tap placement (snap-to-nearest-cell + validate a clean NxN zone) is cheaper to make feel good than free-form placement and forbids the straddle/overlap bugs by construction."
+        "Grid-snapped tap placement (snap-to-nearest-cell + validate a clean NxN zone) is cheaper to make feel good than free-form placement and forbids the straddle/overlap bugs by construction.",
+        "To generalize a system built for ONE instance: pull shared machinery onto an instanced helper, declare per-instance content via Callables (strategy table, not subclassing), keep the original public names as delegators, id-key the store with the original key aliased back, and resolve 'the current instance' at the call site. See rules/generalize_single_instance_via_declared_config.md."
       ],
       "needs_from_human": [
-        "Hands-on feel check of the bloom moment (currently lights-only) before investing in ambience/grow-light/water components (Steps 4-5)."
+        "Hands-on feel check of the bloom moment (currently lights-only) before investing in ambience/grow-light/water components (Steps 4-5).",
+        "The populating TRIGGER / narrative gate for non-Garden floors (R-001): Residential is populatable-on-reach with no narrative framing -- a deliberate reversible placeholder. Real worldbuilding content for Residential is Q-005."
       ]
     }
   }
