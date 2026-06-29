@@ -20,6 +20,7 @@ extends Node3D
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 const FloorLifecycle = preload("res://scenes/shared/floor_lifecycle.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -28,6 +29,11 @@ const FloorLifecycle = preload("res://scenes/shared/floor_lifecycle.gd")
 const FLOOR_COLOR := Color(0.34, 0.30, 0.28)   # warm residential concrete
 
 var _elevator_data: Dictionary = {}
+
+# Per-component structural assembly (slab → core → risers → walls → tubes → grid).
+# Owns the build-step manifest + parametric grow animations. Built instantly in
+# normal play; the animated sequence (play_sequence) is the same pieces, sequenced.
+var _construction: FloorConstruction = null
 
 # The reusable blank→lush lifecycle (shared with the Garden). Residential DECLARES
 # its placeholder content into it; the module owns state/place-verb/ghost/telemetry/
@@ -48,15 +54,17 @@ func _ready() -> void:
 	# Arboretum), so the elevator car travels through and stops here (it serves
 	# this floor) and the spine reads continuous. SlabBody name → the tower gates
 	# its collision per the current floor like every solid floor.
+	# Structural chrome now builds through the per-component assembly module so each
+	# piece is individually addressable + animatable. Normal play builds it all at
+	# once; the tower's construction flow (or a harness) can instead play_sequence()
+	# to raise it piece-by-piece. A mid-stack floor → tubes stay open (not top-sealed).
 	var shaft_half: float = float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE)
-	FloorChrome.build_slab(self, _c, FLOOR_COLOR, shaft_half)
-	FloorChrome.build_walls(self, _c)
-	FloorChrome.build_extension_grid(self, _c)
-	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
-	# Corner vacuum tubes — a mid-stack floor, so they stay open and tile up into
-	# the Sky Lounge's (not top-sealed).
-	VacuumTube.build_corner_tubes(self, _c, false)
+	_construction = FloorConstruction.new(self, _c, _gs, _tel, {
+		"floor_color": FLOOR_COLOR,
+		"shaft_half": shaft_half,
+		"tubes_top": false,
+	})
+	_construction.build_all_instant()
 
 	_units_root = Node3D.new()
 	_units_root.name = "PlaceholderUnits"

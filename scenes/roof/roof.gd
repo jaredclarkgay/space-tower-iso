@@ -14,6 +14,7 @@ extends Node3D
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 const Crane = preload("res://scenes/roof/crane.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -28,6 +29,10 @@ const STEEL_RUST := Color(0.52, 0.38, 0.26)
 
 var _elevator_data: Dictionary = {}
 
+# Per-component structural assembly (open deck: slab → core → risers → tubes; no
+# walls/grid). The steel structure + crane are content, built after.
+var _construction: FloorConstruction = null
+
 # Every loose steel member on the deck, with its parked transform, so the crane
 # can knock the ones it drives past off the edge and we can snap them all back
 # after the plunge. Each entry: {node, pos, rot, falling, vel, spin}. Only the
@@ -40,13 +45,16 @@ func _ready() -> void:
 	# Concrete deck with the central shaft left open (the elevator/spine shaft
 	# tops out here, unfinished). SlabBody name → the tower gates its collision
 	# like a normal floor, so a tube-hop arrival lands solid.
-	FloorChrome.build_slab(self, _c, CONCRETE,
-			float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE))
-	# Shaft + lit utility risers continue up to the top.
-	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
-	# Corner vacuum tubes — the Roof is the top, so they cap off (top-sealed).
-	VacuumTube.build_corner_tubes(self, _c, true)
+	# Structural chrome via the per-component assembly module (open deck — no walls,
+	# no grid; corner tubes cap off top-sealed). The shaft is left open at centre.
+	_construction = FloorConstruction.new(self, _c, _gs, get_node_or_null("/root/Telemetry"), {
+		"floor_color": CONCRETE,
+		"shaft_half": float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE),
+		"tubes_top": true,
+		"order": ["slab", "core", "risers", "tubes"],
+	})
+	_construction.build_all_instant()
+	_elevator_data = _construction.elevator_data()
 	_build_steel_structure()
 
 	# The drivable construction crane. It can drive off the edge and plunge,

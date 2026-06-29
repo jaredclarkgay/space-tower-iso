@@ -501,6 +501,14 @@ func enter_construction() -> void:
 			_player.set_spawn_here()
 		if _player.has_method("set_facing_yaw"):
 			_player.call("set_facing_yaw", 0.0)   # face +Z, toward the rising tower
+	# Per-component floors: collapse every piece so nothing flashes full when it's
+	# revealed, then assemble the basement foundation in place (build starts from
+	# the ground up; each B raises the next floor by assembling it).
+	for f in _floors:
+		var asm: Object = _floor_assembler(f.node)
+		if asm != null:
+			asm.call("prime_collapsed")
+	_assemble_floor(0)
 	_hud_level = -99                          # force the construction header to push
 	_update(true)
 
@@ -571,27 +579,67 @@ func _aspect_fit(base_size: float) -> float:
 	return base_size
 
 
-# Raise the next floor with a rise-from-below ceremony; reframe to the taller stack.
+# This floor's construction ASSEMBLER — either its FloorConstruction module, or
+# the floor node itself if it implements the assembler interface directly (the
+# Canopy, whose glass-ceiling slab is too special for the manifest). Null = no
+# assembler (uses the whole-floor grow-in fallback). The interface is:
+# prime_collapsed() / play_sequence() / is_complete() / approx_duration().
+func _floor_assembler(node: Node) -> Object:
+	if node == null:
+		return null
+	var fc: Object = node.get("_construction")
+	if fc != null:
+		return fc
+	if node.has_method("play_sequence"):
+		return node
+	return null
+
+
+func _floor_node_for_level(level: int) -> Node3D:
+	for f in _floors:
+		if int(f.level) == level:
+			return f.node
+	return null
+
+
+# Assemble a floor IN PLACE at its final height (no rise — the bounce-and-gap is
+# gone). A converted floor plays its piece-by-piece sequence (slab → core →
+# risers → walls → tubes → grid); an unconverted one does a clean whole-node
+# grow-in. Returns the fallback Tween (or null for the per-component path).
+func _assemble_floor(level: int) -> Tween:
+	var node: Node3D = _floor_node_for_level(level)
+	if node == null:
+		return null
+	node.position.y = _base_y_for_level(level)
+	var asm: Object = _floor_assembler(node)
+	if asm != null:
+		node.scale.y = 1.0
+		if not bool(asm.call("is_complete")):
+			asm.call("play_sequence")         # coroutine — assembles over the next beats
+		return null
+	# Fallback: the floor materializes by growing up out of nothing (no bounce).
+	node.scale.y = float(_c.CONSTRUCT_GROW_EPSILON)
+	var tw := create_tween()
+	tw.tween_property(node, "scale:y", 1.0, float(_c.CONSTRUCT_STEP_DUR)) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	return tw
+
+
+# Raise the next floor by ASSEMBLING it in place; reframe to the taller stack.
 func _build_next_floor() -> void:
 	if int(_gs.built_level) >= _top_level:
 		return                                 # already topped out
 	_gs.built_level = int(_gs.built_level) + 1
 	var lvl: int = int(_gs.built_level)
-	var node: Node3D = null
-	for f in _floors:
-		if int(f.level) == lvl:
-			node = f.node
-			break
-	if node == null:
-		return
-	var base_y: float = _base_y_for_level(lvl)
-	node.position.y = base_y - float(_c.CONSTRUCT_RISE_DROP)
-	var tw := create_tween()
-	tw.tween_property(node, "position:y", base_y, float(_c.CONSTRUCT_RISE_DUR)) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# Topped out: once the last floor settles, step out to explore the exterior.
+	var tw: Tween = _assemble_floor(lvl)
+	# Topped out: once the last floor finishes assembling, step out to explore.
 	if int(_gs.built_level) >= _top_level:
-		tw.finished.connect(_begin_exterior_walk)
+		if tw != null:
+			tw.finished.connect(_begin_exterior_walk)
+		else:
+			var asm: Object = _floor_assembler(_floor_node_for_level(lvl))
+			var d: float = float(asm.call("approx_duration")) if asm != null else 1.0
+			get_tree().create_timer(d).timeout.connect(_begin_exterior_walk)
 	_hud_level = -99                          # force the construction header to re-push (N changed)
 	_update(true)
 
@@ -1408,13 +1456,20 @@ func _update(snap: bool) -> void:
 		# the separate cine_gate special-case is no longer needed.
 		var at_or_below: bool = built and (int(f.level) <= _current_level) \
 			and (int(f.level) >= int(_c.GROUND_LEVEL) or _current_level < int(_c.GROUND_LEVEL))
-		# Slab collision: solid for your floor + everything below, OFF for floors
-		# above so a jump passes straight up through the ceiling and falls back
-		# to the same floor. Canopy has no "SlabBody" (slab = null) → its glass
-		# ceiling collision is never touched here, so Floor 2 jumps still bonk it.
+		# Slab COLLISION: solid for your floor + everything BELOW, OFF only for floors
+		# ABOVE (so a jump passes straight up through the ceiling and falls back to the
+		# same floor). This is deliberately decoupled from `at_or_below` — that var also
+		# folds in the below-grade VISIBILITY trick (the basement hides under the site
+		# ground from above grade). Collision must NOT follow that: the basement is the
+		# bottom of the tower and has to stay SOLID even while hidden, or a fall down the
+		# open shaft drops straight through it into the void ("fall beneath the lowest
+		# floor"). Now anything that gets into the shaft lands in the basement instead.
+		# Canopy has no "SlabBody" (slab = null) → its glass ceiling collision is never
+		# touched here, so Floor 2 jumps still bonk it.
+		var solid: bool = built and (int(f.level) <= _current_level)
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
-			slab.collision_layer = 2 if at_or_below else 0
+			slab.collision_layer = 2 if solid else 0
 		if node.has_method("set_structure_visible"):
 			# Glass-ceiling floor (Canopy): walls/elevator gated; the slab is an
 			# invisible glass ceiling from below and a frosted-glass floor when

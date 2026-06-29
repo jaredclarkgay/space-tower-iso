@@ -18,9 +18,14 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
+
+# Per-component structural assembly (no passive "risers" step — the basement's
+# spine is its ACTIVE utility spine, built as content below).
+var _construction: FloorConstruction = null
 
 var _room_brightness := 0.0
 var _target_brightness := 0.0
@@ -101,16 +106,18 @@ var _emergency_omni: OmniLight3D
 func _ready() -> void:
 	# Slab + walls + extension grid — same construction the Garden uses, so
 	# Floor 0 reads as the same building viewed one story down.
-	FloorChrome.build_slab(self, _c)
-	# Basement: seal the walls UP TO the Garden floor (one story) so you can't drift
-	# out, but no higher — a full seal would bleed into the Garden's doorways above.
-	# The Garden's own walls continue the seal from there.
-	FloorChrome.build_walls(self, _c, false, true, _c.FLOOR_3D_STORY_HEIGHT)
-	FloorChrome.build_extension_grid(self, _c)
-	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	# Corner vacuum tubes — Floor 0 is the bottom of the served stack; its tubes
-	# tile up into the Garden's. Bottom port feeds "out into the world".
-	VacuumTube.build_corner_tubes(self, _c, false)
+	# Structural chrome via the per-component assembly module (solid basement slab,
+	# walls SEALED only up to the Garden floor one story above — a full seal would
+	# bleed into the Garden's doorways; the Garden continues the seal from there).
+	# No passive "risers" step — the active utility spine is built as content below.
+	_construction = FloorConstruction.new(self, _c, _gs, get_node_or_null("/root/Telemetry"), {
+		"shaft_half": 0.0,
+		"order": ["slab", "core", "walls", "tubes", "grid"],
+		"walls_build": func(g: Node3D) -> void:
+			FloorChrome.build_walls(g, _c, false, true, _c.FLOOR_3D_STORY_HEIGHT),
+	})
+	_construction.build_all_instant()
+	_elevator_data = _construction.elevator_data()
 	_build_sources()
 	_build_spine_pipes()
 	_build_floor_pipes()

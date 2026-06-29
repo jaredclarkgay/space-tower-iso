@@ -62,6 +62,14 @@ var _ceiling_ping_mat: ShaderMaterial
 # the Canopy itself; hidden from further down so they don't float overhead.
 var _rings_node: Node3D
 
+# Construction-assembly state. The Canopy is too special for the FloorConstruction
+# manifest (glass-ceiling slab the tower drives), so it implements the same small
+# assembler interface itself: prime_collapsed / play_sequence / is_complete /
+# approx_duration. Assembly is 2-phase — the deck tiles sweep in, then the gated
+# structure (walls / core / risers / tubes / grid) grows up. Tuned by the same
+# CONSTRUCT_* constants as the other floors, so the feel stays consistent.
+var _assembled: bool = true
+
 
 func _ready() -> void:
 	_compute_tree_hole_positions()
@@ -87,6 +95,60 @@ func _ready() -> void:
 func set_structure_visible(v: bool) -> void:
 	if _structure:
 		_structure.visible = v
+
+
+# --- Construction assembler interface (matches FloorConstruction) -----------
+
+# Collapse the deck tiles + structure to their pre-grow state (no rebuild) so the
+# Canopy doesn't flash full when it's revealed in the build flow.
+func prime_collapsed() -> void:
+	_assembled = false
+	var cs: float = float(_c.CONSTRUCT_TILE_COLLAPSE)
+	if _tiles_node:
+		for t in _tiles_node.get_children():
+			if t is MeshInstance3D:
+				t.scale = Vector3(cs, cs, cs)
+	if _structure:
+		_structure.scale.y = float(_c.CONSTRUCT_GROW_EPSILON)
+
+
+func is_complete() -> bool:
+	return _assembled
+
+
+func approx_duration() -> float:
+	return float(_c.CONSTRUCT_SLAB_SWEEP_DUR) + float(_c.CONSTRUCT_STEP_DUR) \
+		+ 2.0 * float(_c.CONSTRUCT_STEP_GAP)
+
+
+# Two-phase assembly: the glass deck prints in from the centre, then the gated
+# structure grows up out of it. Animates the already-built pieces (no rebuild).
+func play_sequence() -> void:
+	# Phase 1 — deck tiles sweep in, staggered by distance from the centre.
+	if _tiles_node:
+		var tiles: Array = _tiles_node.get_children()
+		var max_d: float = 0.001
+		for t in tiles:
+			max_d = maxf(max_d, Vector2(t.position.x, t.position.z).length())
+		var sweep: float = float(_c.CONSTRUCT_SLAB_SWEEP_DUR)
+		var pop: float = float(_c.CONSTRUCT_SLAB_TILE_POP)
+		for t in tiles:
+			if not (t is MeshInstance3D):
+				continue
+			var d: float = Vector2(t.position.x, t.position.z).length()
+			var tw := create_tween()
+			tw.tween_interval((d / max_d) * sweep)
+			tw.tween_property(t, "scale", Vector3.ONE, pop).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		await get_tree().create_timer(sweep + pop + 0.02).timeout
+	await get_tree().create_timer(float(_c.CONSTRUCT_STEP_GAP)).timeout
+	# Phase 2 — the structure grows up out of the deck.
+	if _structure:
+		_structure.scale.y = float(_c.CONSTRUCT_GROW_EPSILON)
+		var tw2 := create_tween()
+		tw2.tween_property(_structure, "scale:y", 1.0, float(_c.CONSTRUCT_STEP_DUR)) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		await tw2.finished
+	_assembled = true
 
 
 # Drives the slab glass opacity (0 = invisible ceiling, up to ~0.7 frosted

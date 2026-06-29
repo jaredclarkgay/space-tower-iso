@@ -20,6 +20,7 @@ const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
 const Stairs = preload("res://scenes/shared/stairs.gd")
 const ArboretumTree = preload("res://scenes/shared/arboretum_tree.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -30,6 +31,9 @@ var _player: Node3D
 # Geometry data returned by FloorChrome.build_elevator_core. Held for its
 # `corners` (spine-pipe mounts); the ride-able car is elevator_platform.gd.
 var _elevator_data: Dictionary = {}
+
+# Per-component structural assembly (standard shared chrome).
+var _construction: FloorConstruction = null
 
 # Edge plot entries — each is a Dictionary:
 #   {key: "ix,iz", world_pos: Vector3, marker: MeshInstance3D}
@@ -53,14 +57,14 @@ func _ready() -> void:
 	if not player_path.is_empty():
 		_player = get_node_or_null(player_path)
 
-	FloorChrome.build_slab(self, _c, Color(0.34, 0.40, 0.32),
-			float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE))
-	FloorChrome.build_walls(self, _c)
-	FloorChrome.build_extension_grid(self, _c)
-	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
-	# Corner vacuum tubes — tile down into the Garden's and up into the Canopy's.
-	VacuumTube.build_corner_tubes(self, _c, false)
+	# Structural chrome via the per-component assembly module (standard shared kit).
+	# Corner tubes tile down into the Garden's and up into the Canopy's.
+	_construction = FloorConstruction.new(self, _c, _gs, get_node_or_null("/root/Telemetry"), {
+		"floor_color": Color(0.34, 0.40, 0.32),
+		"shaft_half": float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE),
+	})
+	_construction.build_all_instant()
+	_elevator_data = _construction.elevator_data()
 
 	# The single physical staircase that spans Floor 2 → Floor 3. Built in
 	# Floor 2's frame at y=0 so its base sits FLUSH with the floor slab (no

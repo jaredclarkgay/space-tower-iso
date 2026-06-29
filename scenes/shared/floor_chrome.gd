@@ -94,12 +94,77 @@ static func _add_slab_piece(body: StaticBody3D, mat: Material, size: Vector3, po
 	mesh.material_override = mat
 	mesh.position = pos
 	body.add_child(mesh)
+	_add_slab_collision(body, size, pos)
+
+
+# Collision-only slab piece (no mesh) — used by build_slab_tiled, where the visual
+# is a grid of separate tiles but the physics stays a few solid boxes.
+static func _add_slab_collision(body: StaticBody3D, size: Vector3, pos: Vector3) -> void:
 	var col := CollisionShape3D.new()
 	var col_shape := BoxShape3D.new()
 	col_shape.size = size
 	col.shape = col_shape
 	col.position = pos
 	body.add_child(col)
+
+
+# Like build_slab, but the VISUAL deck is a grid of individual tiles (a "Tiles"
+# node of small box meshes) so the construction sequence can print it tile-by-tile
+# (a radial sweep out from the shaft). Collision stays the same few solid boxes as
+# build_slab — strips around the shaft, or one box when solid — plus the shaft
+# grate. Tiles whose centre falls inside the shaft square are skipped.
+static func build_slab_tiled(parent: Node3D, c: Node, color: Color = Color(0.18, 0.18, 0.20),
+		shaft_half: float = 0.0) -> void:
+	var body := StaticBody3D.new()
+	body.name = "SlabBody"
+	parent.add_child(body)
+	var thick: float = c.FLOOR_3D_SLAB_THICKNESS
+	var full: float = c.FLOOR_3D_SIZE
+	var half: float = full * 0.5
+	var y: float = -thick * 0.5
+	var s: float = shaft_half
+
+	# --- Collision (no mesh) — identical footprint to build_slab.
+	if s <= 0.0:
+		_add_slab_collision(body, Vector3(full, thick, full), Vector3(0, y, 0))
+	else:
+		var strip: float = half - s
+		_add_slab_collision(body, Vector3(full, thick, strip), Vector3(0, y, -(s + strip * 0.5)))
+		_add_slab_collision(body, Vector3(full, thick, strip), Vector3(0, y, s + strip * 0.5))
+		_add_slab_collision(body, Vector3(strip, thick, 2.0 * s), Vector3(-(s + strip * 0.5), y, 0))
+		_add_slab_collision(body, Vector3(strip, thick, 2.0 * s), Vector3(s + strip * 0.5, y, 0))
+		# Invisible shaft grate (see build_slab) so the open shaft can't be fallen down.
+		var grate := CollisionShape3D.new()
+		grate.name = "ShaftGrate"
+		var grate_shape := BoxShape3D.new()
+		grate_shape.size = Vector3(2.0 * s, thick, 2.0 * s)
+		grate.shape = grate_shape
+		grate.position = Vector3(0, y, 0)
+		body.add_child(grate)
+
+	# --- Visual tiles, gridded over the footprint minus the shaft.
+	var tiles := Node3D.new()
+	tiles.name = "Tiles"
+	body.add_child(tiles)
+	var mat := _flat_material(color)
+	var tile: float = float(c.CONSTRUCT_SLAB_TILE)
+	var n: int = int(ceil(full / tile))
+	var step: float = full / float(n)
+	var gap: float = 0.06                     # thin seam so the grid reads
+	for ix in range(n):
+		for iz in range(n):
+			var cx: float = -half + (float(ix) + 0.5) * step
+			var cz: float = -half + (float(iz) + 0.5) * step
+			if s > 0.0 and absf(cx) < s and absf(cz) < s:
+				continue                       # skip the shaft hole
+			var t := MeshInstance3D.new()
+			t.name = "Tile_%d_%d" % [ix, iz]
+			var tm := BoxMesh.new()
+			tm.size = Vector3(step - gap, thick, step - gap)
+			t.mesh = tm
+			t.material_override = mat
+			t.position = Vector3(cx, y, cz)
+			tiles.add_child(t)
 
 
 # Builds 4 perimeter walls. Each wall: low solid base + collision spanning
@@ -176,6 +241,12 @@ static func _build_one_wall_doored(parent: Node3D, c: Node, side: String, half: 
 
 	# Top trim spanning the full wall (matches the solid wall's cap).
 	_wall_piece(body, _flat_material(Color(0.28, 0.28, 0.32)), along_x, perp, 0.0, length, c.WALL_HEIGHT - 0.06, 0.12, thick * 1.05, false)
+
+	# Spandrel band (see _build_one_wall) — closes the gap up to the slab above so the
+	# doored floor reads as part of the same tight structure as the solid-walled floors.
+	var span_h: float = float(c.FLOOR_3D_STORY_HEIGHT) - float(c.WALL_HEIGHT)
+	if span_h > 0.01:
+		_wall_piece(body, _flat_material(Color(0.30, 0.30, 0.34)), along_x, perp, 0.0, length, c.WALL_HEIGHT + span_h * 0.5, span_h, thick * 1.02, false)
 
 
 # Builds a faint blueprint-style grid extending outward from each wall —
@@ -629,6 +700,28 @@ static func _build_one_wall(parent: Node3D, c: Node, side: String, half: float, 
 		perp_pos if wall_along_x else 0.0,
 	)
 	body.add_child(glass)
+
+	# Spandrel band — fills the gap between the window head (WALL_HEIGHT) and the
+	# slab of the floor directly above (one story up). Without it each floor's walls
+	# stop ~0.8 m short of the ceiling, so the stack reads as slabs floating with a
+	# gap between them. The opaque band makes the floors a continuous, tight tower.
+	var span_h: float = float(c.FLOOR_3D_STORY_HEIGHT) - float(c.WALL_HEIGHT)
+	if span_h > 0.01:
+		var span := MeshInstance3D.new()
+		span.name = "Spandrel"
+		var span_mesh := BoxMesh.new()
+		if wall_along_x:
+			span_mesh.size = Vector3(length, span_h, thick * 1.02)
+		else:
+			span_mesh.size = Vector3(thick * 1.02, span_h, length)
+		span.mesh = span_mesh
+		span.material_override = _flat_material(Color(0.30, 0.30, 0.34))
+		span.position = Vector3(
+			0.0 if wall_along_x else perp_pos,
+			float(c.WALL_HEIGHT) + span_h * 0.5,
+			perp_pos if wall_along_x else 0.0,
+		)
+		body.add_child(span)
 
 
 static func _flat_material(color: Color) -> StandardMaterial3D:

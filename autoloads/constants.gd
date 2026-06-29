@@ -509,6 +509,18 @@ const CONSTRUCT_CAM_CENTER_LIFT := 2.5     # raise the framed centre above the m
 const CONSTRUCT_RISE_DROP := 4.5           # m a new floor rises from
 const CONSTRUCT_RISE_DUR := 0.6            # s for the rise-and-settle
 const CONSTRUCT_DESIGN_ASPECT := 1.7778    # 16:9 — framing widens below this so a narrow window never clips
+# --- Per-component floor assembly (scenes/shared/floor_construction.gd) -------
+# A floor builds as an ordered sequence of structural pieces, each with its own
+# parametric "grow" animation, instead of the whole node rising as one block.
+# Order (core-first): slab -> core -> risers -> walls -> tubes -> (content) -> grid.
+const CONSTRUCT_STEP_DUR := 0.6            # s — a single piece's grow animation
+const CONSTRUCT_STEP_GAP := 0.16           # s — pause between successive pieces (tighter = more energetic)
+const CONSTRUCT_GRID_FADE_DUR := 1.0       # s — the extension-grid flourish eases in slower + subtler
+const CONSTRUCT_SLAB_TILE := 3.0           # m — deck tile size for the tile-by-tile slab print
+const CONSTRUCT_SLAB_SWEEP_DUR := 0.7      # s — total time for the deck tiles to sweep in from the shaft
+const CONSTRUCT_SLAB_TILE_POP := 0.22      # s — each deck tile's materialize-from-a-point pop
+const CONSTRUCT_TILE_COLLAPSE := 0.05      # collapsed tile scale (materializes from ~a point, not just thin)
+const CONSTRUCT_GROW_EPSILON := 0.001      # starting scale for a vertical grow (avoids a degenerate 0 transform)
 # Walk-in occupy: ground-floor doorways (one per side) + the exterior site ground.
 const DOOR_WIDTH := 3.0                     # m — doorway opening width (centred on each wall)
 const DOOR_HEIGHT := 3.0                    # m — doorway opening height (lintel above)

@@ -26,11 +26,17 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const FloorLifecycle = preload("res://scenes/shared/floor_lifecycle.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 # Elevator geometry data from FloorChrome. Mostly vestigial in the stacked
 # tower (the ride-able car is elevator_platform.gd); we keep it for the
 # `corners` spine-pipe mounts read by build_passive_spine_pipes.
 var _elevator_data: Dictionary = {}
+
+# Per-component structural assembly. The Garden's slab/core/risers use the shared
+# builders; its walls (doored) + extension grid are bespoke, supplied as step
+# overrides. No "tubes" step — the Garden's corner tubes are iso_tubes content.
+var _construction: FloorConstruction = null
 
 var _grow_lights: Array[OmniLight3D] = []
 var _time := 0.0
@@ -65,12 +71,21 @@ var _plant_assignments: Dictionary = {}
 
 func _ready() -> void:
 	_rng.seed = 1   # deterministic so the operator gets the same room each run
-	_build_slab()
-	_build_walls_and_windows()
-	_build_elevator_shaft()
+	# Structural chrome via the per-component assembly module (slab → core → risers →
+	# walls → grid). Walls + grid are the Garden's bespoke builders; the slab/core/
+	# risers use the shared kit. The corner tubes are content (iso_tubes), so there's
+	# no "tubes" step here.
+	_construction = FloorConstruction.new(self, _c, _gs, _tel, {
+		"floor_color": Color(0.18, 0.18, 0.20),
+		"shaft_half": float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE),
+		"order": ["slab", "core", "risers", "walls", "grid"],
+		"walls_build": func(g: Node3D) -> void: _build_walls_and_windows(g),
+		"grid_build": func(g: Node3D) -> void: _build_extension_grid(g),
+	})
+	_construction.build_all_instant()
+	_elevator_data = _construction.elevator_data()
 	_build_garden_grid()
 	_build_water_pipes()
-	_build_extension_grid()
 	_init_lifecycle()
 
 
@@ -252,7 +267,7 @@ func _build_slab() -> void:
 
 # --- Perimeter walls with vertical posts and translucent window panels ------
 
-func _build_walls_and_windows() -> void:
+func _build_walls_and_windows(parent: Node3D = self) -> void:
 	var half: float = _c.FLOOR_3D_SIZE * 0.5
 	# Each side: along its length axis, place a low solid base, vertical
 	# posts every WALL_POST_SPACING, semi-transparent panels between, and
@@ -264,8 +279,8 @@ func _build_walls_and_windows() -> void:
 	# the door you use). The gap has no collision; the fall-catch covers stepping
 	# out during interior play (same accepted edge the basement had).
 	for side in ["+x", "-x", "+z", "-z"]:
-		_build_one_wall(side, half, true)
-		_build_window_spotlight(side, half)
+		_build_one_wall(parent, side, half, true)
+		_build_window_spotlight(side, half)   # spotlights stay on the floor (not the walls group, so the grow doesn't move them)
 
 
 # One mesh-or-collision wall segment. `along` is the centre offset ALONG the wall;
@@ -293,10 +308,10 @@ func _wall_seg(body: StaticBody3D, mat, wall_along_x: bool, perp_pos: float,
 		body.add_child(m)
 
 
-func _build_one_wall(side: String, half: float, doored: bool = false) -> void:
+func _build_one_wall(parent: Node3D, side: String, half: float, doored: bool = false) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Wall_" + side
-	add_child(body)
+	parent.add_child(body)
 	# Wall extends along one horizontal axis. Decide which.
 	var wall_along_x: bool = side in ["+z", "-z"]
 	var perp_pos: float = half if side in ["+x", "+z"] else -half
@@ -362,6 +377,28 @@ func _build_one_wall(side: String, half: float, doored: bool = false) -> void:
 		perp_pos if wall_along_x else 0.0
 	)
 	body.add_child(trim)
+
+	# Spandrel band — fills the gap between the window head (WALL_HEIGHT) and the
+	# slab of the floor above (the Arboretum), so the Garden reads as part of the
+	# same tight structure as the other floors. Matches FloorChrome's spandrel; the
+	# Garden's custom walls need their own copy. Above the doorway, so it never blocks it.
+	var span_h: float = float(_c.FLOOR_3D_STORY_HEIGHT) - float(_c.WALL_HEIGHT)
+	if span_h > 0.01:
+		var span := MeshInstance3D.new()
+		span.name = "Spandrel"
+		var span_mesh := BoxMesh.new()
+		if wall_along_x:
+			span_mesh.size = Vector3(length, span_h, thick * 1.02)
+		else:
+			span_mesh.size = Vector3(thick * 1.02, span_h, length)
+		span.mesh = span_mesh
+		span.material_override = _make_material(Color(0.30, 0.30, 0.34))
+		span.position = Vector3(
+			0.0 if wall_along_x else perp_pos,
+			float(_c.WALL_HEIGHT) + span_h * 0.5,
+			perp_pos if wall_along_x else 0.0
+		)
+		body.add_child(span)
 
 
 func _build_window_spotlight(side: String, half: float) -> void:
@@ -1154,7 +1191,7 @@ func _make_window_material() -> StandardMaterial3D:
 # second 1 m via vertex-color alpha on an ArrayMesh. A single perpendicular
 # crossbar per side at distance 1 m forms the blueprint grid.
 
-func _build_extension_grid() -> void:
+func _build_extension_grid(parent: Node3D = self) -> void:
 	var half: float = _c.FLOOR_3D_SIZE * 0.5
 	var y_offset := 0.005
 	# 6 lines per side, evenly spaced across the wall — computed from the
@@ -1204,7 +1241,7 @@ func _build_extension_grid() -> void:
 				"+z", "-z":
 					line.position = origin + Vector3(offset, 0, 0)
 			line.rotation.y = rot_y
-			add_child(line)
+			parent.add_child(line)
 
 		# Crossbar at distance EXTENSION_LINE_SOLID_LENGTH from the wall,
 		# parallel to the wall. Length extends 1 grid unit past each corner so
@@ -1230,7 +1267,7 @@ func _build_extension_grid() -> void:
 				bar.position = Vector3(0, y_offset, -half - solid_dist)
 		bar.mesh = box
 		bar.material_override = bar_mat
-		add_child(bar)
+		parent.add_child(bar)
 
 
 # Thin horizontal strip 2 m long: solid (alpha PEAK_ALPHA) for 0..1 m,

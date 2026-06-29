@@ -15,6 +15,7 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
+const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
 @onready var _gs: Node = get_node("/root/GameState")
@@ -25,6 +26,10 @@ const FLOOR_COLOR := Color(0.40, 0.42, 0.47)   # pale, airy lounge floor
 
 var _player: Node3D
 var _elevator_data: Dictionary = {}
+
+# Per-component structural assembly (shared chrome, but bespoke full-height glass
+# walls supplied as the "walls" step's builder).
+var _construction: FloorConstruction = null
 
 # Look-out prompt (billboarded, scales with zoom). Child of this floor node, so
 # the tower's floor-visibility gating hides it when the player isn't up here.
@@ -42,12 +47,15 @@ var _hint_anim: float = 0.0       # 0 = hint shown, 1 = fully slid off + faded
 func _ready() -> void:
 	_player = get_node_or_null(player_path)
 	var shaft_half: float = float(_c.ELEVATOR_RADIUS) * float(_c.GARDEN_PLOT_SIZE)
-	FloorChrome.build_slab(self, _c, FLOOR_COLOR, shaft_half)
-	_build_glass_walls()
-	FloorChrome.build_extension_grid(self, _c)
-	_elevator_data = FloorChrome.build_elevator_core(self, _c)
-	FloorChrome.build_passive_spine_pipes(self, _c, _gs, _elevator_data)
-	VacuumTube.build_corner_tubes(self, _c, false)
+	# Structural chrome via the per-component assembly module; the "walls" step uses
+	# the Sky Lounge's signature full-height glass instead of the standard walls.
+	_construction = FloorConstruction.new(self, _c, _gs, get_node_or_null("/root/Telemetry"), {
+		"floor_color": FLOOR_COLOR,
+		"shaft_half": shaft_half,
+		"walls_build": func(g: Node3D) -> void: _build_glass_walls(g),
+	})
+	_construction.build_all_instant()
+	_elevator_data = _construction.elevator_data()
 	_build_prompt()
 
 
@@ -127,19 +135,19 @@ func _enter_look_out(n: Vector3) -> void:
 
 # --- Full-height glass walls ------------------------------------------------
 
-func _build_glass_walls() -> void:
+func _build_glass_walls(parent: Node3D = self) -> void:
 	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
 	for n in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
-		_build_one_glass_wall(n, half)
+		_build_one_glass_wall(parent, n, half)
 
 
-func _build_one_glass_wall(n: Vector3, half: float) -> void:
+func _build_one_glass_wall(parent: Node3D, n: Vector3, half: float) -> void:
 	var height: float = float(_c.WALL_HEIGHT)
 	var length: float = float(_c.FLOOR_3D_SIZE)
 	var along_x: bool = absf(n.z) > 0.5        # wall runs along x when facing ±z
 	var body := StaticBody3D.new()
 	body.name = "GlassWall"
-	add_child(body)
+	parent.add_child(body)
 	var perp: float = (n.x + n.z) * half        # signed offset to the wall plane
 
 	# Full-height collision (thin) so you can't walk through the glass.
