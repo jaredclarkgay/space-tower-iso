@@ -78,6 +78,9 @@ var _top_level: int = 0          # highest floor level (Roof) — the build targ
 # True during the external dollhouse CONSTRUCTION view (BUILD_STRUCTURE). Like
 # _exterior, it's a world-presentation mode that bypasses the normal per-floor gating.
 var _constructing: bool = false
+# True while a crane-issued floor build is mid-assembly (opening redesign Chunk 7). The
+# worksite animates (workers hammer) and the floor assembles, but the player stays FREE.
+var _crane_building: bool = false
 # True while exploring the finished tower's exterior on foot (after the build,
 # before walking in). All built floors stay visible; the player walks the site.
 var _exterior_walk: bool = false
@@ -412,6 +415,8 @@ func enter_tower() -> void:
 # when it wraps back to EMPTY_LOT.
 func enter_exterior() -> void:
 	_exterior = true
+	_gs.built_level = -1   # cold open: nothing built yet; floors raise one at a time from the crane
+	_crane_building = false
 	if _player is CharacterBody3D:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
 	# Survey the actual build site (x=0) — the ground you stand on now is the
@@ -437,18 +442,30 @@ func enter_exterior() -> void:
 # camera's own job (iso_camera); we only set pivot.Y + the outdoor environment.
 func _update_exterior(snap: bool) -> void:
 	_current_level = -1   # exterior daylight preset; recomputed on enter_tower
+	# Floors raise one at a time from the crane: a floor is present once it's been built
+	# (level <= built_level). Initially nothing is built (built_level = -1) so the site is
+	# bare — the construction pit is the only ground. As floors build, they appear in place.
 	for f in _floors:
 		var node: Node3D = f.node
+		var built: bool = int(f.level) <= int(_gs.built_level)
 		if node.has_method("set_structure_visible"):
-			node.set_structure_visible(false)
+			node.set_structure_visible(built)
 		else:
-			node.visible = false
-		# The tower isn't built during the cold open, so its slabs must NOT collide —
-		# otherwise the (invisible) Garden slab at grade ceilings the construction pit and
-		# the player can't drop in. The pit + site ground are the only ground out here.
+			node.visible = built
+		# Unbuilt floors must NOT collide (else the invisible Garden slab at grade ceilings
+		# the pit). A built floor's slab IS solid so you can stand on the floor you raised.
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
-			slab.collision_layer = 0
+			slab.collision_layer = 2 if built else 0
+		# The extension grid is for the in-tower extended-floor look; it reads as a big blue
+		# plane in the open cold-open pit, so keep it off out here.
+		var ext_grid = f.get("ext_grid")
+		if ext_grid is Array:
+			for g in ext_grid:
+				if is_instance_valid(g):
+					g.visible = false
+		elif ext_grid != null and is_instance_valid(ext_grid):
+			ext_grid.visible = false
 	if _cityscape:
 		_cityscape.visible = false
 	if _site_ground:
@@ -470,7 +487,64 @@ func _update_exterior(snap: bool) -> void:
 	_drive_environment(snap)
 
 
-# --- Construct-from-empty (BUILD_STRUCTURE) -------------------------------
+# --- Crane-issued floor construction (opening redesign Chapter 2 / Chunk 7) -------
+# Floors raise one at a time from the crane cab. The next buildable level is the one just
+# above the highest built — gated to what's UNLOCKED. For now only the Control Center
+# (level 0) is unlocked; later events unlock the floors above (Chunk 10 wires
+# utilities-complete -> Garden).
+const _CRANE_UNLOCKED_MAX := 0   # highest level the crane may raise so far (Control Center)
+
+func next_buildable_level() -> int:
+	# Nothing's buildable until you've signed on with a partner (the call that says "go build").
+	if String(_gs.partner_name) == "":
+		return -1
+	var nxt: int = int(_gs.built_level) + 1
+	if nxt <= _CRANE_UNLOCKED_MAX and _floor_node_for_level(nxt) != null:
+		return nxt
+	return -1
+
+func next_buildable_label() -> String:
+	var lvl: int = next_buildable_level()
+	if lvl < 0:
+		return ""
+	if lvl == int(_c.GROUND_LEVEL) - 1:
+		return "Control Center"
+	return _name_for_level(lvl)
+
+func is_crane_building() -> bool:
+	return _crane_building
+
+# Raise the next unlocked floor from the crane: prime it collapsed, reveal it, play the
+# per-component assembly, and set the worksite hammering for the duration. The player stays
+# FREE the whole time (no _constructing freeze, no camera seize).
+func request_crane_build() -> void:
+	if _crane_building:
+		return
+	var lvl: int = next_buildable_level()
+	if lvl < 0:
+		return
+	_crane_building = true
+	get_tree().call_group("worker_npc", "set_building", true)
+	var node: Node3D = _floor_node_for_level(lvl)
+	var asm: Object = _floor_assembler(node)
+	if asm != null:
+		asm.call("prime_collapsed")
+	_gs.built_level = lvl                 # the floor is now present (revealed by _update_exterior)
+	var tw: Tween = _assemble_floor(lvl)
+	var dur: float = 1.0
+	if asm != null and asm.has_method("approx_duration"):
+		dur = float(asm.call("approx_duration"))
+	elif tw != null:
+		dur = float(_c.CONSTRUCT_STEP_DUR)
+	get_tree().create_timer(dur + 0.3).timeout.connect(_finish_crane_build)
+	_hud_level = -99
+	_update(true)
+
+func _finish_crane_build() -> void:
+	_crane_building = false
+	get_tree().call_group("worker_npc", "set_building", false)
+	_update(true)
+
 
 # Entry from the hire: CONSTRUCT_FROM_EMPTY -> raise the tower in the dollhouse
 # view; else drop straight into the finished Garden (today's dev path).
@@ -1334,9 +1408,9 @@ func _process(delta: float) -> void:
 		var tod: Node = get_node_or_null("/root/TimeOfDay")
 		if tod and tod.has_method("start"):
 			tod.start()
-	# Construct-from-empty: raise the next floor (topping out auto-starts the walk).
-	if _constructing and Input.is_action_just_pressed(&"build_floor") and int(_gs.built_level) < _top_level:
-		_build_next_floor()
+	# (The old frozen press-B all-floors dollhouse build is retired — floors now raise one
+	# at a time from the crane cab; see request_crane_build(). The _constructing path remains
+	# only as dead fallback for the dev "build" chapter jump.)
 	# Exterior walk: the controller owns a wide, pulled-back follow so the whole tower
 	# reads as the player circles it. The ease-down interpolates from the dollhouse
 	# framing; afterward it tracks the player at a fixed lift + size.

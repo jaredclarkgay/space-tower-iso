@@ -28,6 +28,10 @@ var crane_spot: Vector3 = Vector3.ZERO # where the crane stands (an excursion ta
 var enabled: bool = true               # the pit gates this to the cold open
 
 var _visual: Node3D
+var _arm_l: Node3D
+var _arm_r: Node3D
+var _building: bool = false   # rapid build animation while the crane raises a floor
+var _build_phase: float = 0.0
 var _prompt_root: Node3D
 var _prompt_e: Label3D
 var _prompt_label: Label3D
@@ -81,8 +85,8 @@ func _physics_process(delta: float) -> void:
 
 # --- Wander AI -----------------------------------------------------------------
 func _run_ai(delta: float) -> void:
-	if _talking:
-		_ai = AI.IDLE   # hold still while the player reads
+	if _talking or _building:
+		_ai = AI.IDLE   # hold still while reading / hammering
 		return
 	_ai_timer -= delta
 	if _ai == AI.WALK:
@@ -128,10 +132,30 @@ func _pick_wander() -> void:
 func _animate(delta: float) -> void:
 	if _visual == null:
 		return
+	if _building:
+		# Rapid hammering: fast bob + arms pumping out of phase.
+		_build_phase += delta * 13.0
+		_visual.position.y = abs(sin(_build_phase)) * 0.10
+		if _arm_l:
+			_arm_l.rotation.x = -1.1 + sin(_build_phase) * 0.7
+		if _arm_r:
+			_arm_r.rotation.x = -1.1 + sin(_build_phase + PI) * 0.7
+		return
 	var moving: bool = _ai == AI.WALK and not _talking
 	_bob += delta * (8.0 if moving else 2.2)
 	var amp: float = 0.08 if moving else 0.02
 	_visual.position.y = abs(sin(_bob + _seed)) * amp
+	if _arm_l:
+		_arm_l.rotation.x = lerp_angle(_arm_l.rotation.x, 0.0, 8.0 * delta)
+	if _arm_r:
+		_arm_r.rotation.x = lerp_angle(_arm_r.rotation.x, 0.0, 8.0 * delta)
+
+
+# Toggle the rapid build animation (called by the tower when the crane raises a floor).
+func set_building(on: bool) -> void:
+	_building = on
+	if on:
+		_talking = false   # drop any chat — there's work to do
 
 
 # --- Interaction ---------------------------------------------------------------
@@ -212,9 +236,14 @@ func _build_body() -> void:
 		_box(Vector3(0.22, 0.7, 0.22), Vector3(sx * 0.14, 0.35, 0.0), dark)
 	# Torso (vest).
 	_box(Vector3(0.62, 0.7, 0.34), Vector3(0.0, 1.05, 0.0), vest)
-	# Arms.
-	for sx in [-1.0, 1.0]:
-		_box(Vector3(0.16, 0.62, 0.16), Vector3(sx * 0.42, 1.05, 0.0), vest)
+	# Arms on shoulder pivots (so they can swing for the build animation).
+	_arm_l = Node3D.new(); _arm_l.position = Vector3(-0.42, 1.36, 0.0); _visual.add_child(_arm_l)
+	_arm_r = Node3D.new(); _arm_r.position = Vector3(0.42, 1.36, 0.0); _visual.add_child(_arm_r)
+	for pivot in [_arm_l, _arm_r]:
+		var arm := MeshInstance3D.new()
+		var bm := BoxMesh.new(); bm.size = Vector3(0.16, 0.62, 0.16)
+		arm.mesh = bm; arm.material_override = vest; arm.position = Vector3(0.0, -0.31, 0.0)
+		pivot.add_child(arm)
 	# Head.
 	_box(Vector3(0.34, 0.34, 0.34), Vector3(0.0, 1.6, 0.0), skin)
 	# Hardhat (dome + brim).

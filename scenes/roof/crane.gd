@@ -117,11 +117,26 @@ func _update_driving(delta: float) -> void:
 		_player.global_position = _cab_seat.global_position
 		if _player is CharacterBody3D:
 			(_player as CharacterBody3D).velocity = Vector3.ZERO
-		_prompt_root.visible = true
-		_prompt_e.text = "E"
-		_prompt_label.text = "Exit crane"
-		if Input.is_action_just_pressed(&"interact"):
-			_exit()
+		var tower: Node = _tower_controller()
+		var building: bool = tower != null and tower.has_method("is_crane_building") and bool(tower.call("is_crane_building"))
+		var label: String = String(tower.call("next_buildable_label")) if (tower and tower.has_method("next_buildable_label")) else ""
+		if building:
+			_prompt_root.visible = false   # let the build play
+		elif label != "":
+			# A floor is ready to raise: B builds it, E climbs out.
+			_prompt_root.visible = true
+			_prompt_e.text = "B"
+			_prompt_label.text = "Raise " + label + "    ·    E to exit"
+			if Input.is_action_just_pressed(&"build_floor") and tower:
+				tower.call("request_crane_build")
+			elif Input.is_action_just_pressed(&"interact"):
+				_exit()
+		else:
+			_prompt_root.visible = true
+			_prompt_e.text = "E"
+			_prompt_label.text = "Exit crane"
+			if Input.is_action_just_pressed(&"interact"):
+				_exit()
 		return
 	# Camera-relative WASD, same mapping as the player so it feels consistent.
 	var input := Vector2(

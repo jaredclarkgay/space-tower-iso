@@ -84,6 +84,7 @@ var _apron: Node3D
 var _crane: Node3D
 var _crane_setup: bool = false
 var _workers: Array = []
+var _shell_vis: Array = []     # earthen floor/walls/ramp + column meshes — hidden once Floor 0 is built
 var _active: bool = false
 var _t: float = 0.0
 
@@ -103,7 +104,16 @@ func _process(delta: float) -> void:
 	if a != _active:
 		_set_active(a)
 	_apply_world_swaps()   # idempotent; resolves the car + site ground if they grouped after our _ready
-	if _active and _seam_mat:
+	# Once Floor 0 (the Control Center) is built, its slab replaces the earthen pit: hide the
+	# dirt shell + column and drop the pit's footing (the slab takes over). The apron, crane,
+	# and workers stay — the worksite lives on (it climbs in Chunk 8).
+	var built_over: bool = int(_gs.built_level) >= 0
+	for m in _shell_vis:
+		if is_instance_valid(m):
+			m.visible = _active and not built_over
+	if _body:
+		_body.collision_layer = 2 if (_active and not built_over) else 0
+	if _active and not built_over and _seam_mat:
 		_seam_mat.emission_energy_multiplier = 0.7 + 0.5 * (0.5 + 0.5 * sin(_t * 1.8))
 
 
@@ -215,7 +225,7 @@ func _build_pit() -> void:
 	add_child(_body)
 
 	# Floor (top face at y = -depth).
-	_add_box_visual(Vector3(2.0 * half, 0.4, 2.0 * half), Vector3(0.0, -depth - 0.2, 0.0), floor_mat)
+	_shell_vis.append(_add_box_visual(Vector3(2.0 * half, 0.4, 2.0 * half), Vector3(0.0, -depth - 0.2, 0.0), floor_mat))
 	_add_box_coll(Vector3(2.0 * half, 0.4, 2.0 * half), Vector3(0.0, -depth - 0.2, 0.0))
 
 	# Earthen walls — North (+Z), East (+X), West (-X). South is the ramp. The walls sit
@@ -223,11 +233,11 @@ func _build_pit() -> void:
 	# don't lie coplanar with the ground apron at y=0 — that overlap was the z-fighting flicker.
 	var t: float = 0.6
 	var wall_y: float = -depth * 0.5
-	_add_box_visual(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5), wall_mat)
+	_shell_vis.append(_add_box_visual(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5), wall_mat))
 	_add_box_coll(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5))
-	_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0), wall_mat)
+	_shell_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0), wall_mat))
 	_add_box_coll(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0))
-	_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0), wall_mat)
+	_shell_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0), wall_mat))
 	_add_box_coll(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0))
 
 	# South access ramp: a thin gravel ramp whose TOP SURFACE lands exactly on the slope from
@@ -246,6 +256,7 @@ func _build_pit() -> void:
 	var ramp_mat := _mat(_c.PIT_RAMP_COLOR)
 	var ramp_vis := _add_box_visual(Vector3(2.0 * half, ramp_t, length), ramp_center, ramp_mat)
 	ramp_vis.rotation.x = angle
+	_shell_vis.append(ramp_vis)
 	var ramp_shape := CollisionShape3D.new()
 	var rb := BoxShape3D.new()
 	rb.size = Vector3(2.0 * half, ramp_t, length)
@@ -272,6 +283,7 @@ func _build_column() -> void:
 	shaft.material_override = _mat(_c.PIT_COLUMN_COLOR)
 	shaft.position.y = cy
 	add_child(shaft)
+	_shell_vis.append(shaft)
 
 	# Top cap (slightly wider).
 	var cap := MeshInstance3D.new()
@@ -283,6 +295,7 @@ func _build_column() -> void:
 	cap.material_override = _mat(Color(0.12, 0.13, 0.16))
 	cap.position.y = -depth + h + 0.1
 	add_child(cap)
+	_shell_vis.append(cap)
 
 	# Glow seam on the -Z face (toward the approaching player) — the dormant GX-5 inside.
 	_seam = MeshInstance3D.new()
@@ -297,6 +310,7 @@ func _build_column() -> void:
 	_seam.mesh.material = _seam_mat
 	_seam.position = Vector3(0.0, cy, -(r + 0.02))
 	add_child(_seam)
+	_shell_vis.append(_seam)
 
 	# Column collision: a SHORT cylinder covering only the base (floor up ~3.5 m), set a
 	# touch inside the visual radius. Just enough to stop you walking through the spine —
