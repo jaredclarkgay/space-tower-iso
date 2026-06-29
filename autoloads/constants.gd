@@ -536,9 +536,26 @@ const LOT_CENTER := Vector3(40.0, 0.0, 0.0)  # staged clear of the tower stack (
 const LOT_SIZE := 24.0                        # m — dirt plane side length
 const LOT_GROUND_Y := 0.0                     # top surface = player feet datum
 const LOT_DIRT_COLOR := Color(0.33, 0.26, 0.19)
-# Five helper names offered at the HIRE_PARTNER beat. Placeholder flavour names —
-# the hire has no mechanical consequence; rename freely (worldbuilding is Q-005).
-const PARTNER_NAMES := ["MARA", "TOBIN", "REESE", "IRIS", "VANCE"]
+
+# The construction PIT (opening-redesign Chapter 0 cold open). A hole in the ground at
+# the footprint (x=0) where the tower will rise: earthen walls + floor + a south access
+# ramp, with the inert elevator-column standing in it. Depth = one story so the pit floor
+# sits at the Control Center / basement level (level 0, world y = -PIT_DEPTH), exactly
+# where Floor 0 assembles later. Opening = the footprint (FLOOR_3D_SIZE).
+const PIT_DEPTH := FLOOR_3D_STORY_HEIGHT       # m — pit floor at y = -PIT_DEPTH (the basement level)
+const PIT_WALL_COLOR := Color(0.20, 0.15, 0.10)
+const PIT_FLOOR_COLOR := Color(0.27, 0.23, 0.17)
+const PIT_RAMP_COLOR := Color(0.48, 0.45, 0.38)   # gravel — reads as a constructed ramp vs the dark earthen walls
+const PIT_RAMP_RUN := 9.0                       # m — horizontal length of the south access ramp
+const PIT_COLUMN_RADIUS := 1.7                  # m — the elevator-column footprint
+const PIT_COLUMN_RISE := 2.2                    # m the column stands above grade
+const PIT_COLUMN_COLOR := Color(0.16, 0.18, 0.22)
+const PIT_COLUMN_GLOW := Color(0.35, 0.85, 0.95)  # the dormant GX-5's seam light
+# Three partner candidates offered at the HIRE_PARTNER beat. The Partner is the
+# Director's BUSINESS mouth — a human who never appears in person (phone-call
+# dialogue box + portrait). Placeholder flavour names; the hire has no mechanical
+# consequence yet (worldbuilding is Q-005). "TOBIN" is kept by design.
+const PARTNER_NAMES := ["MARA", "TOBIN", "REESE"]
 
 # --- Arrival cinematic ---
 # Scripted FIRST-entry into the Garden (Floor 1). Beats 0-2: spawn just inside the

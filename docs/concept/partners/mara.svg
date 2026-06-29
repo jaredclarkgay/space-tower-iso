@@ -1,0 +1,73 @@
+<svg viewBox="0 0 480 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="78%">
+      <stop offset="0%" stop-color="#0c242a"/>
+      <stop offset="100%" stop-color="#05121a"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#2fd0c0" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#2fd0c0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="600" rx="28" fill="url(#bg)"/>
+  <rect x="6" y="6" width="468" height="588" rx="24" fill="none" stroke="#2fd0c0" stroke-opacity="0.35" stroke-width="2"/>
+
+  <g transform="translate(240,52)">
+    <rect x="-122" y="-20" width="244" height="40" rx="20" fill="#000" fill-opacity="0.4" stroke="#2fd0c0" stroke-opacity="0.55"/>
+    <circle cx="-98" cy="0" r="5" fill="#2fd0c0"/>
+    <text x="-80" y="5" font-family="Verdana, sans-serif" font-size="15" fill="#dff4f1" letter-spacing="2">INCOMING CALL</text>
+    <rect x="80" y="3" width="5" height="6" fill="#2fd0c0"/>
+    <rect x="88" y="-2" width="5" height="11" fill="#2fd0c0"/>
+    <rect x="96" y="-7" width="5" height="16" fill="#2fd0c0"/>
+  </g>
+
+  <circle cx="240" cy="250" r="185" fill="url(#halo)"/>
+
+  <!-- back hair (bob) -->
+  <path d="M148 250 Q146 150 240 138 Q334 150 332 250 L342 430 L300 430 Q320 300 312 230 L168 230 Q160 300 180 430 L138 430 Z" fill="#1a1a24"/>
+
+  <!-- blazer -->
+  <path d="M72 600 L72 472 Q240 384 408 472 L408 600 Z" fill="#18242a"/>
+  <!-- blouse -->
+  <path d="M198 420 L282 420 L296 600 L184 600 Z" fill="#dfe4e6"/>
+  <path d="M198 420 L240 488 L282 420 L240 600 Z" fill="#cdd4d6"/>
+  <!-- lapels -->
+  <path d="M198 420 L240 600 L156 600 L176 472 Z" fill="#101a1f"/>
+  <path d="M282 420 L240 600 L324 600 L304 472 Z" fill="#101a1f"/>
+  <!-- necklace -->
+  <path d="M212 432 Q240 460 268 432" stroke="#2fd0c0" stroke-width="2.5" fill="none" stroke-opacity="0.8"/>
+  <circle cx="240" cy="456" r="4" fill="#2fd0c0"/>
+
+  <rect x="212" y="322" width="56" height="78" rx="20" fill="#cf9070"/>
+  <circle cx="160" cy="250" r="15" fill="#d99a78"/>
+  <circle cx="320" cy="250" r="15" fill="#d99a78"/>
+  <ellipse cx="240" cy="234" rx="78" ry="90" fill="#d99a78"/>
+
+  <!-- front fringe -->
+  <path d="M162 224 Q166 146 240 140 Q314 146 318 224 Q322 188 300 174 Q280 160 240 160 Q196 160 178 178 Q160 192 162 224 Z" fill="#1a1a24"/>
+  <path d="M300 178 Q322 210 316 262 Q330 200 308 172 Z" fill="#1a1a24"/>
+
+  <!-- earring -->
+  <circle cx="160" cy="268" r="4" fill="#2fd0c0"/>
+
+  <!-- face -->
+  <circle cx="211" cy="236" r="5" fill="#241c18"/>
+  <circle cx="269" cy="236" r="5" fill="#241c18"/>
+  <path d="M194 212 Q211 205 227 211" stroke="#241c18" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M253 211 Q269 205 286 212" stroke="#241c18" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M240 246 L234 270 Q240 276 247 270" stroke="#bf8460" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- confident slight smirk -->
+  <path d="M216 290 Q242 304 268 286" stroke="#b05a52" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+
+  <!-- phone -->
+  <g transform="rotate(-16 150 252)">
+    <rect x="118" y="206" width="46" height="94" rx="14" fill="#0c1a1e" stroke="#2fd0c0" stroke-opacity="0.5"/>
+    <rect x="126" y="220" width="30" height="60" rx="6" fill="#16282c"/>
+    <rect x="126" y="220" width="30" height="10" rx="4" fill="#2fd0c0" fill-opacity="0.55"/>
+  </g>
+  <path d="M118 252 Q102 273 114 302 Q140 316 160 299 Q151 272 151 254 Q137 245 118 252 Z" fill="#d99a78"/>
+
+  <rect x="44" y="516" width="392" height="70" rx="14" fill="#000" fill-opacity="0.45"/>
+  <text x="240" y="553" text-anchor="middle" font-family="Georgia, serif" font-size="40" font-weight="bold" fill="#dff4f1" letter-spacing="4">MARA</text>
+  <text x="240" y="578" text-anchor="middle" font-family="Verdana, sans-serif" font-size="14" fill="#2fd0c0" letter-spacing="1">THE CLOSER · turns floors into capital</text>
+</svg>

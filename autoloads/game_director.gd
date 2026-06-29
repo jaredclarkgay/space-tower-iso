@@ -16,7 +16,7 @@ extends Node
 
 enum Phase {
 	EMPTY_LOT,        # new exterior opening beat (built in step 2)
-	HIRE_PARTNER,     # new exterior beat: pick 1 of 5 helper NAMES (step 3)
+	HIRE_PARTNER,     # new exterior beat: pick 1 of 3 partner NAMES (step 3)
 	BUILD_STRUCTURE,  # construct-from-empty — deferred mechanic; stub transition
 	BUILD_INTERIORS,
 	ACTIVATE_FLOORS,
@@ -46,15 +46,29 @@ var current_phase: Phase = Phase.EMPTY_LOT
 # The directive library — the Director owns the CONTENT of direction; mouths only
 # render it. (Keep the player-facing words here, not buried in a speaker.)
 const DIRECTIVES := {
+	# The Partner's first contact (opening redesign Chapter 1). Routed to the "partner"
+	# mouth — a phone call, never an on-screen arrival. Establishes the business mouth
+	# and the through-line goal: build the Control Center, then go up floor by floor.
+	"partner_intro": {
+		"id": "partner_intro",
+		"speaker": "partner",
+		"lines": [
+			"You picked up — good. We've got the plot and the permit. That's all we ever get up front.",
+			"Your crew's already down in the pit. Get the Control Center built and powered first — the whole tower runs from there.",
+			"Then we climb. Floor by floor. The tallest tower anyone's ever built. I'll call when the next piece is ready.",
+		],
+		"objective": "Build the Control Center with your crew.",
+		"telemetry_beat": "director_beat",
+	},
 	"power_utilities": {
 		"id": "power_utilities",
 		"speaker": "cody",
 		"lines": [
 			"Welcome. Status: Garden unpowered. Nothing takes root.",
-			"Go down to Utility. Bring all six sources online.",
+			"Go down to the Control Center. Bring all six sources online.",
 			"I'll know the moment you do.",
 		],
-		"objective": "Go to the Utility floor — bring all six sources online.",
+		"objective": "Go to the Control Center — bring all six sources online.",
 		"telemetry_beat": "director_beat",
 	},
 	# Gate-lift payoff (floor_population_spec Step 3): power's on, so the Garden can
@@ -89,7 +103,7 @@ const DIRECTIVES := {
 		"id": "plant_locked",
 		"speaker": "hud",        # a quick toast, not a full Cody beat
 		"transient": true,
-		"lines": ["Unpowered. Roots need the grid. Utility floor."],
+		"lines": ["Unpowered. Roots need the grid. Control Center floor."],
 		"telemetry_beat": "director_beat",
 	},
 	"plant_locked_barren": {

@@ -13,7 +13,7 @@ extends Node3D
 @export var player_path: NodePath
 
 const SERVED := [0, 1, 2, 4, 5]    # served floors (Canopy 3 stairs-only, Roof 6 tube-only)
-const NAMES := {0: "Utility", 1: "Garden", 2: "Arboretum", 4: "Residential", 5: "Sky Lounge"}
+const NAMES := {0: "Control Center", 1: "Garden", 2: "Arboretum", 4: "Residential", 5: "Sky Lounge"}
 const CAR_HALF := 1.7              # platform half-extent (fits inside the ±2 shaft)
 const DOOR_HEIGHT := 2.8
 const PROMPT_ANCHOR_Y := 2.7       # prompt-stack height above the player's feet
@@ -51,6 +51,7 @@ func _floor_y(level: int) -> float:
 
 
 func _ready() -> void:
+	add_to_group("elevator")   # the cold-open construction pit hides the built-tower car while its column stands in
 	_player = get_node_or_null(player_path)
 	_build_car()
 	_build_prompt()

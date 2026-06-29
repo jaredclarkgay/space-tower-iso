@@ -1,5 +1,18 @@
 # Architecture Report — building a branching-fidelity scene graph on Space Tower Iso
 
+> **⚠️ Direction note (2026-06-28, Jared).** The branching-DAG / fidelity /
+> "developing Polaroid" system described below is **NOT a direction for Space
+> Tower Iso.** The tower stays **authored and deterministic** — locked structure,
+> narrative, and expansion path; any future player variability is a few bounded,
+> sanctioned slots, not an open graph. The part worth keeping — turning a real
+> source (a photo, written details about a true place) into a true-to-reality
+> visualization — belongs to the **separate agent-driven simulation tool**, where
+> there's an actual real-world source for fidelity to honor. In the tower there is
+> no such source, so fidelity-from-source has nothing to attach to. Treat the rest
+> of this document as **engine grounding for that separate tool**, not a build plan
+> for this game. The tower borrows only the already-true half: data is truth, the
+> SceneTree is one render of it.
+
 **Purpose.** A grounding map for an engineer building a NEW "developing Polaroid"
 system — a non-destructive, branching **DAG** (source node → typed operator nodes
 → forks → branches) where every element carries `fidelity: float (0→1)` and a

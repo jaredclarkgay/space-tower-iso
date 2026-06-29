@@ -16,6 +16,16 @@ var _roof: Node                # the roof floor — owns the knockable beams
 enum State { IDLE, DRIVING, FALLING }
 var _state: int = State.IDLE
 
+# BUILD MODE (opening redesign — crane in the construction pit). When set, the cab is a
+# stationary build station, NOT a free-drive vehicle: climbing in pins the player in the
+# seat and offers exit; there is no WASD drive and no drive-off-the-edge plunge gag (that
+# stays roof-only). Chunk 7 hangs the actual "issue a build" verb off this mode.
+var build_mode := false
+# When false the crane goes fully inert (no proximity prompt, no input) — the pit sets this
+# off whenever the cold-open worksite is hidden, so a buried crane can't grab the player.
+var enabled := true
+var idle_label := "Operate crane"   # the [E] prompt label; build_mode overrides the verb later
+
 const SPEED := 5.5             # m/s drive speed
 const TURN_RATE := 5.0         # rad/s the rig swings toward its heading
 const INTERACT_RADIUS := 3.0   # m — how close to climb in
@@ -68,6 +78,10 @@ func _physics_process(delta: float) -> void:
 	_t += delta
 	if _player == null:
 		return
+	if not enabled:
+		if _prompt_root:
+			_prompt_root.visible = false
+		return
 	_swing_hook(delta)
 	match _state:
 		State.IDLE:
@@ -83,7 +97,7 @@ func _update_idle() -> void:
 	_prompt_root.visible = near
 	if near:
 		_prompt_e.text = "E"
-		_prompt_label.text = "Operate crane"
+		_prompt_label.text = idle_label
 		if Input.is_action_just_pressed(&"interact"):
 			_enter()
 
@@ -97,6 +111,18 @@ func _enter() -> void:
 
 
 func _update_driving(delta: float) -> void:
+	# Build mode: the cab is a stationary build station — pin the player in the seat and
+	# offer exit; no drive, no edge plunge. (Chunk 7 adds the "issue a build" action here.)
+	if build_mode:
+		_player.global_position = _cab_seat.global_position
+		if _player is CharacterBody3D:
+			(_player as CharacterBody3D).velocity = Vector3.ZERO
+		_prompt_root.visible = true
+		_prompt_e.text = "E"
+		_prompt_label.text = "Exit crane"
+		if Input.is_action_just_pressed(&"interact"):
+			_exit()
+		return
 	# Camera-relative WASD, same mapping as the player so it feels consistent.
 	var input := Vector2(
 		Input.get_action_strength(&"move_right") - Input.get_action_strength(&"move_left"),

@@ -13,6 +13,7 @@ var _ground_mesh: MeshInstance3D         # the SiteGroundMesh child — recenter
 
 
 func _ready() -> void:
+	add_to_group("site_ground")   # the construction pit hides the solid plane to reveal the hole
 	var size: float = float(_c.SITE_GROUND_SIZE)
 
 	# Walkable ground plane (player mask = layer 2). Thin collision box, top at y=0.
@@ -79,6 +80,14 @@ func _ready() -> void:
 func set_paths_visible(v: bool) -> void:
 	for p in _paths:
 		p.visible = v
+
+
+# Hide/show the solid ground PLANE (not the collision frame, which keeps the footprint
+# hole). The construction pit hides it during the cold open so its own apron — which has a
+# real visual hole at the footprint — reveals the excavation; restored once the pit clears.
+func set_plane_visible(v: bool) -> void:
+	if _ground_mesh:
+		_ground_mesh.visible = v
 
 
 # Recenter the VISUAL ground mesh (the SiteGroundMesh child ONLY — not the doorway path

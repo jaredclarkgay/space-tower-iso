@@ -208,6 +208,7 @@ const SCRIPTED_WALK_ARRIVE_DIST := 0.25   # XZ metres from target that counts as
 
 
 func _ready() -> void:
+	add_to_group("player")   # so world objects (phone booth, workers) can resolve the player
 	_visual = Node3D.new()
 	_visual.name = "Visual"
 	add_child(_visual)

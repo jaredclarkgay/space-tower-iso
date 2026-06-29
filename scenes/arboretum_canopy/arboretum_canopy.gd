@@ -49,6 +49,10 @@ var _tree_hole_positions: Array = []
 
 # Gated structure (walls / elevator / spine pipes / extension grid).
 var _structure: Node3D
+# The tiled slab body (glass tiles + tree-hole RINGS + shaft grate). Toggled with the
+# structure so the canopy's rings don't float in view when the floor is hidden (e.g. the
+# cold-open pit, or looking up from a floor below).
+var _slab_body: StaticBody3D
 # Shared glass material for the slab tiles — the tower drives its alpha.
 var _slab_mat: StandardMaterial3D
 # Slab tile MESHES live here so they can be hidden wholesale when the glass is
@@ -95,6 +99,8 @@ func _ready() -> void:
 func set_structure_visible(v: bool) -> void:
 	if _structure:
 		_structure.visible = v
+	if _slab_body:
+		_slab_body.visible = v
 
 
 # --- Construction assembler interface (matches FloorConstruction) -----------
@@ -272,6 +278,7 @@ func _build_tiled_slab_with_holes() -> void:
 
 	var body := StaticBody3D.new()
 	body.name = "TiledSlabBody"
+	_slab_body = body
 	add_child(body)
 	_tiles_node = Node3D.new()
 	_tiles_node.name = "Tiles"

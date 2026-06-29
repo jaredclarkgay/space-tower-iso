@@ -1,0 +1,74 @@
+<svg viewBox="0 0 480 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="78%">
+      <stop offset="0%" stop-color="#2a1f0c"/>
+      <stop offset="100%" stop-color="#120c05"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#f0a830" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#f0a830" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="600" rx="28" fill="url(#bg)"/>
+  <rect x="6" y="6" width="468" height="588" rx="24" fill="none" stroke="#f0a830" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- incoming call pill -->
+  <g transform="translate(240,52)">
+    <rect x="-122" y="-20" width="244" height="40" rx="20" fill="#000" fill-opacity="0.4" stroke="#f0a830" stroke-opacity="0.55"/>
+    <circle cx="-98" cy="0" r="5" fill="#f0a830"/>
+    <text x="-80" y="5" font-family="Verdana, sans-serif" font-size="15" fill="#f4e7cf" letter-spacing="2">INCOMING CALL</text>
+    <rect x="80" y="3" width="5" height="6" fill="#f0a830"/>
+    <rect x="88" y="-2" width="5" height="11" fill="#f0a830"/>
+    <rect x="96" y="-7" width="5" height="16" fill="#f0a830"/>
+  </g>
+
+  <circle cx="240" cy="250" r="185" fill="url(#halo)"/>
+
+  <!-- suit -->
+  <path d="M70 600 L70 470 Q240 382 410 470 L410 600 Z" fill="#3a3026"/>
+  <path d="M196 420 L284 420 L300 600 L180 600 Z" fill="#e7ddc9"/>
+  <path d="M196 420 L240 600 L150 600 L170 470 Z" fill="#2c241b"/>
+  <path d="M284 420 L240 600 L330 600 L310 470 Z" fill="#2c241b"/>
+  <!-- tie -->
+  <path d="M226 418 L254 418 L240 452 Z" fill="#a8431a"/>
+  <path d="M240 452 L228 466 L240 600 L252 466 Z" fill="#c2511f"/>
+
+  <!-- neck -->
+  <rect x="212" y="320" width="56" height="80" rx="20" fill="#d79f74"/>
+  <circle cx="160" cy="248" r="16" fill="#e8b48a"/>
+  <circle cx="320" cy="248" r="16" fill="#e8b48a"/>
+  <ellipse cx="240" cy="232" rx="80" ry="92" fill="#e8b48a"/>
+
+  <!-- salt-and-pepper hair -->
+  <path d="M158 212 Q164 128 240 124 Q316 128 322 212 Q300 166 240 162 Q180 166 158 212 Z" fill="#b8b0a4"/>
+  <path d="M156 216 Q148 252 158 290 Q150 222 170 198 Z" fill="#b8b0a4"/>
+  <path d="M324 216 Q332 252 322 290 Q330 222 310 198 Z" fill="#b8b0a4"/>
+
+  <!-- glasses -->
+  <g stroke="#2c241b" stroke-width="4" fill="none">
+    <rect x="184" y="216" width="50" height="34" rx="12"/>
+    <rect x="246" y="216" width="50" height="34" rx="12"/>
+    <path d="M234 230 L246 230"/>
+    <path d="M184 226 L166 222"/>
+    <path d="M296 226 L314 222"/>
+  </g>
+  <circle cx="209" cy="233" r="5" fill="#2a2018"/>
+  <circle cx="271" cy="233" r="5" fill="#2a2018"/>
+  <path d="M190 206 Q209 198 226 206" stroke="#9a948a" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M254 206 Q271 198 290 206" stroke="#9a948a" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M240 244 L233 270 Q240 277 249 270" stroke="#c98f66" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M212 288 Q240 310 268 288" stroke="#9a5e3c" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- phone -->
+  <g transform="rotate(-16 150 250)">
+    <rect x="118" y="204" width="46" height="94" rx="14" fill="#181410" stroke="#f0a830" stroke-opacity="0.5"/>
+    <rect x="126" y="218" width="30" height="60" rx="6" fill="#2a2118"/>
+    <rect x="126" y="218" width="30" height="10" rx="4" fill="#f0a830" fill-opacity="0.55"/>
+  </g>
+  <path d="M118 250 Q102 271 114 300 Q140 314 160 297 Q151 270 151 252 Q137 243 118 250 Z" fill="#e8b48a"/>
+
+  <!-- name plate -->
+  <rect x="44" y="516" width="392" height="70" rx="14" fill="#000" fill-opacity="0.45"/>
+  <text x="240" y="553" text-anchor="middle" font-family="Georgia, serif" font-size="40" font-weight="bold" fill="#f4e7cf" letter-spacing="4">TOBIN</text>
+  <text x="240" y="578" text-anchor="middle" font-family="Verdana, sans-serif" font-size="14" fill="#f0a830" letter-spacing="1">THE FIXER · knows who to call</text>
+</svg>

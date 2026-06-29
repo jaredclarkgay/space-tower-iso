@@ -27,6 +27,9 @@
 [ext_resource type="Script" path="res://scenes/shared/empty_lot.gd" id="24_lot"]
 [ext_resource type="Script" path="res://scenes/shared/site_ground.gd" id="26_site"]
 [ext_resource type="Script" path="res://scenes/garden/hire_partner.gd" id="25_hire"]
+[ext_resource type="Script" path="res://scenes/shared/partner_phone.gd" id="29_partner"]
+[ext_resource type="Script" path="res://scenes/shared/phone_booth.gd" id="30_booth"]
+[ext_resource type="Script" path="res://scenes/shared/construction_pit.gd" id="31_pit"]
 [ext_resource type="Script" uid="uid://dg7dybn20yyv7" path="res://scenes/shared/chapter_jump.gd" id="27_chapter"]
 
 [sub_resource type="Environment" id="Environment_tower"]
@@ -152,6 +155,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 1
 script = ExtResource("25_hire")
+
+[node name="PartnerPhone" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("29_partner")
+
+[node name="PhoneBooth" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, -18)
+script = ExtResource("30_booth")
+
+[node name="ConstructionPit" type="Node3D" parent="."]
+script = ExtResource("31_pit")
 
 [node name="Floors" type="Node3D" parent="."]
 

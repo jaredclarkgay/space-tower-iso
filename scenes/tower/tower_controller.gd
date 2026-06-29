@@ -30,7 +30,7 @@ extends Node3D
 # is 0=basement (Utility) and counts UP; `name` is the HUD header text (the part
 # before "/" is the eyebrow). The Roof has no floor number — it shows "ROOF".
 const _FLOORS := [
-	{"node": "Floors/Utility", "level": 0, "name": "FLOOR 0 / UTILITY"},
+	{"node": "Floors/Utility", "level": 0, "name": "FLOOR 0 / CONTROL CENTER"},
 	{"node": "Floors/Garden", "level": 1, "name": "FLOOR 1 / GARDEN"},
 	{"node": "Floors/ArboretumGround", "level": 2, "name": "FLOOR 2 / ARBORETUM"},
 	{"node": "Floors/ArboretumCanopy", "level": 3, "name": "FLOOR 3 / CANOPY"},
@@ -49,7 +49,7 @@ const CHAPTERS := [
 	{"id": "build",        "label": "Build the Tower"},
 	{"id": "garden_intro", "label": "Garden — Intro Cinematic"},
 	{"id": "garden",       "label": "Garden (Floor 1)"},
-	{"id": "utility",      "label": "Utility (Floor 0)"},
+	{"id": "utility",      "label": "Control Center (Floor 0)"},
 	{"id": "arboretum",    "label": "Arboretum (Floor 2)"},
 	{"id": "canopy",       "label": "Canopy (Floor 3)"},
 	{"id": "residential",  "label": "Residential (Floor 4)"},
@@ -443,6 +443,12 @@ func _update_exterior(snap: bool) -> void:
 			node.set_structure_visible(false)
 		else:
 			node.visible = false
+		# The tower isn't built during the cold open, so its slabs must NOT collide —
+		# otherwise the (invisible) Garden slab at grade ceilings the construction pit and
+		# the player can't drop in. The pit + site ground are the only ground out here.
+		var slab: StaticBody3D = f.get("slab")
+		if slab:
+			slab.collision_layer = 0
 	if _cityscape:
 		_cityscape.visible = false
 	if _site_ground:
