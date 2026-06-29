@@ -88,13 +88,25 @@ var _shell_vis: Array = []     # earthen floor/walls/ramp + column meshes — hi
 var _active: bool = false
 var _t: float = 0.0
 
+# --- The climbing WORKSITE (opening redesign Chunk 8 / Principle 6) ------------------
+# The crane + the three workers + an open steel construction deck are ONE apparatus that
+# RIDES THE TOP OF THE TOWER: it starts on the pit floor (building the Control Center
+# foundation) and relocates onto the edges of each newly-built floor, so the top of the
+# tower is always a live, see-through worksite that climbs as the building grows. The
+# earthen pit shell, column, and apron do NOT climb — they're the cold-open hole and hide
+# once Floor 0 is poured. _worksite is the node everything that climbs hangs off; moving its
+# Y is the whole relocation.
+var _worksite: Node3D
+var _worksite_deck: Node3D     # open steel frame (the unfinished-top read); shown once the climb begins
+var _relocated_level: int = -999
+var _climb_tween: Tween
+
 
 func _ready() -> void:
 	_build_apron()
 	_build_pit()
 	_build_column()
-	_build_crane()
-	_build_workers()
+	_build_worksite()
 	_set_active(_compute_active())
 
 
@@ -105,8 +117,8 @@ func _process(delta: float) -> void:
 		_set_active(a)
 	_apply_world_swaps()   # idempotent; resolves the car + site ground if they grouped after our _ready
 	# Once Floor 0 (the Control Center) is built, its slab replaces the earthen pit: hide the
-	# dirt shell + column and drop the pit's footing (the slab takes over). The apron, crane,
-	# and workers stay — the worksite lives on (it climbs in Chunk 8).
+	# dirt shell + column and drop the pit's footing (the slab takes over). The apron stays;
+	# the WORKSITE (crane + workers + steel deck) climbs onto the built floors above.
 	var built_over: bool = int(_gs.built_level) >= 0
 	for m in _shell_vis:
 		if is_instance_valid(m):
@@ -115,6 +127,20 @@ func _process(delta: float) -> void:
 		_body.collision_layer = 2 if (_active and not built_over) else 0
 	if _active and not built_over and _seam_mat:
 		_seam_mat.emission_energy_multiplier = 0.7 + 0.5 * (0.5 + 0.5 * sin(_t * 1.8))
+	# Drive the worksite's height off built_level every frame (invariant: cross-floor state is
+	# LIVE, not baked) so it climbs no matter which path raised the floor (crane build or a
+	# harness/dev jump). Hold position WHILE a floor is mid-assembly — the apparatus builds the
+	# new floor from the one below, then climbs onto it once it tops out. The open steel deck
+	# appears once the first floor is poured.
+	var bl: int = int(_gs.built_level)
+	var tc: Node = get_tree().get_first_node_in_group("tower_controller")
+	var mid_build: bool = tc != null and tc.has_method("is_crane_building") and bool(tc.call("is_crane_building"))
+	if bl != _relocated_level and not mid_build:
+		_relocated_level = bl
+		if bl >= 0:
+			relocate_to_level(bl)
+	if _worksite_deck:
+		_worksite_deck.visible = _active and built_over
 
 
 func _compute_active() -> bool:
@@ -156,30 +182,115 @@ func _apply_world_swaps() -> void:
 			w.set("enabled", _active)
 
 
-# --- The construction crane, standing on the pit floor (the build verb lives here in
-# Chunk 7). Reuses the drivable crane in BUILD MODE (stationary build station, no plunge).
+# --- The climbing worksite: crane + workers + open steel deck, all parented under one node
+# whose Y is the apparatus's height. It starts on the pit floor (y = -PIT_DEPTH, where the
+# Control Center pours) and relocate_to_level() rides it onto each built floor. Everything
+# under _worksite uses LOCAL coords (deck surface at local y=0).
+func _build_worksite() -> void:
+	_worksite = Node3D.new()
+	_worksite.name = "Worksite"
+	_worksite.position.y = -float(_c.PIT_DEPTH)   # on the pit floor for the cold-open build
+	add_child(_worksite)
+	_build_crane()
+	_build_workers()
+	_build_worksite_deck()
+
+
+# Reuses the drivable crane in BUILD MODE (stationary build station, no plunge). The cab IS
+# the build verb (Chunk 7); the player rides it up as the worksite climbs (Chunk 8).
 func _build_crane() -> void:
-	var depth: float = float(_c.PIT_DEPTH)
 	_crane = _CRANE.new()
 	_crane.set("build_mode", true)
-	_crane.set("idle_label", "Operate crane")   # Chunk 7 swaps this to the build verb
-	add_child(_crane)
-	# Stand it on the pit floor, off to one side, clear of the central column.
-	_crane.position = Vector3(-8.0, -depth, -4.0)
+	_crane.set("idle_label", "Operate crane")
+	_worksite.add_child(_crane)
+	# Off to one side of the deck, clear of the central shaft/column.
+	_crane.position = Vector3(-8.0, 0.0, -4.0)
 
 
-# --- The three pit workers (personalities + wander AI + [E] dialogue) --------------
+# --- The three workers (personalities + wander AI + [E] dialogue) — they ride the deck up.
 func _build_workers() -> void:
-	var depth: float = float(_c.PIT_DEPTH)
-	var crane_spot := Vector3(-8.0, -depth, -4.0)
+	var crane_spot := Vector3(-8.0, 0.0, -4.0)
 	for i in WORKERS.size():
 		var def: Dictionary = WORKERS[i]
 		var w: Node3D = _WORKER.new()
 		var home: Vector3 = def.home
-		home.y = -depth   # stand on the pit floor
+		home.y = 0.0   # stand on the deck surface (local)
 		w.call("configure", String(def.name), def.tint, def.tree, home, crane_spot, i)
-		add_child(w)
+		_worksite.add_child(w)
 		_workers.append(w)
+
+
+# --- The open steel construction deck — the unmistakable "still being built / see-through
+# top" read that rides the worksite: four corner columns rising a story, a perimeter ring
+# beam (the next floor's frame), low edge curbs, and a leaning girder of clutter. Open at the
+# centre (the shaft) and the top (no ceiling) so the player watches the next floor assemble.
+# Hidden until the first floor is poured (the cold-open pit stays uncluttered).
+func _build_worksite_deck() -> void:
+	_worksite_deck = Node3D.new()
+	_worksite_deck.name = "WorksiteDeck"
+	_worksite_deck.visible = false
+	_worksite.add_child(_worksite_deck)
+
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+	var col_h: float = 4.2
+	var inset: float = 0.6
+	var steel := Color(0.38, 0.40, 0.44)
+	var rust := Color(0.52, 0.38, 0.26)
+	var concrete := Color(0.46, 0.46, 0.48)
+	var corners := [
+		Vector3(-half + inset, 0, -half + inset), Vector3(half - inset, 0, -half + inset),
+		Vector3(half - inset, 0, half - inset), Vector3(-half + inset, 0, half - inset),
+	]
+	for cpos in corners:
+		_deck_box(Vector3(0.28, col_h, 0.28), cpos + Vector3(0, col_h * 0.5, 0), steel)
+		_deck_box(Vector3(0.46, 0.08, 0.46), cpos + Vector3(0, col_h + 0.04, 0), rust)
+	var ring_y: float = col_h - 0.15
+	_deck_box(Vector3((half - inset) * 2.0, 0.22, 0.22), Vector3(0, ring_y, -half + inset), steel)
+	_deck_box(Vector3((half - inset) * 2.0, 0.22, 0.22), Vector3(0, ring_y, half - inset), steel)
+	_deck_box(Vector3(0.22, 0.22, (half - inset) * 2.0), Vector3(-half + inset, ring_y, 0), steel)
+	_deck_box(Vector3(0.22, 0.22, (half - inset) * 2.0), Vector3(half - inset, ring_y, 0), steel)
+	# Low edge curbs (corner gaps left open — unfinished).
+	var curb_h := 0.35
+	for v in [-half + 0.2, half - 0.2]:
+		_deck_box(Vector3((half - 3.0) * 2.0, curb_h, 0.18), Vector3(0, curb_h * 0.5, v), concrete)
+		_deck_box(Vector3(0.18, curb_h, (half - 3.0) * 2.0), Vector3(v, curb_h * 0.5, 0), concrete)
+	# A leaning girder lying across the deck — building-material clutter.
+	var girder := _deck_box(Vector3(0.3, 0.3, 9.0), Vector3(5.5, 0.7, -3.0), rust)
+	girder.rotation = Vector3(0.0, deg_to_rad(28.0), deg_to_rad(6.0))
+
+
+func _deck_box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.metallic = 0.5
+	mat.roughness = 0.55
+	m.material_override = mat
+	m.position = pos
+	_worksite_deck.add_child(m)
+	return m
+
+
+# Ride the apparatus onto the edges of `level` — the top surface of the floor just built, so
+# the next floor assembles in open air above it (Principle 6). World-Y derived from the tower
+# (never hardcoded — invariant #1). Eased so the climb plays as a visible beat; the player,
+# if still in the cab, rides up with it.
+func relocate_to_level(level: int) -> void:
+	if _worksite == null:
+		return
+	var tc: Node = get_tree().get_first_node_in_group("tower_controller")
+	var top_y: float = -float(_c.PIT_DEPTH)
+	if tc and tc.has_method("floor_top_y"):
+		top_y = float(tc.call("floor_top_y", level))
+	if _worksite_deck:
+		_worksite_deck.visible = true
+	if _climb_tween and _climb_tween.is_valid():
+		_climb_tween.kill()
+	_climb_tween = create_tween()
+	_climb_tween.tween_property(_worksite, "position:y", top_y, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
 
 # --- Ground apron: the cold-open ground at y=0, framed with a footprint-sized hole so

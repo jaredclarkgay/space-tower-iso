@@ -2041,6 +2041,13 @@ func _base_y_for_level(level: int) -> float:
 	return 0.0
 
 
+# World Y of a floor's walkable top surface (slab top). Public so the climbing construction
+# worksite (scenes/shared/construction_pit.gd) can ride onto each built floor without
+# hardcoding a stacked height (invariant #1).
+func floor_top_y(level: int) -> float:
+	return _base_y_for_level(level) + float(_c.FLOOR_3D_TOP_Y)
+
+
 func _name_for_level(level: int) -> String:
 	for f in _floors:
 		if int(f.level) == level:

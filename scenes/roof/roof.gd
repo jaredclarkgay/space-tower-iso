@@ -13,7 +13,6 @@ extends Node3D
 
 const FloorChrome = preload("res://scenes/shared/floor_chrome.gd")
 const VacuumTube = preload("res://scenes/shared/vacuum_tube.gd")
-const Crane = preload("res://scenes/roof/crane.gd")
 const FloorConstruction = preload("res://scenes/shared/floor_construction.gd")
 
 @onready var _c: Node = get_node("/root/Constants")
@@ -30,15 +29,8 @@ const STEEL_RUST := Color(0.52, 0.38, 0.26)
 var _elevator_data: Dictionary = {}
 
 # Per-component structural assembly (open deck: slab → core → risers → tubes; no
-# walls/grid). The steel structure + crane are content, built after.
+# walls/grid). The static steel Vista structure is content, built after.
 var _construction: FloorConstruction = null
-
-# Every loose steel member on the deck, with its parked transform, so the crane
-# can knock the ones it drives past off the edge and we can snap them all back
-# after the plunge. Each entry: {node, pos, rot, falling, vel, spin}. Only the
-# CRANE knocks these (driving over the edge) — the player can't shove them off.
-var _beams: Array = []
-const BEAM_GRAVITY := 32.0    # m/s² — same heavy feel as the player plunge
 
 
 func _ready() -> void:
@@ -56,13 +48,12 @@ func _ready() -> void:
 	_construction.build_all_instant()
 	_elevator_data = _construction.elevator_data()
 	_build_steel_structure()
-
-	# The drivable construction crane. It can drive off the edge and plunge,
-	# knocking the nearby steel beams down with it (knock_beams_near / restore_beams).
-	var crane := Crane.new()
-	crane.name = "Crane"
-	add_child(crane)
-	crane.setup(get_node_or_null(player_path), get_node_or_null(camera_pivot_path), self)
+	# NOTE: the construction crane no longer lives here. Opening redesign Chunk 8 unified the
+	# two cranes into ONE climbing apparatus that rides the top of the tower (the build crane +
+	# workers + open deck in scenes/shared/construction_pit.gd). The drive-off-the-edge plunge
+	# gag went with it (dropped for now — see OR-001 Chunk 8). The roof keeps only its static
+	# steel Vista; SEAM for Chunk 10: once the apparatus persists all the way up the stack it
+	# arrives here and replaces this static steel as the live worksite.
 
 
 # Exposed steel: four corner columns rising one story, a perimeter ring beam at
@@ -109,12 +100,6 @@ func _build_steel_structure() -> void:
 	var girder := _beam(Vector3(0.3, 0.3, 9.0), Vector3(5.5, 0.7, -3.0), STEEL_RUST)
 	girder.rotation = Vector3(0.0, deg_to_rad(28.0), deg_to_rad(6.0))
 
-	# Snapshot each member's final parked transform now that everything (incl. the
-	# tilted girder) is placed — this is what restore_beams() returns them to.
-	for b in _beams:
-		b.pos = (b.node as Node3D).position
-		b.rot = (b.node as Node3D).rotation
-
 
 func _beam(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
@@ -128,57 +113,7 @@ func _beam(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	m.material_override = mat
 	m.position = pos
 	add_child(m)
-	# Register it as a knockable member (parked transform recorded for restore).
-	_beams.append({"node": m, "pos": pos, "rot": Vector3.ZERO, "falling": false,
-			"vel": Vector3.ZERO, "spin": Vector3.ZERO})
 	return m
-
-
-# --- Beam knock-off (crane plunge gag) -----------------------------------
-# The crane, as it drives over the edge, calls this with its world position +
-# fall velocity. Every parked beam within radius is sent tumbling off the deck
-# WITH the crane (same gravity), kicked outward from the crane so they scatter.
-func knock_beams_near(world_pos: Vector3, radius: float, crane_vel: Vector3) -> void:
-	for b in _beams:
-		if b.falling:
-			continue
-		var node: MeshInstance3D = b.node
-		var wp: Vector3 = node.global_position
-		if Vector2(wp.x - world_pos.x, wp.z - world_pos.z).length() > radius:
-			continue
-		b.falling = true
-		# Carry the crane's plunge velocity, plus an outward shove + upward pop so
-		# they fly off rather than sink straight down.
-		var out := Vector3(wp.x - world_pos.x, 0.0, wp.z - world_pos.z)
-		if out.length() < 0.1:
-			out = Vector3(randf() - 0.5, 0.0, randf() - 0.5)
-		out = out.normalized() * (3.0 + randf() * 2.5)
-		b.vel = crane_vel + out + Vector3(0.0, 2.5 + randf() * 2.0, 0.0)
-		b.spin = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 6.0
-
-
-# Advance any knocked beams under gravity + tumble. Driven by the crane each
-# physics frame while it's plunging so the beams fall in lockstep with it.
-func tick_falling_beams(delta: float) -> void:
-	for b in _beams:
-		if not b.falling:
-			continue
-		var node: MeshInstance3D = b.node
-		b.vel.y -= BEAM_GRAVITY * delta
-		node.position += b.vel * delta
-		node.rotation += b.spin * delta
-
-
-# Snap every beam back to its parked transform and clear the falling state — the
-# roof restores to pristine when the gag flashes back.
-func restore_beams() -> void:
-	for b in _beams:
-		var node: MeshInstance3D = b.node
-		node.position = b.pos
-		node.rotation = b.rot
-		b.falling = false
-		b.vel = Vector3.ZERO
-		b.spin = Vector3.ZERO
 
 
 # A thin diagonal brace between two points (start at a, end at b).
