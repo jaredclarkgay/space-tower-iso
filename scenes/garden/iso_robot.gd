@@ -829,6 +829,24 @@ func close_dialogue() -> void:
 	_gs.dialogue_open = false
 
 
+# Opening redesign Chunk 9 — a SINGLE non-interactive line (no Continue button, no choices)
+# that auto-dismisses after `hold` seconds. Used by the trimmed arrival: Cody rises, says one
+# line, control returns. Deliberately does NOT set dialogue_open — the arrival_cinematic lock
+# owns the player freeze, and we don't want iso_camera's dialogue close-up here.
+func say_oneline(text: String, hold: float = 2.6) -> void:
+	if _dialogue_panel == null:
+		_build_dialogue_panel()
+	_director_lines = []
+	_current_choices = []
+	_dialogue_text.text = text
+	for child in _dialogue_choices_vbox.get_children():
+		child.queue_free()
+	_dialogue_panel.visible = true
+	get_tree().create_timer(hold).timeout.connect(func() -> void:
+		if is_instance_valid(_dialogue_panel):
+			_dialogue_panel.visible = false)
+
+
 # --- Director-mouth rendering (vision.md §1) ------------------------------
 # The Director hands Cody a directive; he renders its lines in his panel in
 # "director mode" — one terse line at a time, advance-to-continue, no choice tree.

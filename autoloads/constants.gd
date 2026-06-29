@@ -570,6 +570,9 @@ const ARRIVAL_CINE_CAM_BACK := 7.0    # camera distance BEHIND the player (south
 const ARRIVAL_CINE_CAM_LIFT := 3.5    # camera height above the player
 const ARRIVAL_CINE_CAM_LOWER_DUR := 1.0  # ease-in seconds for the camera lowering behind
 const ARRIVAL_CINE_STOP_HOLD := 0.6   # hold beat after the stop
+# Opening redesign Chunk 9 — the trimmed arrival is one lock: Cody rises, ONE non-interactive
+# line, control returns. LINE_HOLD is how long the single line sits before the resume ease.
+const ARRIVAL_CINE_LINE_HOLD := 2.6
 # CALM REDESIGN: the whole cinematic is ONE gentle settle — no orbit sweep, no
 # ping-pong, no exit spin. The pivot yaw is MONOTONIC across the entire piece and lands
 # EXACTLY on the iso resting yaw (−135°) so the exit is a non-event. _cam_yaw is in the

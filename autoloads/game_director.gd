@@ -68,6 +68,9 @@ const DIRECTIVES := {
 			"Go down to the Control Center. Bring all six sources online.",
 			"I'll know the moment you do.",
 		],
+		# Opening redesign Chunk 9 — Cody's ONE non-interactive line on rising from the column.
+		# The objective line below carries the "where/what"; this is the greet + the nudge.
+		"oneline": "GX-5, online. Garden's dead until the Control Center is — six sources, downstairs.",
 		"objective": "Go to the Control Center — bring all six sources online.",
 		"telemetry_beat": "director_beat",
 	},
@@ -137,7 +140,10 @@ func unregister_mouth(node: Object) -> void:
 # routes the SPOKEN delivery to a mouth (the directive's named speaker, else the
 # highest-priority one that accepts it) and notifies every mouth via the signal so
 # passive ones (the HUD objective) can mirror it regardless of who speaks.
-func issue_directive(directive_or_id) -> void:
+# `route_spoken` false sets the active directive + notifies passive mouths (the HUD
+# objective) but does NOT open a speaking mouth's box — used by the trimmed arrival
+# (Chunk 9), which sets the objective passively and lets Cody speak ONE line of its own.
+func issue_directive(directive_or_id, route_spoken: bool = true) -> void:
 	var d: Dictionary = directive_or_id if directive_or_id is Dictionary \
 		else DIRECTIVES.get(directive_or_id, {})
 	if d.is_empty():
@@ -149,6 +155,8 @@ func issue_directive(directive_or_id) -> void:
 	var tel: Node = get_node_or_null("/root/Telemetry")
 	if tel and d.has("telemetry_beat"):
 		tel.call("record", String(d.telemetry_beat), {"id": d.get("id", "")})
+	if not route_spoken:
+		return
 	var want: String = String(d.get("speaker", ""))
 	for m in _mouths:
 		var node: Object = m.node
@@ -158,6 +166,16 @@ func issue_directive(directive_or_id) -> void:
 			continue
 		if node.has_method("deliver_directive") and bool(node.call("deliver_directive", d)):
 			return
+
+
+# The single greeting line for a directive (Chunk 9's one-line arrival). Falls back to the
+# first full line if no dedicated `oneline` is authored.
+func oneline_for(id: String) -> String:
+	var d: Dictionary = DIRECTIVES.get(id, {})
+	if d.has("oneline"):
+		return String(d.oneline)
+	var lines: Array = d.get("lines", [])
+	return String(lines[0]) if not lines.is_empty() else ""
 
 
 # Called when the sixth Utility source goes active (opening_sequence_spec Step 5).

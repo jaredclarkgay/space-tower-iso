@@ -97,15 +97,17 @@ var _hud_level: int = -1        # last level pushed to the HUD (force first push
 var _ext_hud_phase: int = -99   # last arc phase the exterior header showed (-99 = none)
 var _pulse_level: int = 0       # last level the camera-arrival pulse saw
 # Arrival cinematic (FIRST Garden entry, Beats 0-2): spawn at the south doorway,
-# auto-walk inward behind a lowering follow camera, stop at a mark, then hand off
-# to Cody's in-place arrival. _arrival_played is the one-shot gate; _arrival_cine is
-# active; _arrival_beat is the beat index (1=walk, 2=stop-hold); _arrival_t times
-# the camera lower-in and the stop hold.
+# Opening redesign Chunk 9 — the arrival is the ONE allowed lock, trimmed to its essence:
+# Cody rises from the column, says ONE line, control returns. _arrival_played is the one-shot
+# gate; _arrival_cine is active; _arrival_beat is the trimmed beat index (1=emerge, 2=one-line,
+# 4=resume); _arrival_t times the current beat. (The old walk-in/stop-hold/rotate/orbit beats
+# were the railroad that's now gone — see _update_arrival_cinematic.)
 var _arrival_played: bool = false
 var _arrival_cine: bool = false
 var _arrival_beat: int = 0
 var _arrival_t: float = 0.0
 var _arrival_walk_started: bool = false   # first-tick guard for begin_scripted_walk
+var _oneline_said: bool = false           # one-shot: Cody's single arrival line issued
 # Beat-3 elevator-emergence sub-phasing (Step 3). The conductor puppets the
 # elevator car + Cody up the shaft, concurrently with the orbit sweep.
 var _emerge_started: bool = false         # one-shot Beat-3 entry guard
@@ -313,6 +315,7 @@ func _begin_arrival_cinematic(walked_in: bool = false) -> void:
 	_rotate_t = 0.0
 	_convo_opened = false
 	_convo_yaw = 0.0
+	_oneline_said = false
 	_resume_started = false
 	_resume_t = 0.0
 	# FIX 3 — reset Cody + the elevator to their PRE-cinematic state so the emergence REPLAYS
@@ -873,169 +876,57 @@ func _update_arrival_cinematic(delta: float) -> void:
 		if _intro_t >= float(_c.ARRIVAL_CINE_INTRO_DUR):
 			_intro_active = false   # hand to the normal member-ease cleanly (members already at OTS)
 	if _arrival_beat == 1:
-		# Kick off the scripted walk once (target = the mark at the same floor height).
-		if not _arrival_walk_started:
-			_arrival_walk_started = true
-			if _player and _player.has_method("begin_scripted_walk"):
-				var spawn_y: float = _base_y_for_level(_SPAWN_LEVEL) + float(_c.FLOOR_3D_TOP_Y)
-				var mark := Vector3(0.0, spawn_y, float(_c.ARRIVAL_CINE_MARK_Z))
-				_player.call("begin_scripted_walk", mark, float(_c.ARRIVAL_CINE_WALK_SPEED))
-		# OTS walk-in TARGET: settled over-the-shoulder framing (back/lift/shoulder/size
-		# at their tight values, look-at ahead + up). The _cam_* members were seeded to
-		# the higher/farther opening pose, so they EASE down into this over Beat 1 — the
-		# old per-frame lower_t lerp becomes the continuous member ease, no extra logic.
-		_set_ots_walk_targets()
+		# Beat 1 — EMERGE (the one allowed lock). The player stands where they entered,
+		# frozen by arrival_cinematic; Cody rises from the column/elevator. The camera holds
+		# ONE calm over-the-shoulder frame that widens to take in the rising bot — NO walk-in,
+		# NO rotate-to-profile, NO orbit (those were the railroad; opening redesign Chunk 9).
+		_update_emergence(delta)
+		_set_emergence_frame_targets()
 		_drive_arrival_camera(delta)
-		if _player and _player.has_method("is_scripted_walk_done") and _player.call("is_scripted_walk_done"):
+		var robot1: Node = get_node_or_null("Floors/Garden/IsoRobot")
+		var emerge_done: bool = robot1 == null or not robot1.has_method("is_emergence_done") or bool(robot1.call("is_emergence_done"))
+		if emerge_done:
 			_arrival_beat = 2
 			_arrival_t = 0.0
 	elif _arrival_beat == 2:
-		# Hold at the mark — same settled OTS targets; the members continue easing in.
-		_set_ots_walk_targets()
+		# Beat 2 — ONE line, then auto-return. Cody delivers a single non-interactive line and
+		# the HUD objective carries the rest. The Director owns the words (vision.md §1): set the
+		# directive's OBJECTIVE passively (HUD mirror, no interactive box) + speak its one-liner.
+		if not _oneline_said:
+			_oneline_said = true
+			var robot2: Node = get_node_or_null("Floors/Garden/IsoRobot")
+			var gd: Node = get_node_or_null("/root/GameDirector")
+			var line: String = ""
+			if gd and gd.has_method("issue_directive"):
+				gd.call("issue_directive", "power_utilities", false)   # objective only
+				if gd.has_method("oneline_for"):
+					line = String(gd.call("oneline_for", "power_utilities"))
+			if robot2 and robot2.has_method("say_oneline") and line != "":
+				robot2.call("say_oneline", line, float(_c.ARRIVAL_CINE_LINE_HOLD))
+		_set_emergence_frame_targets()
 		_drive_arrival_camera(delta)
-		if _arrival_t >= float(_c.ARRIVAL_CINE_STOP_HOLD):
-			_arrival_beat = 3
+		if _arrival_t >= float(_c.ARRIVAL_CINE_LINE_HOLD):
+			_arrival_beat = 4
 			_arrival_t = 0.0
-			# FIX 1 — lock the player facing toward Cody's park spot (+Z/north) so the profile
-			# two-shot reads as the two facing each other. The walk already left him facing
-			# +Z; set it explicitly so a replay or odd arrival angle can't break the framing.
-			if _player and _player.has_method("set_facing_yaw"):
-				var robot: Node3D = get_node_or_null("Floors/Garden/IsoRobot")
-				var face_z: float = 1.0
-				if robot:
-					face_z = signf((robot.global_position.z) - _player.global_position.z)
-					if face_z == 0.0:
-						face_z = 1.0
-				_player.call("set_facing_yaw", atan2(0.0, face_z))
-	elif _arrival_beat == 3:
-		# CALM REDESIGN — the SETTLE. NO orbit. While Cody EMERGES from the elevator (car
-		# rises, doors open, Cody rolls out) the camera does ONE small, single, monotonic
-		# move: the yaw eases from the walk-follow yaw (iso_yaw + small bias) to EXACTLY the
-		# iso yaw — the only notable rotation in the whole piece, ≤ the bias, ONE direction.
-		# Concurrently the SIZE eases wider (OTS-tight → a two-shot that includes the
-		# elevator + Cody) and the FOCUS eases from the player to the player↔Cody pair
-		# midpoint. The widening + the small settle reveal Cody emerging — no orbit needed.
-		_update_emergence(delta)
-		# ROTATE-DELAY: HOLD the over-the-shoulder framing (yaw 0) through Cody's ENTIRE
-		# emergence — car rising, doors opening, Cody rolling out. The player watches Cody
-		# arrive over his shoulder, looking NORTH toward the elevator. We only widen the size a
-		# touch (gentle zoom, NOT a rotation) so the elevator + emerging Cody read clearly
-		# AHEAD of the player, and nudge the focus slightly forward toward the pair so the
-		# emergence isn't shoved off-frame. The yaw stays pinned at _walk_yaw() (0).
-		#
-		# Trigger the yaw→profile rotation only once Cody has (nearly) settled: a small lead
-		# (ARRIVAL_CINE_ROTATE_LEAD) before his roll-out tween ends, so the move overlaps his
-		# final settle slightly. Once started, advance the SAME smoothstep here; it PERSISTS
-		# into Beat 5 (which keeps advancing it) so the move never snaps at the beat boundary.
-		var pp: Vector3 = _player.global_position
-		var pair_mid: Vector3 = _pair_midpoint()
-		if not _rotate_started:
-			# Begin the rotation a small lead before the roll-out tween finishes. Falling back
-			# to is_emergence_done() guards against odd timing (e.g. a replay).
-			var robot0: Node = get_node_or_null("Floors/Garden/IsoRobot")
-			var emerge_done0: bool = robot0 != null and robot0.has_method("is_emergence_done") and bool(robot0.call("is_emergence_done"))
-			var rollout_trigger: bool = _emerge_rollout_started and _rollout_elapsed >= float(_c.ARRIVAL_CINE_ROLLOUT_DUR) - float(_c.ARRIVAL_CINE_ROTATE_LEAD)
-			if rollout_trigger or emerge_done0:
-				_rotate_started = true
-				_rotate_t = 0.0
-		if not _rotate_started:
-			# Emergence in progress — HOLD yaw 0 (over-the-shoulder). Gentle widen + slight
-			# forward focus nudge so the elevator + Cody read ahead, but NO rotation.
-			_cam_focus_tgt = pp.lerp(pair_mid, 0.35)
-			_cam_yaw_tgt = _walk_yaw()
-			_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
-			_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
-			_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
-			_cam_size_tgt = float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE)
-			_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
-			_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
-		else:
-			# Cody has (nearly) settled — run the calm rotation: yaw 0 → profile (−90), focus →
-			# pair midpoint, size → pair two-shot, all on ONE smoothstep curve.
-			_advance_rotate_ease(delta)
-		_drive_arrival_camera(delta)
-		var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
-		var emerge_done: bool = robot == null or not robot.has_method("is_emergence_done") or bool(robot.call("is_emergence_done"))
-		if _rotate_started and emerge_done:
-			# Intro animation complete — hand the moment to the Director, which issues
-			# the opening beat; Cody (the primary mouth) delivers it (vision.md §1 —
-			# direction flows through the routable channel, not hardcoded into Cody).
-			# Then Beat 5: a slow close orbit around the pair for as long as the beat is up.
-			if not _convo_opened:
-				_convo_opened = true
-				var gd: Node = get_node_or_null("/root/GameDirector")
-				if gd and gd.has_method("issue_directive"):
-					gd.call("issue_directive", "power_utilities")
-				elif robot and robot.has_method("open_dialogue"):
-					robot.call("open_dialogue")   # fallback if the channel is unavailable
-			_convo_yaw = 0.0   # time accumulator for the conversation-orbit ping-pong (starts at the settle yaw)
-			_arrival_beat = 5
-			_arrival_t = 0.0
-	elif _arrival_beat == 5:
-		_update_conversation_orbit(delta)
+			_resume_started = false
 	elif _arrival_beat == 4:
 		_update_resume_ease(delta)
 
 
-# Beat 5 (ASK 3) — conversation orbit: the dialogue auto-opened at the end of Beat 3;
-# keep arrival_cinematic TRUE (player frozen, iso_camera bowed out, the robot's own
-# _input still drives the choices) and slowly circle the player↔Cody PAIR at the close
-# pair size for as long as the player stays in the chat. When they end it
-# (GameState.dialogue_open goes false), hand to Beat 4 (the existing resume ease).
-func _update_conversation_orbit(delta: float) -> void:
-	# CALM REDESIGN — the conversation is a STILL HOLD. NO orbit, NO ping-pong, NO
-	# reversal (the old (1−cos) swing was a back-and-forth = a reversal the operator
-	# called out). The settle already landed the camera on the iso yaw + the two-shot
-	# pair size + the pair-midpoint focus, so we just KEEP those targets and let it sit;
-	# the only motion is the focus tracking the (frozen) pair midpoint, imperceptible.
-	# ROTATE-DELAY: the yaw→profile rotation that began as Cody settled (Beat 3) likely isn't
-	# finished when the emergence completes and Beat 5 begins — so KEEP advancing the SAME
-	# smoothstep here until it lands, then HOLD the profile two-shot. No snap/restart at the
-	# beat boundary; _advance_rotate_ease writes the same targets and clamps _rotate_t.
-	if _rotate_started and _rotate_t < float(_c.ARRIVAL_CINE_ROTATE_DUR):
-		_advance_rotate_ease(delta)
-	else:
-		# FIX 1 — hold the PROFILE two-shot: pair-midpoint focus, profile yaw (−90), pair size.
-		_cam_focus_tgt = _pair_midpoint()
-		_cam_yaw_tgt = _profile_yaw()
-		_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
-		_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
-		_cam_shoulder_tgt = 0.0
-		_cam_size_tgt = float(_c.ARRIVAL_CINE_PAIR_SIZE)
-		_cam_lookahead_tgt = 0.0
-		_cam_looklift_tgt = 0.8
-	_drive_arrival_camera(delta)
-	# Exit once the conversation that auto-opened has been closed by the player.
-	if _convo_opened and not bool(_gs.get("dialogue_open")):
-		_arrival_beat = 4
-		_arrival_t = 0.0
-		_resume_started = false
-
-
-# ROTATE-DELAY ease (shared by Beat 3 + Beat 5): advance _rotate_t and write the per-frame
-# TARGETS for the calm rotation from the over-the-shoulder hold (yaw 0, OTS framing) to the
-# profile two-shot (yaw −90, pair-midpoint focus, pair size). ONE smoothstep curve drives
-# yaw + focus + size together so the move lands cleanly on the conversation framing. Tracked
-# with member state so the SAME curve continues across the Beat 3 → Beat 5 boundary.
-func _advance_rotate_ease(delta: float) -> void:
-	_rotate_t = minf(_rotate_t + delta, float(_c.ARRIVAL_CINE_ROTATE_DUR))
-	var rp: float = clampf(_rotate_t / float(_c.ARRIVAL_CINE_ROTATE_DUR), 0.0, 1.0)
-	var re: float = smoothstep(0.0, 1.0, rp)
-	# Yaw: monotonic walk_yaw(0) → profile (−90), one negative-direction sweep. (The resume
-	# later continues −90 → iso(−135), the SAME direction — everything stays monotonic.)
-	var yaw_settled: float = lerp_angle(_walk_yaw(), _profile_yaw(), re)
-	# Focus eases from the emergence over-the-shoulder anchor toward the pair midpoint; size
-	# eases from the (gently widened) emergence size into the profile two-shot size. Both flow
-	# off where the emergence hold left them, so the rotation start never jumps.
-	var emerge_focus: Vector3 = _player.global_position.lerp(_pair_midpoint(), 0.35)
-	_cam_focus_tgt = emerge_focus.lerp(_pair_midpoint(), re)
-	_cam_yaw_tgt = yaw_settled
-	_cam_back_tgt = float(_c.ARRIVAL_CINE_CAM_BACK)
-	_cam_lift_tgt = float(_c.ARRIVAL_CINE_CAM_LIFT)
-	_cam_shoulder_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_SHOULDER), 0.0, re)
-	_cam_size_tgt = lerpf(float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE), float(_c.ARRIVAL_CINE_PAIR_SIZE), re)
-	_cam_lookahead_tgt = lerpf(float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD), 0.0, re)
-	_cam_looklift_tgt = 0.8
+# The calm arrival frame (Chunk 9): a steady over-the-shoulder shot, yaw pinned at 0 (looking
+# NORTH toward the rising Cody), widened a touch to a two-shot and nudged toward the pair so
+# the emerging bot + the one line both read. NO rotation, NO orbit — the whole trimmed lock
+# holds this single frame from the rise through the line, then the resume ease takes over.
+func _set_emergence_frame_targets() -> void:
+	var pp: Vector3 = _player.global_position
+	_cam_focus_tgt = pp.lerp(_pair_midpoint(), 0.45)
+	_cam_yaw_tgt = _walk_yaw()
+	_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
+	_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
+	_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
+	_cam_size_tgt = float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE)
+	_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
+	_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
 
 
 # World focus for the conversation orbit — the player↔Cody midpoint, lifted to torso
@@ -1260,17 +1151,6 @@ func _looking_at_basis(from: Vector3, to: Vector3) -> Basis:
 	if fwd.length() < 0.0001:
 		return Basis.IDENTITY
 	return Transform3D().looking_at(fwd, Vector3.UP).basis
-
-
-func _set_ots_walk_targets() -> void:
-	_cam_focus_tgt = _player.global_position
-	_cam_yaw_tgt = _walk_yaw()
-	_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
-	_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
-	_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
-	_cam_size_tgt = float(_c.ARRIVAL_CINE_OTS_SIZE)
-	_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
-	_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
 
 
 # Single TARGET+CONTINUOUS-EASE camera driver. Eases each persistent _cam_* member
@@ -1879,6 +1759,7 @@ func _teardown_transient_state() -> void:
 	_rotate_t = 0.0
 	_convo_opened = false
 	_convo_yaw = 0.0
+	_oneline_said = false
 	_resume_started = false
 	_resume_t = 0.0
 	# Exterior / construction modes.
