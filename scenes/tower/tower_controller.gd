@@ -413,6 +413,35 @@ func enter_tower() -> void:
 	_update(true)
 
 
+# Floor-by-floor entry (opening redesign Chunk 10, Control-Center-first). After the player
+# builds the Control Center from the crane they're already standing ON its floor (the worksite
+# climbed them down onto it). This flips the cold-open EXTERIOR presentation to the interior
+# per-floor world: the pit's cold-open staging retires (worksite hides, the real elevator car
+# appears) as the arc advances, the Control Center renders as the current floor, and Cody rises
+# from the column right here. No teleport — the player keeps their exact spot below grade.
+func enter_control_center() -> void:
+	if not _exterior:
+		return
+	_exterior = false
+	if _empty_lot:
+		_empty_lot.visible = false
+	# Advance the arc past the cold-open build phases so ConstructionPit deactivates (it gates
+	# active on phase <= BUILD_STRUCTURE) — the worksite + earthen staging clear and the built
+	# tower's own elevator takes over.
+	var gd: Node = get_node_or_null("/root/GameDirector")
+	if gd and gd.has_method("set_phase"):
+		gd.set_phase(gd.Phase.BUILD_INTERIORS)
+	_current_level = int(_c.GROUND_LEVEL) - 1   # the Control Center / basement (level 0)
+	if _player is CharacterBody3D:
+		(_player as CharacterBody3D).velocity = Vector3.ZERO
+	if _player and _player.has_method("set_spawn_here"):
+		_player.set_spawn_here()
+	# (Stage 10b wires Cody's rise from the column here — the one allowed lock, restaged at the
+	# Control Center. For now entry is just the presentation flip.)
+	_hud_level = -1
+	_update(true)
+
+
 # Enter (or return to) the exterior empty lot: spawn the player on the lot and
 # flip on exterior mode. Used by the boot branch and by the debug phase walk
 # when it wraps back to EMPTY_LOT.
@@ -487,6 +516,20 @@ func _update_exterior(snap: bool) -> void:
 			_ext_hud_phase = ph
 			_hud_level = -2   # mark non-real so the floor path re-pushes on enter_tower
 			_hud.set_floor(-1, "EXTERIOR / CHOOSE A PARTNER" if ph == 1 else "EXTERIOR / EMPTY LOT")
+	# Floor-by-floor entry (Chunk 10): once the Control Center is built and the player has
+	# settled ONTO its floor (grounded, inside the footprint, below grade — only reachable by
+	# being down in the built basement, not up on the crane), flip into the interior world.
+	if int(_gs.built_level) >= int(_c.GROUND_LEVEL) - 1 and _player and not _crane_building \
+			and not bool(_gs.get("driving_crane")):
+		var half: float = float(_c.FLOOR_3D_SIZE) * 0.5
+		var pp: Vector3 = _player.global_position
+		var grounded: bool = _player is CharacterBody3D and (_player as CharacterBody3D).is_on_floor()
+		# Below grade = below the at-grade floor (the Garden sits at y=0); the built Control
+		# Center floor is a full story down, so this cleanly means "standing in the basement".
+		var below_grade: bool = pp.y < _base_y_for_level(int(_c.GROUND_LEVEL)) - 1.0
+		if grounded and below_grade and absf(pp.x) < half and absf(pp.z) < half:
+			enter_control_center()
+			return
 	_drive_environment(snap)
 
 
