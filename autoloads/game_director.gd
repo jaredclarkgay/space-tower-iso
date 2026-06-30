@@ -68,10 +68,10 @@ const DIRECTIVES := {
 			"Go down to the Control Center. Bring all six sources online.",
 			"I'll know the moment you do.",
 		],
-		# Opening redesign Chunk 9 — Cody's ONE non-interactive line on rising from the column.
-		# The objective line below carries the "where/what"; this is the greet + the nudge.
-		"oneline": "GX-5, online. Garden's dead until the Control Center is — six sources, downstairs.",
-		"objective": "Go to the Control Center — bring all six sources online.",
+		# Opening redesign Chunk 9/10 — Cody's ONE non-interactive line on rising from the column,
+		# now staged IN the Control Center (Control-Center-first). The objective carries the what.
+		"oneline": "GX-5, online. This is your Control Center — nothing in the tower runs till all six sources are live.",
+		"objective": "Pull the master breaker, then bring all six sources online.",
 		"telemetry_beat": "director_beat",
 	},
 	# Gate-lift payoff (floor_population_spec Step 3): power's on, so the Garden can

@@ -55,7 +55,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.2, -6)
 script = ExtResource("2_player")
 camera_pivot_path = NodePath("../CameraPivot")
 iso_floor_path = NodePath("../Floors/Garden")
-iso_robot_path = NodePath("../Floors/Garden/IsoRobot")
+iso_robot_path = NodePath("../IsoRobot")
 iso_dispenser_path = NodePath("../Floors/Garden/IsoDispenser")
 iso_tubes_path = NodePath("../Floors/Garden/IsoTubes")
 
@@ -84,7 +84,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 17.32)
 script = ExtResource("3_camera")
 pivot_path = NodePath("..")
 iso_player_path = NodePath("../../Player")
-iso_robot_path = NodePath("../../Floors/Garden/IsoRobot")
+iso_robot_path = NodePath("../../IsoRobot")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
@@ -109,7 +109,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 1
 script = ExtResource("15_schem")
-iso_robot_path = NodePath("../../../Floors/Garden/IsoRobot")
+iso_robot_path = NodePath("../../../IsoRobot")
 
 [node name="CodyBadge" type="Control" parent="HUD/GardenGroup"]
 mouse_filter = 1
@@ -170,6 +170,12 @@ script = ExtResource("30_booth")
 [node name="ConstructionPit" type="Node3D" parent="."]
 script = ExtResource("31_pit")
 
+[node name="IsoRobot" type="Node3D" parent="."]
+visible = false
+script = ExtResource("10_robot")
+iso_floor_path = NodePath("../Floors/Garden")
+hud_path = NodePath("../HUD")
+
 [node name="Floors" type="Node3D" parent="."]
 
 [node name="Utility" type="Node3D" parent="Floors"]
@@ -181,11 +187,6 @@ player_path = NodePath("../../Player")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
 script = ExtResource("8_floor2")
 
-[node name="IsoRobot" type="Node3D" parent="Floors/Garden"]
-visible = false
-script = ExtResource("10_robot")
-iso_floor_path = NodePath("..")
-hud_path = NodePath("../../../HUD")
 
 [node name="IsoDispenser" type="Node3D" parent="Floors/Garden"]
 script = ExtResource("11_disp")

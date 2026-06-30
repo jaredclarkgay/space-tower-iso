@@ -64,6 +64,11 @@ var _arrival_dialogue: Control
 # with [E]" arrival panel — the arrival cinematic opens the real conversation
 # directly instead. The non-cinematic _begin_arrival path leaves this false.
 var _cinematic_into_dialogue: bool = false
+# Opening redesign Chunk 10b — Cody is now a TOWER-LEVEL entity (not bound to the Garden), so
+# his arrival can stage at any floor. The conductor sets the WORLD Y of the floor he rises onto
+# (the Control Center for the first meet); his park spot + rise derive from it. Default 0.0
+# keeps the legacy Garden arrival (Garden floor at world y=0) unchanged.
+var _arrival_floor_y: float = 0.0
 
 # Conversational dialogue panel — opens when the player presses E near
 # Cody. UI nodes built once on first open, then shown/hidden + repopulated.
@@ -304,7 +309,9 @@ func _park_pos_local() -> Vector3:
 	# leaves ~0.66 m visual breathing room and avoids collision overlap with the
 	# StaticBody3D shaft.
 	var park_offset: float = elev_size * 0.5 + 1.0
-	return Vector3(dir.x * park_offset, 0.05, dir.z * park_offset)
+	# Y is the arrival floor's world top (Chunk 10b — tower-level Cody can park on any floor;
+	# default 0.0 = the Garden at grade, unchanged from before).
+	return Vector3(dir.x * park_offset, _arrival_floor_y + 0.05, dir.z * park_offset)
 
 
 func _begin_arrival() -> void:
@@ -383,6 +390,36 @@ func cinematic_board(car_top_world_y: float) -> void:
 # Called each frame during the car rise so Cody rides up at the shaft center.
 func cinematic_set_ride_y(world_y: float) -> void:
 	position = Vector3(0.0, world_y + 0.05, 0.0)
+
+
+# --- Floor-aware rise (Chunk 10b — Cody rises from beside the column at any floor) --------
+# The conductor sets the floor's world top Y once at the start of the emergence.
+func cinematic_set_floor_y(world_y: float) -> void:
+	_arrival_floor_y = world_y
+
+# Rise straight up at the park spot (BESIDE the column, clear of the elevator car — invariant
+# #7), emerging from below the floor. `progress` 0..1 over the rise. He surfaces from the
+# spine and stands on the floor; the park XZ keeps him out of the shaft the car occupies.
+func cinematic_rise_to(progress: float) -> void:
+	visible = true
+	_state = State.ENTERING
+	rotation.y = 0.0
+	if _spotlight:
+		_spotlight.light_energy = 4.0
+		_spotlight.visible = true
+	var park := _park_pos_local()
+	var from_y: float = _arrival_floor_y - 3.0
+	var y: float = lerpf(from_y, park.y, smoothstep(0.0, 1.0, clampf(progress, 0.0, 1.0)))
+	position = Vector3(park.x, y, park.z)
+
+# Risen — settle onto the floor at the park spot, face the player, drop the nameplate banner,
+# and finish into AWAITING_ACTIVATION (the conductor then issues the one line — Chunk 9).
+func cinematic_arrive() -> void:
+	_cinematic_into_dialogue = true
+	position = _park_pos_local()
+	_face_player()
+	_spawn_arrival_banner()
+	_finish_arrival()
 
 # Roll out from the shaft center to the park spot along the floor, face the travel
 # direction, drop the banner, and finish into AWAITING_ACTIVATION on completion.

@@ -282,7 +282,7 @@ func _spawn_in_garden() -> void:
 	# power_utilities beat through the Director channel — the same single greeting
 	# the cinematic hand-off issues. (The cinematic path runs _begin_arrival_cinematic,
 	# not this, so there's no double-greet.)
-	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	var robot: Node = get_node_or_null("IsoRobot")
 	if robot and robot.has_method("greet_on_entry"):
 		robot.call("greet_on_entry")
 
@@ -322,7 +322,7 @@ func _begin_arrival_cinematic(walked_in: bool = false) -> void:
 	# in full (on a replay they're left parked/visible/at-rest-with-doors-open, which would
 	# short-circuit is_emergence_done()). On the first boot play these are already at rest, so
 	# the resets are safe no-ops.
-	var robot0: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	var robot0: Node = get_node_or_null("IsoRobot")
 	if robot0 and robot0.has_method("cinematic_reset"):
 		robot0.call("cinematic_reset")
 	var elevator0: Node = get_node_or_null("ElevatorPlatform")
@@ -436,8 +436,11 @@ func enter_control_center() -> void:
 		(_player as CharacterBody3D).velocity = Vector3.ZERO
 	if _player and _player.has_method("set_spawn_here"):
 		_player.set_spawn_here()
-	# (Stage 10b wires Cody's rise from the column here — the one allowed lock, restaged at the
-	# Control Center. For now entry is just the presentation flip.)
+	# Cody rises from the column right here — the one allowed lock (Chunk 9), now staged at the
+	# Control Center (Chunk 10b). walked_in=true so the player keeps their exact below-grade spot
+	# (no teleport to the Garden door). One-shot via _arrival_played.
+	if bool(_c.ARRIVAL_CINE_ENABLED) and not _arrival_played:
+		_begin_arrival_cinematic(true)
 	_hud_level = -1
 	_update(true)
 
@@ -926,7 +929,7 @@ func _update_arrival_cinematic(delta: float) -> void:
 		_update_emergence(delta)
 		_set_emergence_frame_targets()
 		_drive_arrival_camera(delta)
-		var robot1: Node = get_node_or_null("Floors/Garden/IsoRobot")
+		var robot1: Node = get_node_or_null("IsoRobot")
 		var emerge_done: bool = robot1 == null or not robot1.has_method("is_emergence_done") or bool(robot1.call("is_emergence_done"))
 		if emerge_done:
 			_arrival_beat = 2
@@ -937,7 +940,7 @@ func _update_arrival_cinematic(delta: float) -> void:
 		# directive's OBJECTIVE passively (HUD mirror, no interactive box) + speak its one-liner.
 		if not _oneline_said:
 			_oneline_said = true
-			var robot2: Node = get_node_or_null("Floors/Garden/IsoRobot")
+			var robot2: Node = get_node_or_null("IsoRobot")
 			var gd: Node = get_node_or_null("/root/GameDirector")
 			var line: String = ""
 			if gd and gd.has_method("issue_directive"):
@@ -977,7 +980,7 @@ func _set_emergence_frame_targets() -> void:
 # panel). Falls back to the player if Cody isn't reachable.
 func _pair_midpoint() -> Vector3:
 	var pp: Vector3 = _player.global_position
-	var robot: Node3D = get_node_or_null("Floors/Garden/IsoRobot")
+	var robot: Node3D = get_node_or_null("IsoRobot")
 	if robot == null:
 		return pp + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), 0.0)
 	var cp: Vector3 = robot.global_position
@@ -991,54 +994,27 @@ func _pair_midpoint() -> Vector3:
 # Sub-phased off the beat timer _arrival_t (reset to 0 on Beat-3 entry), running
 # CONCURRENTLY with the orbit sweep. Lead → rise → doors → roll-out.
 func _update_emergence(delta: float) -> void:
-	var elevator: Node = get_node_or_null("ElevatorPlatform")
-	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
-	if elevator == null:
+	# Chunk 10b — Cody is tower-level and rises BESIDE the column at the player's CURRENT floor
+	# (the Control Center on the first meet), clear of the elevator car in the shaft (invariant
+	# #7). No car puppeting / doors — he surfaces from the spine and stands on the floor.
+	var robot: Node = get_node_or_null("IsoRobot")
+	if robot == null:
 		return
-	# One-shot entry: car to the basement (doors shut), Cody boards on top of it.
 	if not _emerge_started:
 		_emerge_started = true
-		_emerge_basement_y = float(elevator.call("cinematic_floor_y", 0))
-		_emerge_garden_y = float(elevator.call("cinematic_floor_y", 1))
-		elevator.call("cinematic_begin")
-		if robot and robot.has_method("cinematic_board"):
-			robot.call("cinematic_board", _emerge_basement_y)
-
-	var lead: float = float(_c.ARRIVAL_CINE_EMERGE_LEAD)
-	var rise_dur: float = float(_c.ARRIVAL_CINE_CAR_RISE_DUR)
-	var door_dur: float = float(_c.ARRIVAL_CINE_DOOR_DUR)
-	var t: float = _arrival_t
-
-	if t < lead:
-		# Lead: orbit begins; car waits at the basement, doors shut.
+		if robot.has_method("cinematic_set_floor_y"):
+			robot.call("cinematic_set_floor_y", floor_top_y(_current_level))
+	var p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_CAR_RISE_DUR), 0.0, 1.0)
+	if robot.has_method("cinematic_rise_to"):
+		robot.call("cinematic_rise_to", p)
+	if p < 1.0:
 		return
-	var rt: float = t - lead
-	if rt < rise_dur:
-		# Rise: lerp the car basement→garden; Cody rides up at the shaft center.
-		var p: float = clampf(rt / rise_dur, 0.0, 1.0)
-		var car_y: float = lerpf(_emerge_basement_y, _emerge_garden_y, smoothstep(0.0, 1.0, p))
-		elevator.call("cinematic_set_car_y", car_y)
-		if robot and robot.has_method("cinematic_set_ride_y"):
-			robot.call("cinematic_set_ride_y", car_y)
-		return
-	# Car has arrived at the Garden — pin it there.
-	elevator.call("cinematic_set_car_y", _emerge_garden_y)
-	var dt: float = rt - rise_dur
-	if dt < door_dur:
-		# Doors: lower them open; keep Cody riding at the (now stationary) car top.
-		elevator.call("cinematic_set_doors", clampf(dt / door_dur, 0.0, 1.0))
-		if robot and robot.has_method("cinematic_set_ride_y"):
-			robot.call("cinematic_set_ride_y", _emerge_garden_y)
-		return
-	# Doors fully open — roll Cody out (once). He owns his tween from here.
-	elevator.call("cinematic_set_doors", 1.0)
+	# Risen — settle + face the player + nameplate, then finish (once).
 	if not _emerge_rollout_started:
 		_emerge_rollout_started = true
-		if robot and robot.has_method("cinematic_roll_out"):
-			robot.call("cinematic_roll_out")
+		if robot.has_method("cinematic_arrive"):
+			robot.call("cinematic_arrive")
 	else:
-		# Track how long the roll-out tween has been running so Beat 3 can fire the
-		# yaw→profile rotation a small lead (ARRIVAL_CINE_ROTATE_LEAD) before it ends.
 		_rollout_elapsed += delta
 
 
@@ -1490,6 +1466,13 @@ func _update(snap: bool) -> void:
 		else:
 			# Plain floor: show the current floor + everything below, hide above.
 			node.visible = at_or_below
+	# Cody (tower-level since Chunk 10b) is a LOCAL entity that doesn't follow you between
+	# floors — show him only when the player is on the same floor he's parked on (he travels by
+	# vacuum tube in his own beats; see C-002). The arrival cinematic owns his visibility while
+	# it plays. Derive his floor from his own world Y so this needs no extra tracking.
+	var cody: Node3D = get_node_or_null("IsoRobot")
+	if cody and _arrival_played and not _arrival_cine:
+		cody.visible = _level_for_y(cody.global_position.y) == _current_level
 	# HUD reflects the current floor — title, wayfinding, and which floor's
 	# gameplay panels are shown. Only push on change (set_floor relays out).
 	if _hud and _hud.has_method("set_floor") and _current_level != _hud_level:
@@ -1833,7 +1816,7 @@ func _teardown_transient_state() -> void:
 		lift.force_release()
 	# Dialogue: drop the flag AND tell Cody to hide his panel (both sides).
 	_gs.set("dialogue_open", false)
-	var robot: Node = get_node_or_null("Floors/Garden/IsoRobot")
+	var robot: Node = get_node_or_null("IsoRobot")
 	if robot and robot.has_method("close_dialogue"):
 		robot.close_dialogue()
 	# Scripted walk + any carried momentum on the player.
