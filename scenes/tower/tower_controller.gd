@@ -113,6 +113,15 @@ var _oneline_said: bool = false           # one-shot: Cody's single arrival line
 var _emerge_started: bool = false         # one-shot Beat-3 entry guard
 var _emerge_rollout_started: bool = false # one-shot: roll-out fired
 var _rollout_elapsed: float = 0.0         # seconds since the roll-out tween fired (gates the rotation)
+# The animated emergence SPINE (Chunk 10 feel pass): a tube that rises out of the ground, whose
+# front doors slide open, and Cody ascends out of. Stands in for the real elevator during the
+# arrival (which is hidden), then hands back to it. Built once, reparented/placed per arrival.
+var _spine: Node3D
+var _spine_body: Node3D
+var _spine_door_l: Node3D
+var _spine_door_r: Node3D
+const _SPINE_H := 4.4        # tube height above the floor
+const _SPINE_DOOR_SLIDE := 1.15
 # ROTATE-DELAY: the yaw stays pinned at _walk_yaw() (0, over-the-shoulder) through the WHOLE
 # emergence; only once Cody is (nearly) settled does the rotation to the profile begin. It's
 # tracked with member state so it can keep advancing the SAME smoothstep across the Beat 3 →
@@ -231,6 +240,7 @@ func _ready() -> void:
 	_site_ground = get_node_or_null(site_ground_path)
 	_camera = _pivot.get_node_or_null("Camera3D") if _pivot else null
 	add_to_group("tower_controller")   # so the hire panel can reach enter_tower()
+	_build_emergence_spine()
 	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
 	_reveal_margin = story * 0.5
 	for f in _FLOORS:
@@ -248,7 +258,13 @@ func _ready() -> void:
 		var slab: StaticBody3D = _find_slab_body(node)
 		var ext_grid: Array = []
 		_collect_ext_grid(node, ext_grid)
-		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab, "ext_grid": ext_grid})
+		# All collision shapes under the floor, so we can disable them while the floor is UNBUILT
+		# (else its furniture — the Garden seed dispenser, etc. — are phantom colliders over the
+		# open construction pit, and you bonk them trying to jump in). Slab gating still rides on
+		# collision_layer; this is an orthogonal "does this floor physically exist yet" switch.
+		var shapes: Array = []
+		_collect_collision_shapes(node, shapes)
+		_floors.append({"node": node, "level": int(f.level), "name": String(f.name), "base_y": base_y, "slab": slab, "ext_grid": ext_grid, "shapes": shapes})
 	_top_level = int(_floors[_floors.size() - 1].level) if not _floors.is_empty() else 0
 	# The tower owns the player spawn (derived from the floor heights), not the
 	# .tscn — keeps it correct if the story height changes. Boot picks the start
@@ -350,24 +366,19 @@ func _begin_arrival_cinematic(walked_in: bool = false) -> void:
 	# motion: the only thing that moves at the start is the intro blend gliding the live
 	# camera from the prior mode into the (already-correct) follow. The walk yaw sits a
 	# small bias OFF the iso resting yaw, ONE direction; the emergence eases that bias to 0.
+	# Chunk 10 feel pass — seed the camera AT the emergence frame (the iso pose + a small push),
+	# so the only motion at the start is the tiny intro glide from the live iso follow into it.
+	# No big over-the-shoulder swoop.
 	_cam_init = true
-	_cam_focus = _player.global_position
-	_cam_yaw = _walk_yaw()
-	_cam_back = float(_c.ARRIVAL_CINE_OTS_BACK)
-	_cam_lift = float(_c.ARRIVAL_CINE_OTS_LIFT)
-	_cam_shoulder = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
-	_cam_size = float(_c.ARRIVAL_CINE_OTS_SIZE)
-	_cam_lookahead = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
-	_cam_looklift = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
-	# Targets start equal to the seed so the first frames hold the opening pose.
-	_cam_focus_tgt = _cam_focus
-	_cam_yaw_tgt = _cam_yaw
-	_cam_back_tgt = _cam_back
-	_cam_lift_tgt = _cam_lift
-	_cam_shoulder_tgt = _cam_shoulder
-	_cam_size_tgt = _cam_size
-	_cam_lookahead_tgt = _cam_lookahead
-	_cam_looklift_tgt = _cam_looklift
+	_set_emergence_frame_targets()
+	_cam_focus = _cam_focus_tgt
+	_cam_yaw = _cam_yaw_tgt
+	_cam_back = _cam_back_tgt
+	_cam_lift = _cam_lift_tgt
+	_cam_shoulder = _cam_shoulder_tgt
+	_cam_size = _cam_size_tgt
+	_cam_lookahead = _cam_lookahead_tgt
+	_cam_looklift = _cam_looklift_tgt
 	# FIX 2 (rework) — the entry is a slow ZOOM-IN from the LIVE prior camera pose to behind
 	# the player. Capture the actual `_camera` world transform + ortho size the moment the
 	# cinematic starts (wherever the exterior / prior mode left it), and ease FROM it INTO the
@@ -492,6 +503,9 @@ func _update_exterior(snap: bool) -> void:
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
 			slab.collision_layer = 2 if built else 0
+		# ...and the floor's FURNITURE (dispenser, etc.) only collides once the floor exists, so
+		# the open pit isn't littered with phantom colliders you bonk jumping in.
+		_set_floor_present(f, built)
 		# The extension grid is for the in-tower extended-floor look; it reads as a big blue
 		# plane in the open cold-open pit, so keep it off out here.
 		var ext_grid = f.get("ext_grid")
@@ -959,20 +973,25 @@ func _update_arrival_cinematic(delta: float) -> void:
 		_update_resume_ease(delta)
 
 
-# The calm arrival frame (Chunk 9): a steady over-the-shoulder shot, yaw pinned at 0 (looking
-# NORTH toward the rising Cody), widened a touch to a two-shot and nudged toward the pair so
-# the emerging bot + the one line both read. NO rotation, NO orbit — the whole trimmed lock
-# holds this single frame from the rise through the line, then the resume ease takes over.
+# The calm arrival frame (Chunk 10 feel pass — "one small push"): keep the SAME iso framing the
+# player already has (same yaw, same camera side + distance), just nudge the focus toward the
+# waking shaft and push in a touch. No over-the-shoulder takeover, no rotation — one gentle
+# move in, hold through the rise + line, then the resume ease glides it back to rest.
 func _set_emergence_frame_targets() -> void:
 	var pp: Vector3 = _player.global_position
-	_cam_focus_tgt = pp.lerp(_pair_midpoint(), 0.45)
-	_cam_yaw_tgt = _walk_yaw()
-	_cam_back_tgt = float(_c.ARRIVAL_CINE_OTS_BACK)
-	_cam_lift_tgt = float(_c.ARRIVAL_CINE_OTS_LIFT)
-	_cam_shoulder_tgt = float(_c.ARRIVAL_CINE_OTS_SHOULDER)
-	_cam_size_tgt = float(_c.ARRIVAL_CINE_EMERGE_OTS_SIZE)
-	_cam_lookahead_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_AHEAD)
-	_cam_looklift_tgt = float(_c.ARRIVAL_CINE_OTS_LOOK_LIFT)
+	var shaft := Vector3(0.0, _base_y_for_level(_current_level) + _PIVOT_CHEST, 0.0)
+	_cam_focus_tgt = pp.lerp(shaft, 0.5)                 # frame between the player and the shaft
+	_cam_yaw_tgt = deg_to_rad(float(_c.CAMERA_YAW_DEG_INITIAL))   # the iso resting yaw
+	# Reproduce the ISO camera pose in the rig's params: camera on the +Z side (negative "back")
+	# at the iso distance/tilt, no shoulder, aim at the pivot centre.
+	var tilt: float = deg_to_rad(abs(float(_c.CAMERA_TILT_DEG)))
+	var d: float = float(_c.CAMERA_DISTANCE)
+	_cam_back_tgt = -(d * cos(tilt))
+	_cam_lift_tgt = d * sin(tilt)
+	_cam_shoulder_tgt = 0.0
+	_cam_size_tgt = float(_c.CAMERA_ORTHO_SIZE_DEFAULT) * 0.86   # a small push-in
+	_cam_lookahead_tgt = 0.0
+	_cam_looklift_tgt = 0.0
 
 
 # World focus for the conversation orbit — the player↔Cody midpoint, lifted to torso
@@ -990,30 +1009,115 @@ func _pair_midpoint() -> Vector3:
 	return mid + Vector3(0.0, float(_c.ARRIVAL_CINE_PAIR_LIFT), float(_c.ARRIVAL_CINE_PROFILE_FOCUS_Z))
 
 
-# Beat-3 emergence: puppet the elevator car + Cody up the shaft, then roll Cody out.
-# Sub-phased off the beat timer _arrival_t (reset to 0 on Beat-3 entry), running
-# CONCURRENTLY with the orbit sweep. Lead → rise → doors → roll-out.
+# Build the animated emergence SPINE once: a dark tube (matching the pit column) with a cap, a
+# glowing seam, and two front doors that slide apart. Hidden until an arrival plays.
+func _build_emergence_spine() -> void:
+	_spine = Node3D.new()
+	_spine.name = "EmergenceSpine"
+	_spine.visible = false
+	add_child(_spine)
+	var r: float = float(_c.PIT_COLUMN_RADIUS)
+	_spine_body = Node3D.new()
+	_spine.add_child(_spine_body)
+	# Tube + cap.
+	_spine_mesh(CylinderMesh.new(), Vector3(0, _SPINE_H * 0.5, 0), _spine_body, _mk_mat(_c.PIT_COLUMN_COLOR), r, _SPINE_H)
+	_spine_mesh(CylinderMesh.new(), Vector3(0, _SPINE_H + 0.15, 0), _spine_body, _mk_mat(Color(0.10, 0.11, 0.14)), r * 1.12, 0.3)
+	# Glowing seam up the -Z face (the dormant GX-5), between the doors.
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = _c.PIT_COLUMN_GLOW
+	glow.emission_enabled = true
+	glow.emission = _c.PIT_COLUMN_GLOW
+	glow.emission_energy_multiplier = 2.0
+	_spine_box(Vector3(0.14, _SPINE_H * 0.72, 0.1), Vector3(0.0, _SPINE_H * 0.45, -(r + 0.02)), _spine_body, glow)
+	# Two front doors (on the -Z face) that slide apart in ±X.
+	var door_mat := _mk_mat(_c.PIT_COLUMN_COLOR.lightened(0.06))
+	_spine_door_l = Node3D.new(); _spine_body.add_child(_spine_door_l)
+	_spine_door_r = Node3D.new(); _spine_body.add_child(_spine_door_r)
+	_spine_box(Vector3(1.1, _SPINE_H * 0.66, 0.16), Vector3(-0.56, _SPINE_H * 0.42, -(r + 0.05)), _spine_door_l, door_mat)
+	_spine_box(Vector3(1.1, _SPINE_H * 0.66, 0.16), Vector3(0.56, _SPINE_H * 0.42, -(r + 0.05)), _spine_door_r, door_mat)
+
+
+func _spine_mesh(cyl: CylinderMesh, pos: Vector3, parent: Node3D, mat: StandardMaterial3D, radius: float, height: float) -> void:
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = height
+	var mi := MeshInstance3D.new()
+	mi.mesh = cyl
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+
+
+func _spine_box(size: Vector3, pos: Vector3, parent: Node3D, mat: StandardMaterial3D) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+
+
+func _mk_mat(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.roughness = 0.9
+	return m
+
+
+# Emergence (Chunk 10 feel pass): the tube RISES out of the ground, its doors OPEN, and Cody
+# ascends OUT of the opening — the spine waking and birthing the bot. Runs during the one lock;
+# the real elevator is hidden (spine stands in) and revealed once Cody's clear.
 func _update_emergence(delta: float) -> void:
-	# Chunk 10b — Cody is tower-level and rises BESIDE the column at the player's CURRENT floor
-	# (the Control Center on the first meet), clear of the elevator car in the shaft (invariant
-	# #7). No car puppeting / doors — he surfaces from the spine and stands on the floor.
 	var robot: Node = get_node_or_null("IsoRobot")
-	if robot == null:
+	if robot == null or _spine == null:
 		return
+	var floor_y: float = floor_top_y(_current_level)
 	if not _emerge_started:
 		_emerge_started = true
+		# Stand the spine at the shaft centre on this floor, sunk below the slab, doors shut.
+		_spine.global_position = Vector3(0.0, floor_y, 0.0)
+		_spine.visible = true
+		_spine_body.position.y = -_SPINE_H
+		_spine_door_l.position.x = 0.0
+		_spine_door_r.position.x = 0.0
+		var elev: Node = get_tree().get_first_node_in_group("elevator")
+		if elev:
+			(elev as Node3D).visible = false        # spine stands in during the emergence
 		if robot.has_method("cinematic_set_floor_y"):
-			robot.call("cinematic_set_floor_y", floor_top_y(_current_level))
-	var p: float = clampf(_arrival_t / float(_c.ARRIVAL_CINE_CAR_RISE_DUR), 0.0, 1.0)
-	if robot.has_method("cinematic_rise_to"):
-		robot.call("cinematic_rise_to", p)
-	if p < 1.0:
+			robot.call("cinematic_set_floor_y", floor_y)
+	var rise_dur: float = 0.9
+	var door_dur: float = 0.5
+	var cody_dur: float = 1.1
+	var t: float = _arrival_t
+	# Phase 1 — the tube rises out of the ground.
+	var p1: float = clampf(t / rise_dur, 0.0, 1.0)
+	_spine_body.position.y = lerpf(-_SPINE_H, 0.0, smoothstep(0.0, 1.0, p1))
+	if t < rise_dur:
 		return
-	# Risen — settle + face the player + nameplate, then finish (once).
+	# Phase 2 — the doors slide open.
+	var p2: float = clampf((t - rise_dur) / door_dur, 0.0, 1.0)
+	var slide: float = _SPINE_DOOR_SLIDE * smoothstep(0.0, 1.0, p2)
+	_spine_door_l.position.x = -slide
+	_spine_door_r.position.x = slide
+	if t - rise_dur < door_dur:
+		return
+	# Phase 3 — Cody ascends out of the opening onto the floor.
+	var p3: float = clampf((t - rise_dur - door_dur) / cody_dur, 0.0, 1.0)
+	if robot.has_method("cinematic_emerge_out"):
+		robot.call("cinematic_emerge_out", p3)
+	if p3 < 1.0:
+		return
+	# Out — settle + face + nameplate, then finish; hand the shaft back to the real elevator.
 	if not _emerge_rollout_started:
 		_emerge_rollout_started = true
 		if robot.has_method("cinematic_arrive"):
 			robot.call("cinematic_arrive")
+		if _spine:
+			_spine.visible = false
+		var elev2: Node = get_tree().get_first_node_in_group("elevator")
+		if elev2:
+			(elev2 as Node3D).visible = true
 	else:
 		_rollout_elapsed += delta
 
@@ -1449,6 +1553,8 @@ func _update(snap: bool) -> void:
 		var slab: StaticBody3D = f.get("slab")
 		if slab:
 			slab.collision_layer = 2 if solid else 0
+		# Furniture exists once the floor is built (orthogonal to the slab's per-floor gating).
+		_set_floor_present(f, built)
 		if node.has_method("set_structure_visible"):
 			# Glass-ceiling floor (Canopy): walls/elevator gated; the slab is an
 			# invisible glass ceiling from below and a frosted-glass floor when
@@ -1591,6 +1697,12 @@ func _drive_environment(snap: bool) -> void:
 	if _world_env == null or _world_env.environment == null:
 		return
 	var p := _preset_for(_current_level)
+	# The Control Center (level 0) is an OPEN, daylit excavation — sky from above, dirt walls
+	# through the glass — until a floor is built ON TOP of it. Only once it's capped does it
+	# become the windowless basement (the dark level-0 preset). So while it's the topmost floor
+	# (built_level < GROUND_LEVEL), read it with the open-sky exterior light, not the dark one.
+	if _current_level == int(_c.GROUND_LEVEL) - 1 and int(_gs.built_level) < int(_c.GROUND_LEVEL):
+		p = _preset_for(-1)
 	# Natural daylight near the at-grade openings: on the ground floor, blend the
 	# Garden's interior identity toward the open-sky exterior the closer the player
 	# is to a perimeter doorway, so light floods in as you near the doors and fades
@@ -1910,6 +2022,25 @@ func _find_slab_body(node: Node) -> StaticBody3D:
 		if found != null:
 			return found
 	return null
+
+
+# Every CollisionShape3D under a node (recursive) — cached per floor + used to switch a floor's
+# physical presence on/off with built state (see the _floors `shapes` note).
+func _collect_collision_shapes(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child is CollisionShape3D:
+			out.append(child)
+		_collect_collision_shapes(child, out)
+
+
+# Enable/disable a floor's collision shapes to match whether it's been BUILT. Disabling an
+# unbuilt floor's shapes clears the phantom colliders (dispenser, etc.) that otherwise float
+# over the open pit. Cheap: iterates a cached array, only writes on change.
+func _set_floor_present(f: Dictionary, present: bool) -> void:
+	var shapes: Array = f.get("shapes", [])
+	for s in shapes:
+		if is_instance_valid(s) and s.disabled == present:
+			s.disabled = not present
 
 
 # Gathers every extension-grid mesh (the blueprint lines + crossbars that radiate

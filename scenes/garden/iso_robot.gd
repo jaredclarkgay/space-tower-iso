@@ -412,11 +412,35 @@ func cinematic_rise_to(progress: float) -> void:
 	var y: float = lerpf(from_y, park.y, smoothstep(0.0, 1.0, clampf(progress, 0.0, 1.0)))
 	position = Vector3(park.x, y, park.z)
 
+# Emergence OUT of the spine (Chunk 10 feel pass): Cody rises up the shaft centre from inside
+# the tube, then steps forward out through the front doors onto the floor. `p` 0..1 over the
+# whole move. The conductor drives the tube+doors; this drives Cody within it.
+func cinematic_emerge_out(p: float) -> void:
+	visible = true
+	_state = State.ENTERING
+	rotation.y = PI   # face -Z, out the front doors toward the player
+	if _spotlight:
+		_spotlight.light_energy = 4.0
+		_spotlight.visible = true
+	var elev_size: float = float(_c.ELEVATOR_RADIUS) * 2.0 * _c.GARDEN_PLOT_SIZE
+	var exit_z: float = -(elev_size * 0.5 + 1.2)      # step out just in front of the doors
+	var floor_h: float = _arrival_floor_y + 0.05
+	if p < 0.45:
+		# Rise at the shaft centre from down inside the tube up to floor level.
+		var rp: float = p / 0.45
+		position = Vector3(0.0, lerpf(_arrival_floor_y - 2.6, floor_h, smoothstep(0.0, 1.0, rp)), 0.0)
+	else:
+		# Step forward out of the doorway onto the floor.
+		var mp: float = (p - 0.45) / 0.55
+		position = Vector3(0.0, floor_h, lerpf(0.0, exit_z, smoothstep(0.0, 1.0, mp)))
+
+
 # Risen — settle onto the floor at the park spot, face the player, drop the nameplate banner,
 # and finish into AWAITING_ACTIVATION (the conductor then issues the one line — Chunk 9).
 func cinematic_arrive() -> void:
 	_cinematic_into_dialogue = true
-	position = _park_pos_local()
+	# Keep Cody exactly where the emerge-out left him (just in front of the doors) — don't snap
+	# to the side park spot. Just turn to face the player + drop the nameplate.
 	_face_player()
 	_spawn_arrival_banner()
 	_finish_arrival()
