@@ -84,7 +84,13 @@ var _apron: Node3D
 var _crane: Node3D
 var _crane_setup: bool = false
 var _workers: Array = []
-var _shell_vis: Array = []     # earthen floor/walls/ramp + column meshes — hidden once Floor 0 is built
+var _shell_vis: Array = []     # earthen floor/ramp + column meshes — hidden once Floor 0 is built (CC slab takes over)
+# The earthen EXCAVATION WALLS (the sides of the hole the tower rises out of). Unlike the rest
+# of the shell, these PERSIST as the dirt you see through the Control Center's glass — until a
+# floor is built ON TOP of the CC (built_level >= GROUND_LEVEL) and caps the excavation. So the
+# CC reads as an open daylit hole, not a dark sealed basement, while it's the topmost floor.
+var _excavation_vis: Array = []
+var _south_fill: MeshInstance3D     # dirt liner for the south side, shown once the ramp is gone (CC poured)
 var _active: bool = false
 var _t: float = 0.0
 
@@ -104,10 +110,49 @@ var _climb_tween: Tween
 
 func _ready() -> void:
 	_build_apron()
+	_build_earth_surround()
 	_build_pit()
 	_build_column()
 	_build_worksite()
 	_set_active(_compute_active())
+
+
+# A solid EARTH mass filling everything below grade EXCEPT the excavation cavity (the footprint
+# from grade down to the pit floor, where the Control Center sits). Without it you see the sky
+# background straight THROUGH the ground below/around the below-grade CC (it's a hole in the
+# earth). Permanent + always visible — the tower is sunk into real ground; the cavity stays
+# open so you can be down in the CC. Visual only (no collision — the pit body / CC handle that).
+func _build_earth_surround() -> void:
+	var earth := Node3D.new()
+	earth.name = "EarthSurround"
+	add_child(earth)
+	var half: float = float(_c.FLOOR_3D_SIZE) * 0.5   # footprint half (the excavation opening)
+	var depth: float = float(_c.PIT_DEPTH)
+	var reach: float = 90.0                            # extends well past the camera view
+	var mat := _mat(_c.PIT_WALL_COLOR.darkened(0.25))  # underground reads a touch darker
+	# Floor of the earth: one big slab UNDER the whole site, its top flush with the pit floor —
+	# fills everything below the excavation so you never see sky straight down.
+	_add_earth_box(earth, Vector3(2.0 * reach, 40.0, 2.0 * reach), Vector3(0.0, -depth - 20.0, 0.0), mat)
+	# Perimeter earth: a frame from grade down to the pit floor, OUTSIDE the footprint, so the
+	# strip of ground just beside the open excavation is dirt, not sky.
+	var strip: float = reach - half
+	if strip > 0.01:
+		var mid: float = (half + reach) * 0.5
+		var wall_y: float = -depth * 0.5
+		_add_earth_box(earth, Vector3(2.0 * reach, depth, strip), Vector3(0.0, wall_y, mid), mat)
+		_add_earth_box(earth, Vector3(2.0 * reach, depth, strip), Vector3(0.0, wall_y, -mid), mat)
+		_add_earth_box(earth, Vector3(strip, depth, 2.0 * half), Vector3(mid, wall_y, 0.0), mat)
+		_add_earth_box(earth, Vector3(strip, depth, 2.0 * half), Vector3(-mid, wall_y, 0.0), mat)
+
+
+func _add_earth_box(parent: Node3D, size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
 
 
 func _process(delta: float) -> void:
@@ -120,9 +165,25 @@ func _process(delta: float) -> void:
 	# dirt shell + column and drop the pit's footing (the slab takes over). The apron stays;
 	# the WORKSITE (crane + workers + steel deck) climbs onto the built floors above.
 	var built_over: bool = int(_gs.built_level) >= 0
+	var exposed: bool = _excavation_exposed()
+	visible = true   # node stays renderable for the permanent EarthSurround; sub-parts gate below
 	for m in _shell_vis:
 		if is_instance_valid(m):
 			m.visible = _active and not built_over
+	# The excavation dirt walls persist (through the CC glass) until the CC is capped — shown
+	# whenever the CC is the topmost floor, independent of the cold-open worksite being active.
+	for m in _excavation_vis:
+		if is_instance_valid(m):
+			m.visible = exposed
+	# South dirt fills in once the ramp is gone (CC poured) and the excavation is still exposed.
+	if _south_fill:
+		_south_fill.visible = exposed and built_over
+	# The grade apron rims the open excavation while it's exposed; the worksite (crane + workers
+	# + deck) belongs to the cold open only — it hides once you're inside.
+	if _apron:
+		_apron.visible = _active or exposed
+	if _worksite:
+		_worksite.visible = _active
 	if _body:
 		_body.collision_layer = 2 if (_active and not built_over) else 0
 	if _active and not built_over and _seam_mat:
@@ -148,9 +209,27 @@ func _compute_active() -> bool:
 	return phase <= 2 and not bool(_gs.get("constructing")) and not bool(_gs.get("exterior_walk"))
 
 
+# True while the Control Center is still the topmost floor — i.e. no floor has been built ON
+# TOP of it yet. The excavation dirt (and the open-sky/daylit read) survive until the Garden
+# caps it (built_level >= GROUND_LEVEL).
+func _excavation_exposed() -> bool:
+	return int(_gs.built_level) < int(_c.GROUND_LEVEL)
+
+
+# Toggle every CollisionShape3D under a node (recursive). Used to drop the hidden elevator car's
+# collision during the cold open so it isn't a phantom floor over the shaft.
+func _set_node_collision_disabled(node: Node, disabled: bool) -> void:
+	if node is CollisionShape3D and node.disabled != disabled:
+		node.disabled = disabled
+	for child in node.get_children():
+		_set_node_collision_disabled(child, disabled)
+
+
 func _set_active(a: bool) -> void:
 	_active = a
-	visible = a
+	# The node stays renderable (the permanent EarthSurround lives under it); per-part visibility
+	# is driven in _process.
+	visible = true
 	if _body:
 		_body.collision_layer = 2 if a else 0   # layer 2 = the ground/world layer the player masks
 	_apply_world_swaps()
@@ -163,7 +242,13 @@ func _apply_world_swaps() -> void:
 	if _elevator == null or not is_instance_valid(_elevator):
 		_elevator = get_tree().get_first_node_in_group("elevator")
 	if _elevator:
-		_elevator.visible = not _active   # the column stands in for the car during the cold open
+		# During the arrival cinematic the controller's emergence owns the elevator (it hides the
+		# real car so the animated spine can rise in its place), so don't fight it here.
+		if not bool(_gs.get("arrival_cinematic")):
+			_elevator.visible = not _active   # the column stands in for the car during the cold open
+			# ...and its collision is OFF while hidden, or the car platform is a phantom floor at
+			# grade over the shaft that you bonk jumping into the pit (the pit column stands in).
+			_set_node_collision_disabled(_elevator, _active)
 	if _site_ground == null or not is_instance_valid(_site_ground):
 		_site_ground = get_tree().get_first_node_in_group("site_ground")
 	if _site_ground and _site_ground.has_method("set_plane_visible"):
@@ -344,12 +429,30 @@ func _build_pit() -> void:
 	# don't lie coplanar with the ground apron at y=0 — that overlap was the z-fighting flicker.
 	var t: float = 0.6
 	var wall_y: float = -depth * 0.5
-	_shell_vis.append(_add_box_visual(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5), wall_mat))
-	_add_box_coll(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5))
-	_shell_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0), wall_mat))
-	_add_box_coll(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0))
-	_shell_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0), wall_mat))
-	_add_box_coll(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0))
+	# These three earthen walls are the EXCAVATION liner: they persist as the dirt seen through
+	# the CC glass until a floor caps the CC (see _excavation_vis). Collision stays with the pit
+	# body only while the cold open owns the ground (gated in _process); the CC's own walls take
+	# over once you're inside.
+	#
+	# RIM IS OPEN to jump/drop in (Chapter 0 — "jump into the pit"): the COLLISION tops stop
+	# RIM_OPEN below grade so a hop over the edge clears the lip and drops you in, instead of
+	# landing on a grade-flush ledge. The VISUAL walls stay full height (the dirt looks right);
+	# the shorter collider still contains you against the dirt at the pit floor.
+	var rim_open: float = 2.0
+	var coll_h: float = depth - rim_open                 # collider top sits rim_open below grade
+	var coll_y: float = wall_y - rim_open * 0.5
+	_excavation_vis.append(_add_box_visual(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, half - t * 0.5), wall_mat))
+	_add_box_coll(Vector3(2.0 * half + t, coll_h, t), Vector3(0.0, coll_y, half - t * 0.5))
+	_excavation_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(half - t * 0.5, wall_y, 0.0), wall_mat))
+	_add_box_coll(Vector3(t, coll_h, 2.0 * half + t), Vector3(half - t * 0.5, coll_y, 0.0))
+	_excavation_vis.append(_add_box_visual(Vector3(t, depth, 2.0 * half + t), Vector3(-half + t * 0.5, wall_y, 0.0), wall_mat))
+	_add_box_coll(Vector3(t, coll_h, 2.0 * half + t), Vector3(-half + t * 0.5, coll_y, 0.0))
+	# South (-Z) is the access RAMP during the cold open, so it has no dirt wall then. Once the
+	# CC is poured (built_over) the ramp's gone and you're inside — fill the south with dirt too
+	# so the excavation reads complete on all four sides through the glass. Visual only (the CC's
+	# own south wall handles collision). Gated in _process.
+	_south_fill = _add_box_visual(Vector3(2.0 * half + t, depth, t), Vector3(0.0, wall_y, -half + t * 0.5), wall_mat)
+	_south_fill.visible = false
 
 	# South access ramp: a thin gravel ramp whose TOP SURFACE lands exactly on the slope from
 	# the rim (z=-half, y=0) down to the floor (z=-half+run, y=-depth) — flush with the apron,
@@ -423,15 +526,16 @@ func _build_column() -> void:
 	add_child(_seam)
 	_shell_vis.append(_seam)
 
-	# Column collision: a SHORT cylinder covering only the base (floor up ~3.5 m), set a
-	# touch inside the visual radius. Just enough to stop you walking through the spine —
-	# but low + slim so jumping next to it can't wedge the player against the upper shaft.
+	# Column collision: a SOLID full-height cylinder matching the visual shaft, so the stub is a
+	# real structure in the player's space — you can't walk through it AND you can jump up onto
+	# its cap (top at cy + h/2 ≈ the rise above grade). Radius a hair inside the visual so the
+	# mesh always covers the collider.
 	var cs := CollisionShape3D.new()
 	var cshape := CylinderShape3D.new()
-	cshape.radius = r - 0.25
-	cshape.height = 3.5
+	cshape.radius = r - 0.05
+	cshape.height = h
 	cs.shape = cshape
-	cs.position.y = -depth + 1.75
+	cs.position.y = cy
 	_body.add_child(cs)
 
 
