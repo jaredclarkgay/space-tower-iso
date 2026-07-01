@@ -111,22 +111,38 @@ func _enter() -> void:
 
 
 func _update_driving(delta: float) -> void:
-	# Build mode: the cab is a stationary build station — pin the player in the seat and
-	# offer exit; no drive, no edge plunge. (Chunk 7 adds the "issue a build" action here.)
+	# Build mode (the construction pit): the rig is DRIVABLE like a tractor — camera-relative
+	# WASD moves + turns it around the pit — but clamped to the footprint (no drive-off-the-edge
+	# plunge; that gag was roof-only and is retired). B raises the next floor, E climbs out.
 	if build_mode:
+		var tower: Node = _tower_controller()
+		var building: bool = tower != null and tower.has_method("is_crane_building") and bool(tower.call("is_crane_building"))
+		if not building:
+			# Drive (hold still while a build is actually playing out).
+			var din := Vector2(
+				Input.get_action_strength(&"move_right") - Input.get_action_strength(&"move_left"),
+				Input.get_action_strength(&"move_down") - Input.get_action_strength(&"move_up"))
+			var dyaw: float = _camera_pivot.rotation.y if _camera_pivot else 0.0
+			var wdir := Vector3(din.x * cos(dyaw) + din.y * sin(dyaw), 0.0, -din.x * sin(dyaw) + din.y * cos(dyaw))
+			if wdir.length() > 0.05:
+				position += wdir.normalized() * SPEED * delta
+				_yaw = atan2(wdir.x, wdir.z)
+			rotation.y = lerp_angle(rotation.y, _yaw, TURN_RATE * delta)
+			# Clamp inside the pit footprint (no plunge).
+			var lim: float = float(_c.FLOOR_3D_SIZE) * 0.5 - 2.0
+			position.x = clampf(position.x, -lim, lim)
+			position.z = clampf(position.z, -lim, lim)
+		# The player rides the cab.
 		_player.global_position = _cab_seat.global_position
 		if _player is CharacterBody3D:
 			(_player as CharacterBody3D).velocity = Vector3.ZERO
-		var tower: Node = _tower_controller()
-		var building: bool = tower != null and tower.has_method("is_crane_building") and bool(tower.call("is_crane_building"))
 		var label: String = String(tower.call("next_buildable_label")) if (tower and tower.has_method("next_buildable_label")) else ""
 		if building:
 			_prompt_root.visible = false   # let the build play
 		elif label != "":
-			# A floor is ready to raise: B builds it, E climbs out.
 			_prompt_root.visible = true
 			_prompt_e.text = "B"
-			_prompt_label.text = "Raise " + label + "    ·    E to exit"
+			_prompt_label.text = "Raise " + label + "    ·    WASD drive · E exit"
 			if Input.is_action_just_pressed(&"build_floor") and tower:
 				tower.call("request_crane_build")
 			elif Input.is_action_just_pressed(&"interact"):
@@ -134,7 +150,7 @@ func _update_driving(delta: float) -> void:
 		else:
 			_prompt_root.visible = true
 			_prompt_e.text = "E"
-			_prompt_label.text = "Exit crane"
+			_prompt_label.text = "WASD drive · E exit"
 			if Input.is_action_just_pressed(&"interact"):
 				_exit()
 		return
