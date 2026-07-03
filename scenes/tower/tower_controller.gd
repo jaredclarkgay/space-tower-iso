@@ -555,16 +555,30 @@ func _update_exterior(snap: bool) -> void:
 # above the highest built — gated to what's UNLOCKED. For now only the Control Center
 # (level 0) is unlocked; later events unlock the floors above (Chunk 10 wires
 # utilities-complete -> Garden).
-const _CRANE_UNLOCKED_MAX := 0   # highest level the crane may raise so far (Control Center)
+const _CRANE_UNLOCKED_MAX := 0   # cold-open baseline: only the Control Center (level 0)
+
+# Highest level the crane may raise RIGHT NOW. Structural progression is unlocked one gate at
+# a time by in-world events (Chunk 10c): the cold open unlocks the Control Center (level 0);
+# powering the six utility sources (interiors_unlocked) unlocks the Garden (GROUND_LEVEL = 1).
+func _crane_unlocked_max() -> int:
+	if bool(_gs.get("interiors_unlocked")):
+		return int(_c.GROUND_LEVEL)   # Garden unlocked once the utilities are live
+	return _CRANE_UNLOCKED_MAX
 
 func next_buildable_level() -> int:
 	# Nothing's buildable until you've signed on with a partner (the call that says "go build").
 	if String(_gs.partner_name) == "":
 		return -1
 	var nxt: int = int(_gs.built_level) + 1
-	if nxt <= _CRANE_UNLOCKED_MAX and _floor_node_for_level(nxt) != null:
+	if nxt <= _crane_unlocked_max() and _floor_node_for_level(nxt) != null:
 		return nxt
 	return -1
+
+# True while there's still a floor above the current top built one — the worksite (crane +
+# deck) persists as long as this holds (ConstructionPit._worksite_usable). Independent of the
+# unlock gate: the crane is present WHILE FLOORS REMAIN, even if the next isn't unlocked yet.
+func has_floors_left() -> bool:
+	return _floor_node_for_level(int(_gs.built_level) + 1) != null
 
 func next_buildable_label() -> String:
 	var lvl: int = next_buildable_level()
@@ -1586,6 +1600,14 @@ func _update(snap: bool) -> void:
 		_hud.set_floor(_current_level, _name_for_level(_current_level))
 		if _tel:
 			_tel.record("floor_reached", {"level": _current_level, "name": _name_for_level(_current_level)})
+		# Cody's floor-specific "build it out" invite lands the FIRST time you set foot on the
+		# raised Garden — not at utilities-complete (that's the partner's structural cue). Guarded
+		# once in the director. Structural = partner, floor-specific = Cody (director mouth-split).
+		if _current_level == int(_c.GROUND_LEVEL) and int(_gs.built_level) >= int(_c.GROUND_LEVEL) \
+				and bool(_gs.get("interiors_unlocked")):
+			var gd_arr: Node = get_node_or_null("/root/GameDirector")
+			if gd_arr and gd_arr.has_method("announce_garden_ready"):
+				gd_arr.call("announce_garden_ready")
 	# Camera pivot rises/lowers with the current floor — only in iso mode and
 	# outside dialogue, where the camera owns the pivot pose itself. The arrival
 	# cinematic owns the pivot directly (behind-the-back follow), so skip it then.

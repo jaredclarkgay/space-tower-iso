@@ -104,6 +104,8 @@ var _t: float = 0.0
 # Y is the whole relocation.
 var _worksite: Node3D
 var _worksite_deck: Node3D     # open steel frame (the unfinished-top read); shown once the climb begins
+var _deck_plates: Array = []   # the solid roof-deck panels (the surface the crew ride up on)
+var _worksite_ghosted: bool = false   # roof fades to a ghost while the player is on a floor below it
 var _relocated_level: int = -999
 var _climb_tween: Tween
 
@@ -130,19 +132,60 @@ func _build_earth_surround() -> void:
 	var depth: float = float(_c.PIT_DEPTH)
 	var reach: float = 90.0                            # extends well past the camera view
 	var mat := _mat(_c.PIT_WALL_COLOR.darkened(0.25))  # underground reads a touch darker
-	# Floor of the earth: one big slab UNDER the whole site, its top flush with the pit floor —
-	# fills everything below the excavation so you never see sky straight down.
-	_add_earth_box(earth, Vector3(2.0 * reach, 40.0, 2.0 * reach), Vector3(0.0, -depth - 20.0, 0.0), mat)
-	# Perimeter earth: a frame from grade down to the pit floor, OUTSIDE the footprint, so the
-	# strip of ground just beside the open excavation is dirt, not sky.
-	var strip: float = reach - half
+	# NO EARTH SURFACE MAY BE COPLANAR with existing geometry (B-001 z-fighting flicker). Every
+	# face below is offset a clear margin off the surfaces it sits near:
+	#   grade_cover — perimeter TOP drops below grade (y=0). It's covered by the apron / site-ground
+	#                 plane at y=0, so dropping it introduces no new see-through, and no longer fights
+	#                 the apron across the whole grade.
+	#   slab_drop   — bottom-slab TOP drops below the pit-floor BOTTOM (-depth-0.4), clear of the pit
+	#                 floor top (-depth) it used to fight; the opaque pit floor / CC slab still caps
+	#                 the footprint from above, so nothing shows through.
+	var grade_cover: float = 0.5
+	var slab_drop: float = 0.5
+	# Floor of the earth: one big slab UNDER the whole site, its top a clear margin below the pit
+	# floor — fills everything below the excavation so you never see sky straight down.
+	var slab_top: float = -depth - slab_drop
+	_add_earth_box(earth, Vector3(2.0 * reach, 40.0, 2.0 * reach), Vector3(0.0, slab_top - 20.0, 0.0), mat)
+	# Perimeter earth: a frame OUTSIDE the footprint (top below grade, bottom below the slab top so
+	# they overlap) so the strip of ground beside the open excavation is dirt, not sky. Its inner
+	# edge tucks HALF A WALL INSIDE the footprint edge (±half) so its vertical faces sit buried
+	# behind the excavation dirt walls instead of coplanar with them.
+	var ov: float = 0.3                                # inset behind the excavation walls (t=0.6)
+	var inner: float = half - ov
+	var strip: float = reach - inner
 	if strip > 0.01:
-		var mid: float = (half + reach) * 0.5
-		var wall_y: float = -depth * 0.5
-		_add_earth_box(earth, Vector3(2.0 * reach, depth, strip), Vector3(0.0, wall_y, mid), mat)
-		_add_earth_box(earth, Vector3(2.0 * reach, depth, strip), Vector3(0.0, wall_y, -mid), mat)
-		_add_earth_box(earth, Vector3(strip, depth, 2.0 * half), Vector3(mid, wall_y, 0.0), mat)
-		_add_earth_box(earth, Vector3(strip, depth, 2.0 * half), Vector3(-mid, wall_y, 0.0), mat)
+		var mid: float = (inner + reach) * 0.5
+		var top_y: float = -grade_cover
+		var bot_y: float = slab_top - 0.5             # overlap the bottom slab, no gap
+		var frame_h: float = top_y - bot_y
+		var frame_cy: float = (top_y + bot_y) * 0.5
+		_add_earth_box(earth, Vector3(2.0 * reach, frame_h, strip), Vector3(0.0, frame_cy, mid), mat)
+		_add_earth_box(earth, Vector3(2.0 * reach, frame_h, strip), Vector3(0.0, frame_cy, -mid), mat)
+		_add_earth_box(earth, Vector3(strip, frame_h, 2.0 * inner), Vector3(mid, frame_cy, 0.0), mat)
+		_add_earth_box(earth, Vector3(strip, frame_h, 2.0 * inner), Vector3(-mid, frame_cy, 0.0), mat)
+
+
+# Fade every mesh under the worksite to a faint ghost (or restore it to solid). Each material's
+# original alpha + transparency mode is stashed in meta the first time so the restore is exact
+# (the crane's glass keeps its own alpha, etc.). Called only on the below/above state flip.
+const _GHOST_ALPHA := 0.14
+func _ghost_meshes(node: Node, ghost: bool) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		var m: Material = mi.material_override
+		if m is StandardMaterial3D:
+			var sm := m as StandardMaterial3D
+			if ghost:
+				if not sm.has_meta("solid_a"):
+					sm.set_meta("solid_a", sm.albedo_color.a)
+					sm.set_meta("solid_tmode", int(sm.transparency))
+				sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				var c := sm.albedo_color; c.a = _GHOST_ALPHA; sm.albedo_color = c
+			elif sm.has_meta("solid_a"):
+				var c2 := sm.albedo_color; c2.a = float(sm.get_meta("solid_a")); sm.albedo_color = c2
+				sm.transparency = int(sm.get_meta("solid_tmode")) as BaseMaterial3D.Transparency
+	for child in node.get_children():
+		_ghost_meshes(child, ghost)
 
 
 func _add_earth_box(parent: Node3D, size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> void:
@@ -166,6 +209,10 @@ func _process(delta: float) -> void:
 	# the WORKSITE (crane + workers + steel deck) climbs onto the built floors above.
 	var built_over: bool = int(_gs.built_level) >= 0
 	var exposed: bool = _excavation_exposed()
+	# The worksite OUTLIVES the cold open (Chunk 10c): once the CC is built you climb the crane
+	# to raise each floor above, so it persists while floors remain — driven separately from
+	# _active so persisting it never re-triggers the cold-open swaps (elevator hide / ground swap).
+	var usable: bool = _worksite_usable()
 	visible = true   # node stays renderable for the permanent EarthSurround; sub-parts gate below
 	for m in _shell_vis:
 		if is_instance_valid(m):
@@ -178,12 +225,24 @@ func _process(delta: float) -> void:
 	# South dirt fills in once the ramp is gone (CC poured) and the excavation is still exposed.
 	if _south_fill:
 		_south_fill.visible = exposed and built_over
-	# The grade apron rims the open excavation while it's exposed; the worksite (crane + workers
-	# + deck) belongs to the cold open only — it hides once you're inside.
+	# The grade apron rims the open excavation while it's exposed. The worksite shows during the
+	# cold open (_active) AND after, while it's still needed to raise floors (usable).
 	if _apron:
 		_apron.visible = _active or exposed
 	if _worksite:
-		_worksite.visible = _active
+		_worksite.visible = _active or usable
+		# The roof sits one story above the top built floor. When the player is DOWN on a lower
+		# floor (working it), fade the whole worksite to a faint ghost so it stops occluding /
+		# cluttering the floor below — same idea as the floor-above slabs hiding. It snaps back to
+		# solid once they ride up onto it. (Skip while it's the cold-open pit worksite — _active
+		# with nothing built yet — that's meant to read solid down in the pit.)
+		if _worksite.visible:
+			var pl: Node = get_tree().get_first_node_in_group("player")
+			var below: bool = built_over and pl != null \
+				and (pl as Node3D).global_position.y < _worksite.global_position.y - 1.5
+			if below != _worksite_ghosted:
+				_worksite_ghosted = below
+				_ghost_meshes(_worksite, below)
 	if _body:
 		_body.collision_layer = 2 if (_active and not built_over) else 0
 	if _active and not built_over and _seam_mat:
@@ -200,13 +259,34 @@ func _process(delta: float) -> void:
 		_relocated_level = bl
 		if bl >= 0:
 			relocate_to_level(bl)
+	# The solid roof-deck is HIDDEN while a floor is mid-assembly: during a build the worksite is
+	# held at that floor's plane, so the deck (its top surface) would sit COPLANAR with the slab
+	# materializing there and z-fight (the build-time flicker). Hidden during the build, the crew
+	# read as standing on the real slab; the deck then reveals and lifts off after top-out. Its
+	# resting plane (one story up, on an as-yet-UNBUILT floor) is never coplanar with a slab.
 	if _worksite_deck:
-		_worksite_deck.visible = _active and built_over
+		_worksite_deck.visible = (_active or usable) and built_over and not mid_build
 
 
 func _compute_active() -> bool:
 	var phase: int = int(_gd.current_phase)
 	return phase <= 2 and not bool(_gs.get("constructing")) and not bool(_gs.get("exterior_walk"))
+
+
+# The worksite (crane + workers + steel deck) persists past the cold open WHILE FLOORS REMAIN:
+# once the Control Center is built you climb the crane to raise each floor above. Kept SEPARATE
+# from _active so persisting the worksite never keeps the cold-open swaps on (the elevator-hide
+# in _apply_world_swaps stays gated on _active alone — the entanglement guard). Gated out of the
+# exterior/dollhouse states and the arrival cinematic (those own the world / the frame).
+func _worksite_usable() -> bool:
+	if bool(_gs.get("constructing")) or bool(_gs.get("exterior_walk")) or bool(_gs.get("arrival_cinematic")):
+		return false
+	if int(_gs.built_level) < int(_c.GROUND_LEVEL) - 1:
+		return false   # CC not built yet — the cold open (_active) still owns the worksite
+	var tc: Node = get_tree().get_first_node_in_group("tower_controller")
+	if tc and tc.has_method("has_floors_left"):
+		return bool(tc.call("has_floors_left"))
+	return false
 
 
 # True while the Control Center is still the topmost floor — i.e. no floor has been built ON
@@ -253,7 +333,9 @@ func _apply_world_swaps() -> void:
 		_site_ground = get_tree().get_first_node_in_group("site_ground")
 	if _site_ground and _site_ground.has_method("set_plane_visible"):
 		_site_ground.call("set_plane_visible", not _active)   # reveal the excavation through our apron
-	# Wire the pit crane to the player + camera once they exist, and gate it to the cold open.
+	# Wire the pit crane to the player + camera once they exist. Enabled during the cold open AND
+	# while the worksite is still needed to raise floors (so you can climb it up on the CC).
+	var worksite_on: bool = _active or _worksite_usable()
 	if _crane:
 		if not _crane_setup:
 			var pl: Node = get_tree().get_first_node_in_group("player")
@@ -261,10 +343,10 @@ func _apply_world_swaps() -> void:
 			if pl:
 				_crane.call("setup", pl, pivot, null)
 				_crane_setup = true
-		_crane.set("enabled", _active)
+		_crane.set("enabled", worksite_on)
 	for w in _workers:
 		if is_instance_valid(w):
-			w.set("enabled", _active)
+			w.set("enabled", worksite_on)
 
 
 # --- The climbing worksite: crane + workers + open steel deck, all parented under one node
@@ -322,6 +404,20 @@ func _build_worksite_deck() -> void:
 	var steel := Color(0.38, 0.40, 0.44)
 	var rust := Color(0.52, 0.38, 0.26)
 	var concrete := Color(0.46, 0.46, 0.48)
+
+	# THE ROOF: a solid deck plate the crew + crane stand on — the topmost slab under
+	# construction that rides up (relocate_to_level) and becomes the next floor's base. Built as
+	# four panels around a central shaft hole so the elevator column passes through and you can
+	# see down to the floor below. Its top is flush with local y=0 (the surface the crew stand on).
+	var deck_t: float = 0.22
+	var hole: float = 3.0                              # half-width of the central shaft opening
+	var deck_col := Color(0.33, 0.34, 0.37)            # raw steel/concrete deck
+	var span: float = half - hole
+	var mid: float = (hole + half) * 0.5
+	_deck_plates.append(_deck_box(Vector3(2.0 * half, deck_t, span), Vector3(0, -deck_t * 0.5, mid), deck_col))
+	_deck_plates.append(_deck_box(Vector3(2.0 * half, deck_t, span), Vector3(0, -deck_t * 0.5, -mid), deck_col))
+	_deck_plates.append(_deck_box(Vector3(span, deck_t, 2.0 * hole), Vector3(mid, -deck_t * 0.5, 0), deck_col))
+	_deck_plates.append(_deck_box(Vector3(span, deck_t, 2.0 * hole), Vector3(-mid, -deck_t * 0.5, 0), deck_col))
 	var corners := [
 		Vector3(-half + inset, 0, -half + inset), Vector3(half - inset, 0, -half + inset),
 		Vector3(half - inset, 0, half - inset), Vector3(-half + inset, 0, half - inset),
@@ -359,23 +455,26 @@ func _deck_box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	return m
 
 
-# Ride the apparatus onto the edges of `level` — the top surface of the floor just built, so
-# the next floor assembles in open air above it (Principle 6). World-Y derived from the tower
-# (never hardcoded — invariant #1). Eased so the climb plays as a visible beat; the player,
-# if still in the cab, rides up with it.
+# The worksite IS THE ROOF: it rides onto the TOP of the just-built floor — one story ABOVE its
+# walkable surface (the topmost floor's ceiling, where the NEXT floor assembles). This keeps the
+# crew + crane + materials up on the open construction deck ON TOP of the tower, not cluttering
+# the floor the player just moved into. Climbs one story each time a floor tops out. World-Y is
+# derived from the tower (never hardcoded — invariant #1); eased so the climb plays as a beat and
+# the player rides up with it if still in the cab.
 func relocate_to_level(level: int) -> void:
 	if _worksite == null:
 		return
 	var tc: Node = get_tree().get_first_node_in_group("tower_controller")
-	var top_y: float = -float(_c.PIT_DEPTH)
+	var story: float = float(_c.FLOOR_3D_STORY_HEIGHT)
+	var roof_y: float = -float(_c.PIT_DEPTH) + story
 	if tc and tc.has_method("floor_top_y"):
-		top_y = float(tc.call("floor_top_y", level))
+		roof_y = float(tc.call("floor_top_y", level)) + story   # on top of the built floor, not on it
 	if _worksite_deck:
 		_worksite_deck.visible = true
 	if _climb_tween and _climb_tween.is_valid():
 		_climb_tween.kill()
 	_climb_tween = create_tween()
-	_climb_tween.tween_property(_worksite, "position:y", top_y, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_climb_tween.tween_property(_worksite, "position:y", roof_y, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
 
 # --- Ground apron: the cold-open ground at y=0, framed with a footprint-sized hole so

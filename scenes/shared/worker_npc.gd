@@ -16,6 +16,7 @@ const WALK_SPEED := 1.7
 const INTERACT_RADIUS := 3.0
 const TALK_CLOSE_RADIUS := 5.5      # walk this far from the worker and the chat closes
 const ARRIVE_EPS := 0.4
+const COLUMN_KEEPOUT := 2.4         # PIT_COLUMN_RADIUS (1.7) + body margin — arc around the central column
 
 @onready var _gs: Node = get_node("/root/GameState")
 
@@ -96,12 +97,40 @@ func _run_ai(delta: float) -> void:
 			_ai = AI.IDLE
 			_ai_timer = randf_range(1.5, 4.0)
 		else:
-			var step: Vector3 = to.normalized() * WALK_SPEED * delta
+			# Steer AROUND the central elevator column instead of straight through it.
+			var dir: Vector3 = _avoid_column(to.normalized())
+			var step: Vector3 = dir * WALK_SPEED * delta
 			position += step
-			if _visual:
+			# Hard keep-out: never end a step inside the column footprint.
+			var np := Vector2(position.x, position.z)
+			if np.length() < COLUMN_KEEPOUT:
+				np = (np.normalized() if np.length() > 0.01 else Vector2(1, 0)) * COLUMN_KEEPOUT
+				position.x = np.x
+				position.z = np.y
+			if _visual and step.length() > 0.0001:
 				_visual.rotation.y = lerp_angle(_visual.rotation.y, atan2(step.x, step.z), 8.0 * delta)
 	elif _ai_timer <= 0.0:
 		_pick_wander()
+
+
+# Steer a desired (normalised) heading around the central elevator column: blend in a tangential
+# push as the worker nears it, so they arc around instead of clipping through. Beyond the
+# influence radius the heading is untouched.
+func _avoid_column(dir: Vector3) -> Vector3:
+	var pos2 := Vector2(position.x, position.z)
+	var d: float = pos2.length()
+	var influence: float = COLUMN_KEEPOUT + 2.5
+	if d >= influence:
+		return dir
+	var radial := pos2.normalized() if d > 0.01 else Vector2(1, 0)
+	var tangent := Vector2(-radial.y, radial.x)
+	var heading := Vector2(dir.x, dir.z)
+	if tangent.dot(heading) < 0.0:
+		tangent = -tangent   # go around the side the worker is already heading toward
+	var blend: float = clampf((influence - d) / influence, 0.0, 1.0)
+	var steer := heading * (1.0 - blend) + tangent * blend
+	steer = steer.normalized() if steer.length() > 0.01 else tangent
+	return Vector3(steer.x, 0.0, steer.y)
 
 
 func _pick_wander() -> void:

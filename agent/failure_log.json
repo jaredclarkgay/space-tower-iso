@@ -427,13 +427,28 @@
       "phase": "iteration",
       "date": "2026-06-19",
       "category": "stacked_world_tower",
-      "summary": "Walking up to an elevator shaft on a floor the car had LEFT showed an open doorway straight down the glass column to the cabin parked elsewhere ('the floor disappearing / car below'). Root cause: the shaft's cardinal openings were clear gaps, and the only doors in the design belong to the CAR — they travel with it. So any floor the car wasn't currently resting at had an uncovered hole into the shared shaft.",
+      "summary": "Walking up to an elevator shaft on a floor the car had LEFT showed an open doorway straight down the glass column to the cabin parked elsewhere ('the floor disappearing / car below'). Root cause: the shaft's cardinal openings were clear gaps, and the only doors in the design belong to the CAR \u2014 they travel with it. So any floor the car wasn't currently resting at had an uncovered hole into the shared shaft.",
       "trigger": "Operator screenshot: an open doorway with the elevator cabin visible below on another floor. Surfaced once the car became a single physical body shared across a continuous shaft (Session 15+), not a per-floor prop.",
       "fix": "Give each LANDING its own opaque door, not just the car. FloorChrome.build_elevator_core now builds a landing-door leaf (group 'elevator_landing', meta door_h) filling each cardinal opening, CLOSED by default. elevator_platform._apply_landing_doors() slides open ONLY the landing whose world-y matches the car's rest y (|car_y - landing.global_y| < story/2); every other floor stays shut. Car doors also gated to open only when the car is at the player's floor so a distant car's doors don't flap. Visual-only (no collision); boarding + the ShaftGrate fall-catch untouched.",
       "rule_added": "none (folded into competency stacked_world_tower: shared cross-floor openings need per-LANDING coverage, not per-car)",
       "files_touched": [
         "scenes/shared/floor_chrome.gd",
         "scenes/shared/elevator_platform.gd"
+      ]
+    },
+    {
+      "id": "F-032",
+      "phase": 3,
+      "date": "2026-07-02",
+      "category": "rendering_zfight",
+      "summary": "Build-time flicker when the climbing worksite's new SOLID roof-deck (added this session) sat COPLANAR with the geometry at the plane it was held on: the pit-floor top (y=-6) during the CC build, and each floor's slab as it materialized during that floor's build. Same root cause as B-001 (earth surround coplanar with grade/apron at y=0 and the pit floor at -6): two opaque surfaces at the same depth -> z-fighting. Recurred because the coplanar happens only in a TRANSIENT/held state (the worksite is held at that plane while the floor assembles), not at the deck's final resting position, so an end-state screenshot passes.",
+      "trigger": "Operator playtest 2026-07-02: 'flickering when the ceiling gets built / before it's lifted.' Operator also asked for a durable learning to stop this class of bug recurring.",
+      "fix": "Hide the roof-deck while a floor is mid-assembly: _worksite_deck.visible = (_active or usable) and built_over AND NOT mid_build (mid_build = tower.is_crane_building()). During the build the crew read as standing on the real assembling slab; the deck reveals + lifts off AFTER top-out. Its resting plane is always one story up on an as-yet-UNBUILT floor, so never coplanar with a slab. Verified in the windowed harness by sampling the MID-BUILD state: deck_visible=false while worksite_y=-6.00; deck_visible=true after (worksite climbing).",
+      "rule_added": "rules/godot_zfighting_coplanar.md (new) \u2014 root cause, the transient/held-position trap, prevention checklist (enumerate neighbour planes incl. every plane a moving object holds at; hide/offset/render_priority when coplanarity is forced), and the discipline of verifying MID states not just the end. Indexed in CLAUDE.md.",
+      "files_touched": [
+        "scenes/shared/construction_pit.gd",
+        "agent/rules/godot_zfighting_coplanar.md",
+        "CLAUDE.md"
       ]
     }
   ]

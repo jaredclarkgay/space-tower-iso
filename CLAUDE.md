@@ -98,6 +98,7 @@ Each rule is ~50–100 lines and captures a pattern that took real effort to dis
 |---|---|
 | **Verifying ANY visual/behavioural change by screenshot (the core loop)** | **`rules/godot_screenshot_harness.md`** — windowed harness, capture modes, the grounding + high-fps gotchas |
 | **Adding a floor / vehicle / vertical-traversal method, or ANY cross-floor visual** | **`rules/stacked_tower_invariants.md`** (start here) |
+| **Placing or MOVING any surface near other geometry (z-fighting FLICKER prevention)** | **`rules/godot_zfighting_coplanar.md`** — the recurring coplanar-surface flicker (B-001, roof-deck); check transient/held positions, not just the end state |
 | Walk/run/locomotion in `iso_player.gd` | `rules/godot_locomotion_cycle.md` |
 | Animation poses (kneel / charge / tuck / land) | `rules/animation_pose_alignment.md` |
 | Adding a new `.gd` file referenced by a `.tscn` | `rules/godot_script_uid.md` |

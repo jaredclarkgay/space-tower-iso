@@ -74,6 +74,21 @@ const DIRECTIVES := {
 		"objective": "Pull the master breaker, then bring all six sources online.",
 		"telemetry_beat": "director_beat",
 	},
+	# Utilities complete -> the STRUCTURAL cue to raise the next floor. Voiced by the chosen
+	# PARTNER (the partner owns going UP the tower; Cody owns floor-specific work — the mouth
+	# split). Mirrors partner_intro's "I'll call when the next piece is ready" promise. The
+	# crane persists on the Control Center (ConstructionPit worksite) so "get back on the crane"
+	# means up on the CC deck. Chunk 10c.
+	"partner_raise_garden": {
+		"id": "partner_raise_garden",
+		"speaker": "partner",
+		"lines": [
+			"Control Center's powered — I can see it lit up on the board. Nice work.",
+			"Next piece is ready: the Garden. Get back on the crane and raise it.",
+		],
+		"objective": "Climb the crane and raise the Garden.",
+		"telemetry_beat": "director_beat",
+	},
 	# Gate-lift payoff (floor_population_spec Step 3): power's on, so the Garden can
 	# now be BUILT OUT. This invites PLACEMENT, not planting — planting opens later,
 	# when the floor crosses ALIVE. Closes the ~15s "now what?" gap after the gate.
@@ -190,6 +205,20 @@ func complete_utilities() -> void:
 	if tel:
 		tel.call("record", "utilities_complete", {})
 		tel.call("record", "gate_lifted", {})
+	# STRUCTURAL cue = the partner's voice ("raise the Garden"). Cody's floor-specific build-out
+	# invite (garden_live) waits until the player is actually ON the raised Garden — see
+	# announce_garden_ready, called from the tower controller on Garden arrival. (Mouth split.)
+	issue_directive("partner_raise_garden")
+
+
+# Cody's floor-specific "let's build it out" invite for the Garden. Fired ONCE, the first time
+# the player sets foot on the raised Garden (the tower controller calls this on arrival) — NOT
+# at utilities-complete, which is the partner's structural cue. Guarded so it greets once.
+var _garden_ready_said := false
+func announce_garden_ready() -> void:
+	if _garden_ready_said:
+		return
+	_garden_ready_said = true
 	issue_directive("garden_live")
 
 

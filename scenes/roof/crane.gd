@@ -126,7 +126,9 @@ func _update_driving(delta: float) -> void:
 			var wdir := Vector3(din.x * cos(dyaw) + din.y * sin(dyaw), 0.0, -din.x * sin(dyaw) + din.y * cos(dyaw))
 			if wdir.length() > 0.05:
 				position += wdir.normalized() * SPEED * delta
-				_yaw = atan2(wdir.x, wdir.z)
+				# The cab + boom are the crane's FRONT (they face -Z), so point the front along
+				# travel (+PI) — otherwise the counterweight leads and it looks like it reverses.
+				_yaw = atan2(wdir.x, wdir.z) + PI
 			rotation.y = lerp_angle(rotation.y, _yaw, TURN_RATE * delta)
 			# Clamp inside the pit footprint (no plunge).
 			var lim: float = float(_c.FLOOR_3D_SIZE) * 0.5 - 2.0
@@ -168,7 +170,7 @@ func _update_driving(delta: float) -> void:
 	if world_dir.length() > 0.05:
 		# The Roof has no rotation, so local XZ == world XZ; move in local space.
 		position += world_dir.normalized() * SPEED * delta
-		_yaw = atan2(world_dir.x, world_dir.z)
+		_yaw = atan2(world_dir.x, world_dir.z) + PI   # front (cab/boom, -Z) leads, not the counterweight
 		_last_drive_dir = world_dir.normalized()
 	rotation.y = lerp_angle(rotation.y, _yaw, TURN_RATE * delta)
 

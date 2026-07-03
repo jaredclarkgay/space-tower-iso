@@ -212,6 +212,20 @@ func _floor_node_for_level(level: int) -> Node:
 	return null
 
 
+# True if a corner tube segment exists at `anchor` under this floor node (name-matched,
+# recursive). Lighter than _find_tube_glow — presence only, no glow-meta requirement — so the
+# transit gate holds even on floors whose tubes carry no glow material.
+func _tube_present(node: Node, anchor: Vector3) -> bool:
+	for child in node.get_children():
+		if child is Node3D and child.name == "VacuumTube":
+			var c3 := child as Node3D
+			if Vector2(c3.position.x - anchor.x, c3.position.z - anchor.z).length() < 0.2:
+				return true
+		if _tube_present(child, anchor):
+			return true
+	return false
+
+
 func _find_tube_glow(node: Node, anchor: Vector3) -> StandardMaterial3D:
 	for child in node.get_children():
 		if child is Node3D and child.name == "VacuumTube":
@@ -266,8 +280,19 @@ func _spawn_transit_capsule() -> void:
 	if _state == State.HOPPING or _anchors.is_empty():
 		return
 	var level: int = _player_level()
+	# Only send a capsule where a tube ACTUALLY EXISTS. The capsule is a child of this top-level
+	# node (not the floor), so without this it renders through empty air during the opening — the
+	# floors above aren't built and their tube geometry is hidden. Require the current floor to be
+	# built AND to have a tube at the chosen corner.
+	if int(_gs.get("built_level")) < level:
+		return
+	var floor_node: Node = _floor_node_for_level(level)
+	if floor_node == null:
+		return
 	var idx: int = randi() % _anchors.size()
 	var anchor: Vector3 = _anchors[idx]
+	if not _tube_present(floor_node, anchor):
+		return
 	var base_y: float = _surface_y(level)
 
 	var cap := MeshInstance3D.new()
